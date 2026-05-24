@@ -7,7 +7,6 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import HoldingsPage from './pages/HoldingsPage';
-import PortfolioPage from './pages/PortfolioPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function App() {
@@ -32,14 +31,6 @@ function App() {
           element={
             <ProtectedRoute>
               <HoldingsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.PORTFOLIO}
-          element={
-            <ProtectedRoute>
-              <PortfolioPage />
             </ProtectedRoute>
           }
         />

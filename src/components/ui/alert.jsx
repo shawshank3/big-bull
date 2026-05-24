@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
+import { Button } from './button';
 
 const alertVariants = cva('relative w-full rounded-xl border px-4 py-3 text-sm', {
   variants: {
@@ -21,13 +22,9 @@ const Alert = React.forwardRef(({ className, variant, children, onClose, ...prop
     <div className="flex items-start justify-between gap-4">
       <div>{children}</div>
       {onClose ? (
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md px-1 text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/10"
-        >
+        <Button type="button" variant="ghost" size="sm" onClick={onClose} className="h-7 px-2">
           ✕
-        </button>
+        </Button>
       ) : null}
     </div>
   </div>
