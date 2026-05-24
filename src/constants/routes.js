@@ -4,7 +4,6 @@ export const ROUTES = Object.freeze({
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
   HOLDINGS: '/holdings',
-  PORTFOLIO: '/portfolio',
 });
 
 export default ROUTES;
