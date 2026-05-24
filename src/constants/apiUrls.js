@@ -1,0 +1,29 @@
+/**
+ * API URLs Constants
+ * Defines all backend API endpoints for the application
+ */
+
+export const API_URLS = {
+  AUTH: {
+    REGISTER: '/auth/register',
+    LOGIN: '/auth/login',
+    LOGOUT: '/auth/logout',
+    PROFILE: '/auth/profile',
+  },
+  HOLDINGS: {
+    BASE: '/holdings',
+    MUTUALS: '/holdings/mutuals',
+    STOCKS: '/holdings/stocks',
+    BY_ID: (id) => `/holdings/${id}`,
+  },
+  PORTFOLIO: {
+    SUMMARY: '/holdings/summary',
+    STATS: '/portfolio/stats',
+  },
+  // Kept for backward compatibility with RTK Query apiSlice tests
+  POSTS: {
+    BASE: '/posts',
+  },
+};
+
+export default API_URLS;
