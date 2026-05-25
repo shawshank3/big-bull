@@ -5,6 +5,16 @@
 const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
 const { sendSuccess, sendError } = require('../utils/response');
+const { validateAvatarData } = require('../utils/avatarData');
+
+const formatProfile = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  bio: user.bio,
+  avatar: user.avatar,
+});
 
 // Register
 const register = async (req, res) => {
@@ -91,28 +101,39 @@ const getProfile = async (req, res) => {
       return sendError(res, 'User not found', 404);
     }
 
-    return sendSuccess(res, {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      bio: user.bio,
-      avatar: user.avatar,
-    }, 'Profile retrieved successfully');
+    return sendSuccess(res, formatProfile(user), 'Profile retrieved successfully');
   } catch (error) {
     console.error('Get profile error:', error);
     return sendError(res, error.message || 'Failed to get profile', 500);
   }
 };
 
-// Update Profile
+// Update Profile (partial update via PATCH)
 const updateProfile = async (req, res) => {
   try {
     const { name, phone, bio, avatar } = req.body;
+    const updates = {};
+
+    if (name !== undefined) updates.name = name;
+    if (phone !== undefined) updates.phone = phone;
+    if (bio !== undefined) updates.bio = bio;
+    if (avatar !== undefined) {
+      if (avatar === null || avatar === '') {
+        updates.avatar = null;
+      } else {
+        const { avatar: validAvatar, error } = validateAvatarData(avatar);
+        if (error) return sendError(res, error, 400);
+        updates.avatar = validAvatar;
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return sendError(res, 'No fields to update', 400);
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { name, phone, bio, avatar },
+      updates,
       { new: true, runValidators: true }
     );
 
@@ -120,17 +141,50 @@ const updateProfile = async (req, res) => {
       return sendError(res, 'User not found', 404);
     }
 
-    return sendSuccess(res, {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      bio: user.bio,
-      avatar: user.avatar,
-    }, 'Profile updated successfully');
+    return sendSuccess(res, formatProfile(user), 'Profile updated successfully');
   } catch (error) {
     console.error('Update profile error:', error);
     return sendError(res, error.message || 'Failed to update profile', 500);
+  }
+};
+
+// Save profile photo in DB (base64 data URL)
+const uploadProfileAvatar = async (req, res) => {
+  try {
+    const { avatar } = req.body;
+    const { avatar: validAvatar, error } = validateAvatarData(avatar);
+    if (error) return sendError(res, error, 400);
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    user.avatar = validAvatar;
+    await user.save();
+
+    return sendSuccess(res, formatProfile(user), 'Profile photo updated successfully');
+  } catch (error) {
+    console.error('Upload avatar error:', error);
+    return sendError(res, error.message || 'Failed to upload profile photo', 500);
+  }
+};
+
+// Remove profile photo from DB
+const removeProfileAvatar = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return sendError(res, 'User not found', 404);
+    }
+
+    user.avatar = null;
+    await user.save();
+
+    return sendSuccess(res, formatProfile(user), 'Profile photo removed successfully');
+  } catch (error) {
+    console.error('Remove avatar error:', error);
+    return sendError(res, error.message || 'Failed to remove profile photo', 500);
   }
 };
 
@@ -139,4 +193,6 @@ module.exports = {
   login,
   getProfile,
   updateProfile,
+  uploadProfileAvatar,
+  removeProfileAvatar,
 };

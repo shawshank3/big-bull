@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema({
   },
   avatar: {
     type: String,
-    default: null,
+    default: null, // base64 data URL stored in MongoDB
   },
   createdAt: {
     type: Date,
