@@ -1,220 +1,164 @@
-# BigBull Trading Dashboard - Frontend UI
+# BigBull Trading Dashboard — Frontend
 
-## 📋 Project Structure
+React + Vite SPA for portfolio tracking. Server data is loaded with **RTK Query**; auth session (token) lives in a small Redux slice.
+
+## Project structure
 
 ```
 big-bull-ui/
 ├── src/
+│   ├── api/
+│   │   └── apiSlice.js       # RTK Query: endpoints, cache, generated hooks
 │   ├── components/
-│   │   ├── common/          # Reusable UI components
-│   │   │   ├── Button.jsx
-│   │   │   ├── Input.jsx
-│   │   │   ├── Card.jsx
-│   │   │   ├── Modal.jsx
-│   │   │   ├── Alert.jsx
-│   │   │   ├── Badge.jsx
-│   │   │   └── Table.jsx
-│   │   └── layout/          # Layout components
-│   │       ├── Navbar.jsx
-│   │       ├── Sidebar.jsx
-│   │       └── MainLayout.jsx
-│   ├── pages/               # Page components
-│   │   ├── LoginPage.jsx
-│   │   ├── RegisterPage.jsx
-│   │   ├── DashboardPage.jsx
-│   │   ├── HoldingsPage.jsx
-│   │   ├── PortfolioPage.jsx
-│   │   └── NotFoundPage.jsx
-│   ├── store/               # Redux state management
-│   │   ├── slices/
-│   │   │   ├── authSlice.js
-│   │   │   └── holdingsSlice.js
-│   │   └── store.js
-│   ├── services/            # API services
-│   │   └── api.js
-│   ├── hooks/               # Custom React hooks
-│   │   ├── useAuth.js
-│   │   ├── useHoldings.js
+│   │   ├── common/           # Shared form/UI primitives
+│   │   ├── holdings/         # Holdings-specific UI
+│   │   ├── layout/           # Navbar, MainLayout
+│   │   ├── profile/          # Avatar, profile photo upload
+│   │   └── ui/               # shadcn-style primitives (Button, Card, …)
+│   ├── constants/
+│   │   ├── apiUrls.js        # Backend path constants
+│   │   ├── holdings.js
+│   │   └── routes.js         # React Router paths
+│   ├── hooks/
+│   │   ├── useAuth.js        # Login / register / logout orchestration
+│   │   ├── useThemeMode.js
 │   │   └── ProtectedRoute.jsx
-│   ├── utils/               # Utility functions
-│   │   ├── localStorage.js
-│   │   └── format.js
-│   ├── constants/           # App constants
+│   ├── lib/
+│   │   └── utils.js          # cn() helper (Tailwind class merge)
+│   ├── pages/                # Route-level screens
+│   ├── store/
+│   │   ├── slices/
+│   │   │   └── authSlice.js  # JWT + session flags only (not profile/holdings)
+│   │   └── store.js          # Redux store + RTK Query middleware
+│   ├── theme/                # Light/dark theme persistence
+│   ├── utils/                # Formatting, validation, avatar helpers
 │   ├── App.jsx
 │   └── main.jsx
 ├── index.html
-├── vite.config.js
+├── vite.config.js            # Dev proxy: /api → backend
 ├── tailwind.config.js
-├── postcss.config.js
 ├── .env.example
-├── package.json
-└── README.md
+└── package.json
 ```
 
-## 🚀 Getting Started
+### Where things live
+
+| Concern | Location | Notes |
+|--------|----------|--------|
+| HTTP + cached server data | `src/api/apiSlice.js` | Use exported hooks (`useGetProfileQuery`, …) in UI |
+| Auth token / login state | `src/store/slices/authSlice.js` | Persisted to `localStorage` |
+| API path strings | `src/constants/apiUrls.js` | Used by `apiSlice` only |
+| Route guards | `src/hooks/ProtectedRoute.jsx` | Requires `isAuthenticated` |
+
+There is **no** `services/` layer: RTK Query replaces a separate axios service module.
+
+## Getting started
 
 ### Prerequisites
-- Node.js (v14 or higher)
-- npm or yarn
-- Backend API running on `http://localhost:4000`
 
-### Installation
+- Node.js 18+
+- [big-bull-api](https://github.com/your-org/big-bull-api) running on `http://localhost:4000`
 
-1. **Install dependencies**
-   ```bash
-   cd big-bull-ui
-   npm install
-   ```
+### Install
 
-2. **Configure environment variables**
-   ```bash
-   cp .env.example .env
-   ```
-   Update `.env` with your backend API URL:
-   ```
-   VITE_API_URL=http://localhost:4000/api
-   VITE_APP_NAME=BigBull
-   ```
+```bash
+cd big-bull-ui
+npm install
+cp .env.example .env
+```
 
 ### Development
 
-Start the development server:
 ```bash
 npm run dev
 ```
 
-The application will be available at `http://localhost:5173`
+App: `http://localhost:5173`  
+API requests go to `/api/*` and are proxied to the backend (see `vite.config.js`).
 
-### Production Build
+### Production build
 
-Build for production:
 ```bash
 npm run build
-```
-
-Preview production build:
-```bash
 npm run preview
 ```
 
-## 🎨 Component Architecture
+## API integration (RTK Query)
 
-### Compound Component Pattern
+All backend calls are defined in `apiSlice.js`. Pages and components should read **`data` from RTK hooks**, not duplicate that state in Redux or `localStorage`.
 
-Components are built using the compound component pattern for flexibility and reusability:
+**Auth (mutations + session)**
 
-```jsx
-<Card>
-  <CardHeader>
-    <h2>Title</h2>
-  </CardHeader>
-  <CardBody>
-    Content here
-  </CardBody>
-  <CardFooter>
-    Actions here
-  </CardFooter>
-</Card>
-```
+| Hook | Purpose |
+|------|---------|
+| `useLoginMutation` | Login (via `useAuth`) |
+| `useRegisterMutation` | Register (via `useAuth`) |
 
-### Available Components
+**Profile**
 
-**Common Components:**
-- Button (variants: primary, secondary, danger, outline)
-- Input (with label and validation)
-- Card (with compound parts)
-- Modal (with compound parts)
-- Alert (variants: success, danger, warning, info)
-- Badge (variants: success, danger, warning, info)
-- Table (with compound structure)
+| Hook | Purpose |
+|------|---------|
+| `useGetProfileQuery` | Load current user profile |
+| `useUpdateProfileMutation` | Update name, phone, bio |
+| `useUploadAvatarMutation` / `useRemoveAvatarMutation` | Profile photo |
 
-**Layout Components:**
-- Navbar (top navigation)
-- Sidebar (side menu)
-- MainLayout (main wrapper)
+**Holdings**
 
-## 📱 Pages & Features
+| Hook | Purpose |
+|------|---------|
+| `useGetHoldingsQuery` | All holdings (dashboard) |
+| `useGetMutualHoldingsQuery` / `useGetStockHoldingsQuery` | Tabbed holdings page |
+| `useCreateHoldingMutation` / `useUpdateHoldingMutation` / `useDeleteHoldingMutation` | CRUD |
 
-### Authentication Pages
-- **Login Page** - User login with email/password
-- **Register Page** - New user registration
+Cache tags: `Profile`, `Holdings`. On login, register, or logout, the store resets RTK Query cache so a new user never sees the previous session’s data.
 
-### Protected Pages (require login)
-- **Dashboard** - Portfolio overview and statistics
-- **Holdings** - View and manage all holdings
-- **Portfolio** - Asset allocation and performance analysis
+## State management
 
-## 🔐 State Management (Redux)
+**Auth slice** — session only:
 
-**Auth Slice:**
-- User information
-- JWT token
-- Authentication state
-- Login/Register/Logout actions
+- `token`, `user` (minimal fields from login response), `isAuthenticated`
+- Actions: `loginSuccess`, `registerSuccess`, `logout`
+- `useAuth` hook wraps RTK mutations and dispatches these actions
 
-**Holdings Slice:**
-- Holdings list
-- Filter and sort options
-- Holdings operations
+**RTK Query (`api` reducer)** — server data:
 
-## 🌐 API Integration
+- Profile, holdings, and related responses
+- Automatic loading/error flags on hooks (`isLoading`, `error`, …)
 
-**Available API methods:**
-- `authAPI.register(data)`
-- `authAPI.login(data)`
-- `authAPI.getProfile()`
-- `holdingsAPI.getAll()`
-- `holdingsAPI.getMutuals()`
-- `holdingsAPI.getStocks()`
-- `portfolioAPI.getSummary()`
+## Pages
 
-## 📊 Custom Hooks
+| Route | Page | Data source |
+|-------|------|-------------|
+| `/login` | LoginPage | `useAuth` |
+| `/register` | RegisterPage | `useAuth` |
+| `/dashboard` | DashboardPage | `useGetHoldingsQuery` |
+| `/holdings` | HoldingsPage | `useGetMutualHoldingsQuery`, `useGetStockHoldingsQuery` |
+| `/profile` | ProfilePage | `useGetProfileQuery` |
 
-**useAuth:** Handle authentication operations
-```javascript
-const { user, isLoading, login, register, logout } = useAuth();
-```
-
-**useHoldings:** Manage holdings operations
-```javascript
-const { holdings, isLoading, fetchHoldings, addHolding } = useHoldings();
-```
-
-## 🎨 Styling
-
-- Tailwind CSS for utility-first styling
-- Custom component classes in `src/main.css`
-- Responsive design
-- Custom color palette (primary, secondary, danger, etc.)
-
-## 🚀 Features
-
-✅ Modern React with Vite
-✅ Tailwind CSS for styling
-✅ Redux Toolkit for state management
-✅ React Router for navigation
-✅ Compound component pattern
-✅ Custom hooks for reusability
-✅ JWT authentication
-✅ Form validation
-✅ Responsive design
-✅ Error handling
-
-## 📦 Dependencies
-
-- react, react-dom, react-router-dom
-- @reduxjs/toolkit, react-redux
-- axios, js-cookie
-- tailwindcss, postcss, autoprefixer
-
-## 🔌 Environment Variables
+## Environment variables
 
 | Variable | Description |
 |----------|-------------|
-| VITE_API_URL | Backend API base URL |
-| VITE_APP_NAME | Application name |
+| `VITE_APP_NAME` | App display name (optional) |
+| `VITE_API_URL` | Documented for deployments; dev uses Vite proxy (`/api` → `localhost:4000`) |
 
-## 📄 License
+## Dependencies
 
-MIT License
+- **react**, **react-router-dom** — UI and routing
+- **@reduxjs/toolkit**, **react-redux** — Redux + RTK Query
+- **react-hook-form** — Profile form
+- **tailwindcss** — Styling
+- **@radix-ui/***, **lucide-react** — Accessible UI primitives
 
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server |
+| `npm run build` | Production build |
+| `npm run preview` | Preview production build |
+| `npm run lint` | ESLint |
+
+## License
+
+MIT

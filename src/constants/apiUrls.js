@@ -9,6 +9,7 @@ export const API_URLS = {
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
     PROFILE: '/auth/profile',
+    PROFILE_AVATAR: '/auth/profile/avatar',
   },
   HOLDINGS: {
     BASE: '/holdings',
@@ -19,10 +20,6 @@ export const API_URLS = {
   PORTFOLIO: {
     SUMMARY: '/holdings/summary',
     STATS: '/portfolio/stats',
-  },
-  // Kept for backward compatibility with RTK Query apiSlice tests
-  POSTS: {
-    BASE: '/posts',
   },
 };
 

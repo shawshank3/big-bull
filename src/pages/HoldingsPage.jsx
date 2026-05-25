@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { useSelector } from 'react-redux';
 import { Alert, Card, CardContent, Tabs, TabsContent, TabsList, TabsTrigger } from '../components/common';
 import { MainLayout } from '../components/layout/MainLayout';
 import { HoldingsTable } from '../components/holdings';
 import { Spinner } from '../components/ui/spinner';
 import { PageDescription, PageTitle } from '../components/ui/typography';
-import { useGetMutualHoldingsQuery, useGetStockHoldingsQuery } from '../features/api/apiSlice';
+import { useGetMutualHoldingsQuery, useGetStockHoldingsQuery } from '../api/apiSlice';
 import { HOLDING_TABS, HOLDING_TYPES } from '../constants/holdings';
 
 const HoldingsTabPanel = ({ query, holdings }) => {
@@ -25,9 +26,14 @@ const HoldingsTabPanel = ({ query, holdings }) => {
 
 export const HoldingsPage = () => {
   const [activeTab, setActiveTab] = useState(HOLDING_TYPES.MUTUAL);
+  const { isAuthenticated } = useSelector((state) => state.auth);
 
-  const mutualQuery = useGetMutualHoldingsQuery(undefined, { skip: activeTab !== HOLDING_TYPES.MUTUAL });
-  const stockQuery = useGetStockHoldingsQuery(undefined, { skip: activeTab !== HOLDING_TYPES.STOCK });
+  const mutualQuery = useGetMutualHoldingsQuery(undefined, {
+    skip: !isAuthenticated || activeTab !== HOLDING_TYPES.MUTUAL,
+  });
+  const stockQuery = useGetStockHoldingsQuery(undefined, {
+    skip: !isAuthenticated || activeTab !== HOLDING_TYPES.STOCK,
+  });
 
   return (
     <MainLayout>

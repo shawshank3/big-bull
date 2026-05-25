@@ -1,10 +1,11 @@
+import { useSelector } from 'react-redux';
 import { Alert, Badge, Card, CardContent, Tabs, TabsContent, TabsList, TabsTrigger } from '../components/common';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Progress } from '../components/ui/progress';
 import { Spinner } from '../components/ui/spinner';
 import { MutedText, PageDescription, PageTitle, SectionTitle, StatValue } from '../components/ui/typography';
 import { HOLDING_TABS, HOLDING_TYPES } from '../constants/holdings';
-import { useGetHoldingsQuery } from '../features/api/apiSlice';
+import { useGetHoldingsQuery } from '../api/apiSlice';
 import { formatCurrency, formatPercentage } from '../utils/format';
 import { getAllocation, getPortfolioSummary } from '../utils/portfolio';
 
@@ -14,7 +15,10 @@ const allocationRows = [
 ];
 
 export const DashboardPage = () => {
-  const { data: holdings = [], isLoading, error } = useGetHoldingsQuery();
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { data: holdings = [], isLoading, error } = useGetHoldingsQuery(undefined, {
+    skip: !isAuthenticated,
+  });
   const summary = getPortfolioSummary(holdings);
   const allocation = getAllocation(holdings);
 

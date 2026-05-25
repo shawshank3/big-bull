@@ -2,7 +2,8 @@ import { Input as UiInput } from '../ui/input';
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
 
-export const Input = ({
+export function Input({
+  ref,
   label,
   error,
   disabled = false,
@@ -10,13 +11,14 @@ export const Input = ({
   id,
   name,
   ...props
-}) => {
+}) {
   const inputId = id || name;
 
   return (
     <div className={cn('space-y-2', className)}>
       {label ? <Label htmlFor={inputId}>{label}</Label> : null}
       <UiInput
+        ref={ref}
         id={inputId}
         name={name}
         disabled={disabled}
@@ -27,6 +29,6 @@ export const Input = ({
       {error ? <p className="text-sm text-danger">{error}</p> : null}
     </div>
   );
-};
+}
 
 export default Input;

@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
-import { API_URLS } from '../../constants/apiUrls'
-import { getFromLocalStorage } from '../../utils/localStorage'
+import { API_URLS } from '../constants/apiUrls'
+import { getFromLocalStorage } from '../utils/localStorage'
 
 export const apiSlice = createApi({
   reducerPath: 'api',
@@ -14,7 +14,7 @@ export const apiSlice = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Holdings'],
+  tagTypes: ['Holdings', 'Profile'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -32,9 +32,36 @@ export const apiSlice = createApi({
       }),
       transformResponse: (response) => response?.data ?? response,
     }),
-    getPosts: builder.query({ query: () => API_URLS.POSTS.BASE }),
-    createPost: builder.mutation({
-      query: (newPost) => ({ url: API_URLS.POSTS.BASE, method: 'POST', body: newPost }),
+    getProfile: builder.query({
+      query: () => API_URLS.AUTH.PROFILE,
+      transformResponse: (response) => response?.data ?? response,
+      providesTags: ['Profile'],
+    }),
+    updateProfile: builder.mutation({
+      query: (profileData) => ({
+        url: API_URLS.AUTH.PROFILE,
+        method: 'PATCH',
+        body: profileData,
+      }),
+      transformResponse: (response) => response?.data ?? response,
+      invalidatesTags: ['Profile'],
+    }),
+    uploadAvatar: builder.mutation({
+      query: (body) => ({
+        url: API_URLS.AUTH.PROFILE_AVATAR,
+        method: 'POST',
+        body,
+      }),
+      transformResponse: (response) => response?.data ?? response,
+      invalidatesTags: ['Profile'],
+    }),
+    removeAvatar: builder.mutation({
+      query: () => ({
+        url: API_URLS.AUTH.PROFILE_AVATAR,
+        method: 'DELETE',
+      }),
+      transformResponse: (response) => response?.data ?? response,
+      invalidatesTags: ['Profile'],
     }),
     getHoldings: builder.query({
       query: () => API_URLS.HOLDINGS.BASE,
@@ -72,8 +99,10 @@ export const apiSlice = createApi({
 export const {
   useLoginMutation,
   useRegisterMutation,
-  useGetPostsQuery,
-  useCreatePostMutation,
+  useGetProfileQuery,
+  useUpdateProfileMutation,
+  useUploadAvatarMutation,
+  useRemoveAvatarMutation,
   useGetHoldingsQuery,
   useGetMutualHoldingsQuery,
   useGetStockHoldingsQuery,
