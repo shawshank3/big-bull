@@ -2,9 +2,25 @@
  * Store Configuration
  * Redux store setup with all slices
  */
-import { configureStore } from '@reduxjs/toolkit';
-import authReducer from './slices/authSlice';
-import { apiSlice } from '../features/api/apiSlice';
+import { configureStore, createListenerMiddleware } from '@reduxjs/toolkit';
+import authReducer, {
+  loginSuccess,
+  logout,
+  registerSuccess,
+} from './slices/authSlice';
+import { apiSlice } from '../api/apiSlice';
+
+const listenerMiddleware = createListenerMiddleware();
+
+listenerMiddleware.startListening({
+  matcher: (action) =>
+    logout.match(action) ||
+    loginSuccess.match(action) ||
+    registerSuccess.match(action),
+  effect: async (_action, listenerApi) => {
+    listenerApi.dispatch(apiSlice.util.resetApiState());
+  },
+});
 
 export const store = configureStore({
   reducer: {
@@ -12,7 +28,9 @@ export const store = configureStore({
     [apiSlice.reducerPath]: apiSlice.reducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(apiSlice.middleware),
+    getDefaultMiddleware()
+      .concat(listenerMiddleware.middleware)
+      .concat(apiSlice.middleware),
 });
 
 export default store;

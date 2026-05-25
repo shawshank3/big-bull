@@ -13,7 +13,7 @@ import {
   registerFailure,
   logout as logoutAction,
 } from '../store/slices/authSlice';
-import { useLoginMutation, useRegisterMutation } from '../features/api/apiSlice';
+import { useLoginMutation, useRegisterMutation } from '../api/apiSlice';
 
 export const useAuth = () => {
   const dispatch = useDispatch();

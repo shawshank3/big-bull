@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../../store/slices/authSlice';
 import { ROUTES } from '../../constants/routes';
+import { useGetProfileQuery } from '../../api/apiSlice';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { Button } from '../ui/button';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { UserAvatar } from '../profile/UserAvatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,10 +23,11 @@ const navItems = [
 export const Navbar = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { data: profile } = useGetProfileQuery(undefined, {
+    skip: !isAuthenticated,
+  });
   const { themeMode, toggleThemeMode } = useThemeMode();
-
-  const userInitial = useMemo(() => user?.name?.[0]?.toUpperCase() || 'U', [user]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -64,22 +65,23 @@ export const Navbar = () => {
             {themeMode === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </Button>
 
-          {user ? (
+          {isAuthenticated && profile ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-auto gap-2 px-2 py-1.5">
-                  <Avatar className="h-9 w-9">
-                    <AvatarFallback>{userInitial}</AvatarFallback>
-                  </Avatar>
-                  <span className="hidden text-sm font-semibold sm:inline">{user.name}</span>
+                  <UserAvatar name={profile.name} avatar={profile.avatar} />
+                  <span className="hidden text-sm font-semibold sm:inline">{profile.name}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel className="font-normal">
-                  <p className="text-sm font-semibold text-foreground">{user.name}</p>
-                  <p className="text-xs font-medium text-muted">{user.email}</p>
+                  <p className="text-sm font-semibold text-foreground">{profile.name}</p>
+                  <p className="text-xs font-medium text-muted">{profile.email}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to={ROUTES.PROFILE}>Profile</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
