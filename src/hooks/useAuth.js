@@ -13,13 +13,14 @@ import {
   registerFailure,
   logout as logoutAction,
 } from '../store/slices/authSlice';
-import { useLoginMutation, useRegisterMutation } from '../api/apiSlice';
+import { useLoginMutation, useRegisterMutation, useLogoutMutation } from '../api/apiSlice';
 
 export const useAuth = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [loginMutation, { isLoading: isLoginLoading }] = useLoginMutation();
   const [registerMutation, { isLoading: isRegisterLoading }] = useRegisterMutation();
+  const [logoutMutation] = useLogoutMutation();
   const { user, token, error, isAuthenticated } = useSelector((state) => state.auth);
 
   const login = async (email, password) => {
@@ -50,9 +51,15 @@ export const useAuth = () => {
     }
   };
 
-  const logout = () => {
-    dispatch(logoutAction());
-    navigate('/login');
+  const logout = async () => {
+    try {
+      await logoutMutation().unwrap();
+    } catch {
+      // Proceed with client-side logout even if server call fails
+    } finally {
+      dispatch(logoutAction());
+      navigate('/login');
+    }
   };
 
   return {

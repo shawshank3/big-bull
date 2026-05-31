@@ -1,19 +1,90 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import { API_URLS } from '../constants/apiUrls'
 import { getFromLocalStorage } from '../utils/localStorage'
+import { tokenRefreshed, logout } from '../store/slices/authSlice'
+
+const AUTH_SKIP_PATHS = [
+  API_URLS.AUTH.LOGIN,
+  API_URLS.AUTH.REGISTER,
+  API_URLS.AUTH.REFRESH,
+]
+
+const isAuthSkipPath = (url) =>
+  AUTH_SKIP_PATHS.some((path) => url?.includes(path))
+
+const baseQuery = fetchBaseQuery({
+  baseUrl: '/api',
+  prepareHeaders: (headers, { getState }) => {
+    const token = getState().auth?.token || getFromLocalStorage('token')
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`)
+    }
+    return headers
+  },
+})
+
+let refreshPromise = null
+
+const refreshAccessToken = async (api, extraOptions) => {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const refreshToken =
+          api.getState().auth?.refreshToken || getFromLocalStorage('refreshToken')
+
+        if (!refreshToken) {
+          return false
+        }
+
+        const refreshResult = await baseQuery(
+          {
+            url: API_URLS.AUTH.REFRESH,
+            method: 'POST',
+            body: { refreshToken },
+          },
+          api,
+          extraOptions
+        )
+
+        if (refreshResult.data) {
+          const data = refreshResult.data?.data ?? refreshResult.data
+          api.dispatch(tokenRefreshed(data))
+          return true
+        }
+
+        return false
+      } finally {
+        refreshPromise = null
+      }
+    })()
+  }
+
+  return refreshPromise
+}
+
+const baseQueryWithReauth = async (args, api, extraOptions) => {
+  let result = await baseQuery(args, api, extraOptions)
+
+  if (result.error?.status === 401) {
+    const url = typeof args === 'string' ? args : args?.url
+
+    if (!isAuthSkipPath(url)) {
+      const refreshed = await refreshAccessToken(api, extraOptions)
+
+      if (refreshed) {
+        result = await baseQuery(args, api, extraOptions)
+      } else {
+        api.dispatch(logout())
+      }
+    }
+  }
+
+  return result
+}
 
 export const apiSlice = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({
-    baseUrl: '/api',
-    prepareHeaders: (headers, { getState }) => {
-      const token = getState().auth?.token || getFromLocalStorage('token');
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Holdings', 'Profile'],
   endpoints: (builder) => ({
     login: builder.mutation({
@@ -31,6 +102,12 @@ export const apiSlice = createApi({
         body: userData,
       }),
       transformResponse: (response) => response?.data ?? response,
+    }),
+    logout: builder.mutation({
+      query: () => ({
+        url: API_URLS.AUTH.LOGOUT,
+        method: 'POST',
+      }),
     }),
     getProfile: builder.query({
       query: () => API_URLS.AUTH.PROFILE,
@@ -99,6 +176,7 @@ export const apiSlice = createApi({
 export const {
   useLoginMutation,
   useRegisterMutation,
+  useLogoutMutation,
   useGetProfileQuery,
   useUpdateProfileMutation,
   useUploadAvatarMutation,

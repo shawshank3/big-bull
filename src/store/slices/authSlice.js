@@ -8,29 +8,46 @@ import { getFromLocalStorage, saveToLocalStorage, removeFromLocalStorage } from 
 const initialState = {
   user: getFromLocalStorage('user'),
   token: getFromLocalStorage('token'),
+  refreshToken: getFromLocalStorage('refreshToken'),
   isLoading: false,
   error: null,
   isAuthenticated: !!getFromLocalStorage('token'),
+};
+
+const persistAuth = (state) => {
+  saveToLocalStorage('user', state.user);
+  saveToLocalStorage('token', state.token);
+  saveToLocalStorage('refreshToken', state.refreshToken);
+};
+
+const clearAuth = (state) => {
+  state.user = null;
+  state.token = null;
+  state.refreshToken = null;
+  state.isAuthenticated = false;
+  state.error = null;
+  removeFromLocalStorage('user');
+  removeFromLocalStorage('token');
+  removeFromLocalStorage('refreshToken');
 };
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    // Login
     loginStart: (state) => {
       state.isLoading = true;
       state.error = null;
     },
     loginSuccess: (state, action) => {
-      const { user, token } = action.payload;
+      const { user, token, refreshToken } = action.payload;
       state.user = user;
       state.token = token;
+      state.refreshToken = refreshToken;
       state.isAuthenticated = true;
       state.isLoading = false;
       state.error = null;
-      saveToLocalStorage('user', user);
-      saveToLocalStorage('token', token);
+      persistAuth(state);
     },
     loginFailure: (state, action) => {
       state.isLoading = false;
@@ -38,37 +55,39 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
     },
 
-    // Register
     registerStart: (state) => {
       state.isLoading = true;
       state.error = null;
     },
     registerSuccess: (state, action) => {
-      const { user, token } = action.payload;
+      const { user, token, refreshToken } = action.payload;
       state.user = user;
       state.token = token;
+      state.refreshToken = refreshToken;
       state.isAuthenticated = true;
       state.isLoading = false;
       state.error = null;
-      saveToLocalStorage('user', user);
-      saveToLocalStorage('token', token);
+      persistAuth(state);
     },
     registerFailure: (state, action) => {
       state.isLoading = false;
       state.error = action.payload;
     },
 
-    // Logout
-    logout: (state) => {
-      state.user = null;
-      state.token = null;
-      state.isAuthenticated = false;
-      state.error = null;
-      removeFromLocalStorage('user');
-      removeFromLocalStorage('token');
+    tokenRefreshed: (state, action) => {
+      const { token, refreshToken } = action.payload;
+      state.token = token;
+      if (refreshToken) {
+        state.refreshToken = refreshToken;
+      }
+      state.isAuthenticated = true;
+      persistAuth(state);
     },
 
-    // Clear Error
+    logout: (state) => {
+      clearAuth(state);
+    },
+
     clearError: (state) => {
       state.error = null;
     },
@@ -82,6 +101,7 @@ export const {
   registerStart,
   registerSuccess,
   registerFailure,
+  tokenRefreshed,
   logout,
   clearError,
 } = authSlice.actions;

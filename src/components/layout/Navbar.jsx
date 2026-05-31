@@ -1,8 +1,8 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../../store/slices/authSlice';
+import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { ROUTES } from '../../constants/routes';
 import { useGetProfileQuery } from '../../api/apiSlice';
+import { useAuth } from '../../hooks/useAuth';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { Button } from '../ui/button';
 import { UserAvatar } from '../profile/UserAvatar';
@@ -21,17 +21,15 @@ const navItems = [
 ];
 
 export const Navbar = () => {
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const { logout } = useAuth();
   const { data: profile } = useGetProfileQuery(undefined, {
     skip: !isAuthenticated,
   });
   const { themeMode, toggleThemeMode } = useThemeMode();
 
   const handleLogout = () => {
-    dispatch(logout());
-    navigate(ROUTES.LOGIN);
+    logout();
   };
 
   return (
