@@ -2,10 +2,33 @@
  * Auth Controller
  * Handles authentication logic
  */
+const crypto = require('crypto');
 const User = require('../models/User');
-const { generateToken } = require('../utils/jwt');
+const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { sendSuccess, sendError } = require('../utils/response');
 const { validateAvatarData } = require('../utils/avatarData');
+
+const hashToken = (token) =>
+  crypto.createHash('sha256').update(token).digest('hex');
+
+const issueAuthTokens = async (user) => {
+  const token = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  user.refreshToken = hashToken(refreshToken);
+  await user.save({ validateBeforeSave: false });
+
+  return { token, refreshToken };
+};
+
+const formatAuthResponse = (user, tokens) => ({
+  ...tokens,
+  user: {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+  },
+});
 
 const formatProfile = (user) => ({
   id: user._id,
@@ -35,18 +58,9 @@ const register = async (req, res) => {
     // Create new user
     const user = await User.create({ name, email, password });
 
-    // Generate token
-    const token = generateToken(user);
+    const tokens = await issueAuthTokens(user);
 
-    // Return success response
-    return sendSuccess(res, {
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-      },
-    }, 'Registration successful', 201);
+    return sendSuccess(res, formatAuthResponse(user, tokens), 'Registration successful', 201);
   } catch (error) {
     console.error('Registration error:', error);
     return sendError(res, error.message || 'Registration failed', 500);
@@ -75,21 +89,63 @@ const login = async (req, res) => {
       return sendError(res, 'Invalid email or password', 401);
     }
 
-    // Generate token
-    const token = generateToken(user);
+    const tokens = await issueAuthTokens(user);
 
-    // Return success response
-    return sendSuccess(res, {
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-      },
-    }, 'Login successful');
+    return sendSuccess(res, formatAuthResponse(user, tokens), 'Login successful');
   } catch (error) {
     console.error('Login error:', error);
     return sendError(res, error.message || 'Login failed', 500);
+  }
+};
+
+// Refresh access token using refresh token
+const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken: incomingRefreshToken } = req.body;
+
+    if (!incomingRefreshToken) {
+      return sendError(res, 'Refresh token is required', 400);
+    }
+
+    let decoded;
+    try {
+      decoded = verifyRefreshToken(incomingRefreshToken);
+    } catch {
+      return sendError(res, 'Invalid or expired refresh token', 401);
+    }
+
+    const user = await User.findById(decoded.id).select('+refreshToken');
+    if (!user || !user.refreshToken) {
+      return sendError(res, 'Invalid refresh token', 401);
+    }
+
+    const incomingHash = hashToken(incomingRefreshToken);
+    if (user.refreshToken !== incomingHash) {
+      return sendError(res, 'Invalid refresh token', 401);
+    }
+
+    const tokens = await issueAuthTokens(user);
+
+    return sendSuccess(res, tokens, 'Token refreshed successfully');
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    return sendError(res, error.message || 'Failed to refresh token', 500);
+  }
+};
+
+// Logout — invalidate refresh token
+const logout = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('+refreshToken');
+    if (user) {
+      user.refreshToken = null;
+      await user.save({ validateBeforeSave: false });
+    }
+
+    return sendSuccess(res, null, 'Logged out successfully');
+  } catch (error) {
+    console.error('Logout error:', error);
+    return sendError(res, error.message || 'Logout failed', 500);
   }
 };
 
@@ -191,6 +247,8 @@ const removeProfileAvatar = async (req, res) => {
 module.exports = {
   register,
   login,
+  refreshToken,
+  logout,
   getProfile,
   updateProfile,
   uploadProfileAvatar,
