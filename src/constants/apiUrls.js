@@ -8,6 +8,7 @@ export const API_URLS = {
     REGISTER: '/auth/register',
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
+    REFRESH: '/auth/refresh',
     PROFILE: '/auth/profile',
     PROFILE_AVATAR: '/auth/profile/avatar',
   },
