@@ -6,6 +6,8 @@ const express = require('express');
 const {
   register,
   login,
+  refreshToken,
+  logout,
   getProfile,
   updateProfile,
   uploadProfileAvatar,
@@ -18,8 +20,10 @@ const router = express.Router();
 // Public routes
 router.post('/register', register);
 router.post('/login', login);
+router.post('/refresh', refreshToken);
 
 // Protected routes
+router.post('/logout', authMiddleware, logout);
 router.get('/profile', authMiddleware, getProfile);
 router.patch('/profile', authMiddleware, updateProfile);
 router.post('/profile/avatar', authMiddleware, uploadProfileAvatar);

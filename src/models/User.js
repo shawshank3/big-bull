@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null, // base64 data URL stored in MongoDB
   },
+  refreshToken: {
+    type: String,
+    select: false,
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
