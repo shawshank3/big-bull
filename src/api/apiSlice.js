@@ -170,6 +170,14 @@ export const apiSlice = createApi({
       transformResponse: (response) => response?.data,
       invalidatesTags: ['Holdings'],
     }),
+    sendChatMessage: builder.mutation({
+      query: (message) => ({
+        url: API_URLS.CHAT.BASE,
+        method: 'POST',
+        body: { message },
+      }),
+      transformResponse: (response) => response?.data ?? response,
+    }),
   }),
 })
 
@@ -187,4 +195,5 @@ export const {
   useCreateHoldingMutation,
   useUpdateHoldingMutation,
   useDeleteHoldingMutation,
+  useSendChatMessageMutation,
 } = apiSlice

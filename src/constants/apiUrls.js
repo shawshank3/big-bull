@@ -22,6 +22,9 @@ export const API_URLS = {
     SUMMARY: '/holdings/summary',
     STATS: '/portfolio/stats',
   },
+  CHAT: {
+    BASE: '/chat',
+  },
 };
 
 export default API_URLS;

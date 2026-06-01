@@ -1,5 +1,6 @@
 import { useSelector } from 'react-redux';
 import { Alert, Badge, Card, CardContent, Tabs, TabsContent, TabsList, TabsTrigger } from '../components/common';
+import { FloatingChatbot } from '../components/chat';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Progress } from '../components/ui/progress';
 import { Spinner } from '../components/ui/spinner';
@@ -131,6 +132,7 @@ export const DashboardPage = () => {
           </Card>
         )}
       </div>
+      <FloatingChatbot />
     </MainLayout>
   );
 };
