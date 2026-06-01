@@ -8,6 +8,7 @@ const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const holdingsRoutes = require('./routes/holdingsRoutes');
 const portfolioRoutes = require('./routes/portfolioRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -44,6 +45,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/holdings', holdingsRoutes);
 app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/chat', chatRoutes);
 
 // 404 handler
 app.use((req, res) => {
