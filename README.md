@@ -1,103 +1,120 @@
-# BigBull Trading Dashboard - Backend API
+# BigBull Trading Dashboard — Backend API
 
-## 📋 Project Structure
+Node.js + Express REST API for portfolio tracking, user auth, and an AI assistant powered by Google Gemini.
+
+## Project structure
 
 ```
 big-bull-api/
 ├── src/
-│   ├── config/          # Configuration files
-│   │   └── database.js  # MongoDB connection
-│   ├── controllers/     # Business logic
+│   ├── config/
+│   │   ├── database.js      # MongoDB connection
+│   │   └── chat.js          # Gemini model, system prompt, generation settings
+│   ├── controllers/
 │   │   ├── authController.js
-│   │   └── holdingsController.js
-│   ├── middleware/      # Express middleware
+│   │   ├── holdingsController.js
+│   │   └── chatController.js
+│   ├── middleware/
 │   │   ├── authMiddleware.js
 │   │   └── errorHandler.js
-│   ├── models/          # MongoDB schemas
+│   ├── models/
 │   │   ├── User.js
 │   │   ├── Holding.js
 │   │   └── Watchlist.js
-│   ├── routes/          # API routes
+│   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── holdingsRoutes.js
-│   │   └── portfolioRoutes.js
-│   ├── utils/           # Utility functions
+│   │   ├── portfolioRoutes.js
+│   │   └── chatRoutes.js
+│   ├── services/
+│   │   └── chatService.js   # Portfolio context + Gemini API calls
+│   ├── utils/
 │   │   ├── jwt.js
-│   │   └── response.js
-│   └── server.js        # Express app setup
+│   │   ├── response.js
+│   │   └── avatarData.js
+│   └── server.js
 ├── scripts/
-│   └── seed.js          # Database seeding
-├── .env                 # Environment variables (local)
-├── .env.example         # Environment template
-├── index.js             # Server entry point
-└── package.json         # Dependencies
+│   └── seed.js
+├── .env.example
+├── index.js                 # Server entry + graceful shutdown
+└── package.json
 ```
 
-## 🚀 Getting Started
+## Getting started
 
 ### Prerequisites
-- Node.js (v14 or higher)
-- MongoDB (local or MongoDB Atlas)
-- npm or yarn
+
+- Node.js 18+
+- MongoDB (local or Atlas)
+- [Google AI Studio API key](https://aistudio.google.com/apikey) (required for chat)
 
 ### Installation
 
-1. **Install dependencies**
-   ```bash
-   cd big-bull-api
-   npm install
-   ```
-
-2. **Configure environment variables**
-   ```bash
-   cp .env.example .env
-   ```
-   Update `.env` with your configuration:
-   ```
-   PORT=4000
-   NODE_ENV=development
-   MONGO_URI=mongodb://127.0.0.1:27017/bigbull
-   JWT_SECRET=your_super_secret_key_here
-   ```
-
-3. **Seed the database** (optional)
-   ```bash
-   npm run seed
-   ```
-   This creates a demo user with sample holdings:
-   - **Email**: demo@bigbull.com
-   - **Password**: Demo@123
-
-### Development
-
-Start the development server:
 ```bash
-npm run dev
+cd big-bull-api
+npm install
+cp .env.example .env
 ```
 
-The API will be available at `http://localhost:4000`
+Configure `.env`:
 
-### Production
+| Variable | Description |
+|----------|-------------|
+| `PORT` | HTTP port (default `4000`) |
+| `NODE_ENV` | `development` or `production` |
+| `MONGO_URI` | MongoDB connection string |
+| `JWT_SECRET` | Secret for signing access tokens |
+| `JWT_ACCESS_EXPIRES` | Access token TTL (e.g. `7d`) |
+| `JWT_REFRESH_EXPIRES` | Refresh token TTL (e.g. `30d`) |
+| `GEMENI_API_KEY` | Google Gemini API key (env name matches codebase) |
 
-Build and start:
+### Seed database (optional)
+
 ```bash
-npm start
+npm run seed
 ```
 
-## 📚 API Documentation
+Demo user:
 
-### Base URL
+- **Email:** `demo@bigbull.com`
+- **Password:** `Demo@123`
+
+### Run
+
+```bash
+npm run dev    # nodemon
+npm start      # production
 ```
-http://localhost:4000/api
+
+API base: `http://localhost:4000`  
+JSON API prefix: `http://localhost:4000/api`
+
+On startup, the server logs whether `JWT_SECRET` and `GEMENI_API_KEY` are set.
+
+## API reference
+
+All protected routes require:
+
+```
+Authorization: Bearer <jwt_token>
 ```
 
-### Authentication Endpoints
+Responses use a consistent envelope via `utils/response.js` (`success`, `message`, `data`).
 
-#### Register User
-```
-POST /auth/register
-Content-Type: application/json
+### Authentication — `/api/auth`
 
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/register` | No | Create account |
+| `POST` | `/login` | No | Login; returns JWT |
+| `GET` | `/profile` | Yes | Current user profile |
+| `PATCH` | `/profile` | Yes | Update name, phone, bio |
+| `POST` | `/profile/avatar` | Yes | Upload profile photo (base64 in body) |
+| `DELETE` | `/profile/avatar` | Yes | Remove profile photo |
+
+**Register / login body**
+
+```json
 {
   "name": "John Doe",
   "email": "john@example.com",
@@ -105,29 +122,9 @@ Content-Type: application/json
 }
 ```
 
-#### Login User
-```
-POST /auth/login
-Content-Type: application/json
+**Update profile body**
 
-{
-  "email": "john@example.com",
-  "password": "Password123"
-}
-```
-
-#### Get Profile
-```
-GET /auth/profile
-Authorization: Bearer <token>
-```
-
-#### Update Profile
-```
-PUT /auth/profile
-Authorization: Bearer <token>
-Content-Type: application/json
-
+```json
 {
   "name": "Jane Doe",
   "phone": "+1234567890",
@@ -135,32 +132,22 @@ Content-Type: application/json
 }
 ```
 
-### Holdings Endpoints
+### Holdings — `/api/holdings`
 
-#### Get All Holdings
-```
-GET /holdings
-Authorization: Bearer <token>
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | All holdings for the user |
+| `GET` | `/mutuals` | Mutual fund holdings only |
+| `GET` | `/stocks` | Stock holdings only |
+| `GET` | `/summary` | Portfolio summary (invested, current, allocation) |
+| `GET` | `/:id` | Single holding |
+| `POST` | `/` | Create holding |
+| `PUT` | `/:id` | Update holding |
+| `DELETE` | `/:id` | Delete holding |
 
-#### Get Mutual Funds
-```
-GET /holdings/mutuals
-Authorization: Bearer <token>
-```
+**Create holding body**
 
-#### Get Stocks
-```
-GET /holdings/stocks
-Authorization: Bearer <token>
-```
-
-#### Create Holding
-```
-POST /holdings
-Authorization: Bearer <token>
-Content-Type: application/json
-
+```json
 {
   "type": "stock",
   "name": "Apple Inc.",
@@ -172,83 +159,93 @@ Content-Type: application/json
 }
 ```
 
-#### Update Holding
-```
-PUT /holdings/:id
-Authorization: Bearer <token>
-Content-Type: application/json
+`type` must be `stock` or `mutual`.
 
+### Portfolio — `/api/portfolio`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/summary` | Totals and mutual/stock allocation |
+| `GET` | `/stats` | Counts, top/worst performer by return % |
+
+### Chat (BigBull AI) — `/api/chat`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/` | Send a message; get an AI reply |
+
+**Request**
+
+```json
 {
-  "qty": 15,
-  "currentPrice": 180.00
+  "message": "How is my portfolio allocated?"
 }
 ```
 
-#### Delete Holding
-```
-DELETE /holdings/:id
-Authorization: Bearer <token>
-```
+**Response** (`data`)
 
-### Portfolio Endpoints
-
-#### Get Portfolio Summary
-```
-GET /portfolio/summary
-Authorization: Bearer <token>
+```json
+{
+  "reply": "..."
+}
 ```
 
-#### Get Portfolio Stats
-```
-GET /portfolio/stats
-Authorization: Bearer <token>
-```
+The service loads the user’s holdings from MongoDB, builds a portfolio context block, and calls **Gemini 2.5 Flash** (`@google/genai`) with:
 
-## 🔐 Authentication
+- A fixed system instruction (stocks/portfolios scope, no financial advice)
+- **Google Search** tooling for live prices and news
+- Stored holding prices labeled as last saved in the app, not live exchange ticks
 
-All endpoints (except `/auth/register` and `/auth/login`) require JWT authentication.
+Returns `400` if `message` is missing, `502` if Gemini returns no text, `503` if `GEMENI_API_KEY` is not set.
 
-Include the token in the `Authorization` header:
-```
-Authorization: Bearer <your_jwt_token>
-```
+## Database models
 
-## 🗄️ Database Models
+### User
 
-### User Schema
-- name (String, required)
-- email (String, unique, required)
-- password (String, hashed, required)
-- phone (String)
-- bio (String)
-- avatar (String)
-- createdAt & updatedAt
+- `name`, `email` (unique), `password` (bcrypt hashed)
+- `phone`, `bio`, `avatar` (optional)
+- Timestamps
 
-### Holding Schema
-- user (ObjectId reference to User)
-- type (enum: 'mutual', 'stock')
-- name, symbol, qty, avgPrice, currentPrice
-- notes (optional)
-- createdAt & updatedAt
+### Holding
 
-### Watchlist Schema
-- user (ObjectId reference to User)
-- symbol, name, type
-- targetPrice (optional)
-- notes (optional)
+- `user` (ref to User)
+- `type`: `mutual` | `stock`
+- `name`, `symbol`, `qty`, `avgPrice`, `currentPrice`, `notes`
+- Timestamps
 
-## 🔒 Security Features
+### Watchlist
 
-- Password Hashing with Bcryptjs
-- JWT Authentication
-- Protected Routes with middleware
-- Input Validation with Mongoose
+- `user`, `symbol`, `name`, `type`, `targetPrice`, `notes`
+
+## Security
+
+- Bcrypt password hashing
+- JWT on protected routes (`authMiddleware`)
+- Mongoose validation
 - CORS enabled
+- `Cache-Control: no-store` on API responses
+- JSON body limit `3mb` (avatars)
 
-## 📦 Dependencies
+## Dependencies
 
-- express, mongoose, bcryptjs, jsonwebtoken, cors, dotenv
+| Package | Purpose |
+|---------|---------|
+| `express` | HTTP server |
+| `mongoose` | MongoDB ODM |
+| `bcryptjs` | Password hashing |
+| `jsonwebtoken` | JWT auth |
+| `cors` | Cross-origin requests |
+| `dotenv` | Environment config |
+| `@google/genai` | Gemini chat + search tools |
 
-## 📄 License
+## Scripts
 
-MIT License
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start with nodemon |
+| `npm start` | Start production server |
+| `npm run seed` | Seed demo user and holdings |
+
+## License
+
+MIT
