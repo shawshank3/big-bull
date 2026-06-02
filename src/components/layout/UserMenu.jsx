@@ -28,9 +28,19 @@ export const UserMenu = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-auto gap-2.5 px-3 py-2 text-base">
-          <UserAvatar name={profile.name} avatar={profile.avatar} className="h-10 w-10" />
-          <span className="hidden font-semibold sm:inline">{profile.name}</span>
+        <Button
+          variant="outline"
+          className="h-10 max-w-[10.5rem] shrink-0 gap-2 overflow-hidden px-2 sm:max-w-[12rem] sm:px-2.5"
+          title={profile.name}
+        >
+          <UserAvatar
+            name={profile.name}
+            avatar={profile.avatar}
+            className="h-8 w-8 shrink-0"
+          />
+          <span className="hidden min-w-0 truncate font-semibold text-sm lg:inline">
+            {profile.name}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-52">

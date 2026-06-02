@@ -25,6 +25,11 @@ export const API_URLS = {
   CHAT: {
     BASE: '/chat',
   },
+  MARKET: {
+    SEARCH: '/market/search',
+    STOCK: (symbol) => `/market/stocks/${encodeURIComponent(symbol)}`,
+    MUTUAL: (schemeCode) => `/market/mutuals/${encodeURIComponent(schemeCode)}`,
+  },
 };
 
 export default API_URLS;

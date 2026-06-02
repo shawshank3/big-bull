@@ -17,6 +17,8 @@ export {
   clearLocalStorage,
 } from './localStorage';
 
+export { formatMarketDate } from './market';
+
 export {
   getHoldingValue,
   getHoldingInvestedValue,
