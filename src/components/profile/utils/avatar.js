@@ -21,5 +21,3 @@ export const readFileAsDataUrl = (file) =>
     reader.onerror = () => reject(new Error('Failed to read image file'));
     reader.readAsDataURL(file);
   });
-
-export default getAvatarUrl;

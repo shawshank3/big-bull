@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Input } from '../common';
 import { useAuth } from '../../hooks/useAuth';
-import { validateRegisterForm } from '../../utils/validation';
+import { validateRegisterForm } from './utils';
 
 export const RegisterForm = () => {
   const { register, isLoading, error } = useAuth();

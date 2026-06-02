@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSendChatMessageMutation } from '../api/apiSlice';
 import { CHAT_ROLES, CHAT_WELCOME } from '../constants/chat';
-
-const getErrorMessage = (error) =>
-  error?.data?.message || error?.message || 'Something went wrong. Please try again.';
+import { getChatErrorMessage } from '@/components/chat/utils';
 
 export const useChat = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -52,7 +50,7 @@ export const useChat = () => {
     setInput,
     messages,
     isLoading,
-    errorMessage: error ? getErrorMessage(error) : null,
+    errorMessage: error ? getChatErrorMessage(error) : null,
     messagesEndRef,
     inputRef,
     sendMessage,

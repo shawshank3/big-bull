@@ -3,7 +3,7 @@ import { Alert } from '../common';
 import { HoldingsBreakdown } from '../holdings';
 import { PageHeader } from '../layout/PageHeader';
 import { useGetHoldingsQuery } from '../../api/apiSlice';
-import { getAllocation, getPortfolioSummary } from '../../utils/portfolio';
+import { getAllocation, getPortfolioSummary } from '@/utils';
 import { AssetAllocationCard } from './AssetAllocationCard';
 import { PortfolioStatsGrid } from './PortfolioStatsGrid';
 import { PortfolioTotalValueCard } from './PortfolioTotalValueCard';

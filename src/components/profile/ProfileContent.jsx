@@ -8,7 +8,7 @@ import { useGetProfileQuery, useUpdateProfileMutation } from '../../api/apiSlice
 import { ProfileDetails } from './ProfileDetails';
 import { ProfileEditForm } from './ProfileEditForm';
 import { ProfilePhotoSection } from './ProfilePhotoSection';
-import { profileToFormValues } from './profileForm';
+import { profileToFormValues } from './utils';
 
 export const ProfileContent = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);

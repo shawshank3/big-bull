@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { getAvatarUrl } from '../../utils/avatar';
+import { getAvatarUrl } from './utils';
 
 export const UserAvatar = ({ name, avatar, className = 'h-9 w-9', fallbackClassName }) => {
   const initial = name?.[0]?.toUpperCase() || 'U';

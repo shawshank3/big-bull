@@ -47,11 +47,3 @@ export const getAllocation = (holdings = []) => {
     stockAllocation: total ? (stockValue / total) * 100 : 0,
   };
 };
-
-export default {
-  getHoldingValue,
-  getHoldingInvestedValue,
-  getHoldingReturn,
-  getPortfolioSummary,
-  getAllocation,
-};

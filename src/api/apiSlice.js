@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import { API_URLS } from '../constants/apiUrls'
-import { getFromLocalStorage } from '../utils/localStorage'
+import { getFromLocalStorage } from '@/utils'
 import { tokenRefreshed, logout } from '../store/slices/authSlice'
 
 const AUTH_SKIP_PATHS = [
