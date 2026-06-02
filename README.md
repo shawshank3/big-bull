@@ -136,6 +136,14 @@ Endpoints live in `apiSlice.js`. Components should use hook `data` / `isLoading`
 |------|---------|
 | `useSendChatMessageMutation` | `POST /api/chat` with `{ message }`; returns `{ reply }` |
 
+**Market (search & quotes)**
+
+| Hook | Purpose |
+|------|---------|
+| `useLazySearchMarketQuery` | Debounced navbar search (`GET /api/market/search?q=`) |
+| `useGetStockQuoteQuery` | Today's stock price for detail page |
+| `useGetMutualQuoteQuery` | Today's NAV for detail page |
+
 Cache tags: `Profile`, `Holdings`. Chat is not tagged — each message is a one-off mutation.
 
 On `loginSuccess`, `registerSuccess`, or `logout`, a store listener dispatches `apiSlice.util.resetApiState()` so a new session never sees the previous user’s cached data.
@@ -150,6 +158,8 @@ On `loginSuccess`, `registerSuccess`, or `logout`, a store listener dispatches `
 | `/dashboard` | `routes/dashboard/Dashboard` | Portfolio stats, allocation, holdings breakdown; `FloatingChatbot` via `AppPageLayout showChatbot` |
 | `/holdings` | `routes/holdings/Holdings` | Mutual/stock tabs (`HoldingsBreakdown`) |
 | `/profile` | `routes/profile/Profile` | View/edit profile, avatar upload |
+| `/market/stocks/:symbol` | `routes/market/StockDetail` | Market stock quote (not user holdings) |
+| `/market/mutuals/:schemeCode` | `routes/market/MutualDetail` | Market MF NAV (not user holdings) |
 | `*` | `routes/not-found/NotFound` | `NotFoundCard` inside `AuthLayout` |
 
 Protected routes use `ProtectedRoute`; login/register use `GuestRoute` (both read `isAuthenticated` from Redux).
@@ -158,7 +168,7 @@ Protected routes use `ProtectedRoute`; login/register use `GuestRoute` (both rea
 
 - **`AppPageLayout`** — `MainLayout` (navbar) → `PageShell` → page content; optionally mounts **`FloatingChatbot`** when `showChatbot` is true.
 - **`AuthLayout`** — Centered layout for login, register, and 404.
-- **`Navbar`** — Brand, **`ThemeToggle`** (`useThemeMode` + `theme/`), **`UserMenu`** (profile dropdown, logout).
+- **`Navbar`** — Brand, center **`NavbarSearch`** (stocks + mutual funds via `/api/market`), **`ThemeToggle`**, **`UserMenu`**.
 - Theme mode is applied on boot in `main.jsx` (`getInitialThemeMode` / `applyThemeMode`) and persisted under `bigbull-theme-mode`.
 
 ## BigBull AI chat

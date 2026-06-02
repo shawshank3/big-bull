@@ -8,6 +8,8 @@ import Register from './auth/Register';
 import Dashboard from './dashboard/Dashboard';
 import Holdings from './holdings/Holdings';
 import Profile from './profile/Profile';
+import StockDetail from './market/StockDetail';
+import MutualDetail from './market/MutualDetail';
 import NotFound from './not-found/NotFound';
 
 export const router = createBrowserRouter([
@@ -24,6 +26,8 @@ export const router = createBrowserRouter([
       { path: ROUTES.DASHBOARD, element: <Dashboard /> },
       { path: ROUTES.HOLDINGS, element: <Holdings /> },
       { path: ROUTES.PROFILE, element: <Profile /> },
+      { path: ROUTES.STOCK_DETAIL, element: <StockDetail /> },
+      { path: ROUTES.MUTUAL_DETAIL, element: <MutualDetail /> },
     ],
   },
   { path: ROUTES.ROOT, element: <RootRedirect /> },

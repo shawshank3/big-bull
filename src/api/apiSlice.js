@@ -178,6 +178,21 @@ export const apiSlice = createApi({
       }),
       transformResponse: (response) => response?.data ?? response,
     }),
+    searchMarket: builder.query({
+      query: (q) => ({
+        url: API_URLS.MARKET.SEARCH,
+        params: { q },
+      }),
+      transformResponse: (response) => response?.data ?? response,
+    }),
+    getStockQuote: builder.query({
+      query: (symbol) => API_URLS.MARKET.STOCK(symbol),
+      transformResponse: (response) => response?.data ?? response,
+    }),
+    getMutualQuote: builder.query({
+      query: (schemeCode) => API_URLS.MARKET.MUTUAL(schemeCode),
+      transformResponse: (response) => response?.data ?? response,
+    }),
   }),
 })
 
@@ -196,4 +211,7 @@ export const {
   useUpdateHoldingMutation,
   useDeleteHoldingMutation,
   useSendChatMessageMutation,
+  useLazySearchMarketQuery,
+  useGetStockQuoteQuery,
+  useGetMutualQuoteQuery,
 } = apiSlice

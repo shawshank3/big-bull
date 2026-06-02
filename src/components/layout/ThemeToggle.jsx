@@ -8,11 +8,12 @@ export const ThemeToggle = () => {
     <Button
       type="button"
       variant="outline"
-      className="text-base"
+      className="h-10 shrink-0 px-2.5 text-sm sm:px-3 sm:text-base"
       onClick={toggleThemeMode}
       aria-label="Toggle theme"
     >
-      {themeMode === 'dark' ? '☀️ Light' : '🌙 Dark'}
+      <span aria-hidden>{themeMode === 'dark' ? '☀️' : '🌙'}</span>
+      <span className="hidden xl:inline">{themeMode === 'dark' ? ' Light' : ' Dark'}</span>
     </Button>
   );
 };
