@@ -29,13 +29,15 @@ big-bull-ui/
 │   │   ├── useChat.js          # Chat panel state + send flow
 │   │   └── useThemeMode.js     # Light/dark toggle
 │   ├── routes/
-│   │   ├── AppRoutes.jsx       # Route table
-│   │   ├── ProtectedRoute.jsx  # Requires auth
-│   │   ├── GuestRoute.jsx      # Redirects authenticated users to dashboard
-│   │   └── RootRedirect.jsx    # `/` → dashboard or login
+│   │   ├── router.jsx          # createBrowserRouter route config
+│   │   ├── auth/               # Login, Register, GuestRoute
+│   │   ├── app/                # ProtectedRoute, RootRedirect
+│   │   ├── dashboard/          # Dashboard route view
+│   │   ├── holdings/           # Holdings route view
+│   │   ├── profile/            # Profile route view
+│   │   └── not-found/          # 404 route view
 │   ├── lib/
 │   │   └── utils.js            # cn() — Tailwind class merge
-│   ├── pages/                  # Thin route shells (compose layout + feature content)
 │   ├── store/
 │   │   ├── slices/authSlice.js # JWT, refresh token, user, session flags
 │   │   └── store.js            # Listener resets RTK Query cache on auth changes
@@ -55,7 +57,7 @@ big-bull-ui/
 
 | Layer | Location | Notes |
 |--------|----------|--------|
-| Routes | `src/pages/` | Minimal wrappers: `AppPageLayout` or `AuthLayout` + feature component |
+| Routes | `src/routes/{auth,dashboard,holdings,profile,not-found}/` | Route views: layout shell + feature component from `components/` |
 | Feature UI | `src/components/{dashboard,holdings,profile,auth}/` | Data fetching and presentation |
 | HTTP + cache | `src/api/apiSlice.js` | Use exported RTK Query hooks; no separate `services/` layer |
 | Session | `src/store/slices/authSlice.js` | `token`, `refreshToken`, `user`, `isAuthenticated` |
@@ -143,12 +145,12 @@ On `loginSuccess`, `registerSuccess`, or `logout`, a store listener dispatches `
 | Route | Page | Features |
 |-------|------|----------|
 | `/` | — | Redirects to `/dashboard` or `/login` |
-| `/login` | LoginPage | `AuthLayout` + `LoginForm` + `useAuth` |
-| `/register` | RegisterPage | `AuthLayout` + `RegisterForm` + `useAuth` |
-| `/dashboard` | DashboardPage | Portfolio stats, allocation, holdings breakdown; `FloatingChatbot` via `AppPageLayout showChatbot` |
-| `/holdings` | HoldingsPage | Mutual/stock tabs (`HoldingsBreakdown`) |
-| `/profile` | ProfilePage | View/edit profile, avatar upload |
-| `*` | NotFoundPage | `NotFoundCard` inside `AuthLayout` |
+| `/login` | `routes/auth/Login` | `AuthLayout` + `LoginForm` + `useAuth` |
+| `/register` | `routes/auth/Register` | `AuthLayout` + `RegisterForm` + `useAuth` |
+| `/dashboard` | `routes/dashboard/Dashboard` | Portfolio stats, allocation, holdings breakdown; `FloatingChatbot` via `AppPageLayout showChatbot` |
+| `/holdings` | `routes/holdings/Holdings` | Mutual/stock tabs (`HoldingsBreakdown`) |
+| `/profile` | `routes/profile/Profile` | View/edit profile, avatar upload |
+| `*` | `routes/not-found/NotFound` | `NotFoundCard` inside `AuthLayout` |
 
 Protected routes use `ProtectedRoute`; login/register use `GuestRoute` (both read `isAuthenticated` from Redux).
 

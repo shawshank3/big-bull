@@ -1,8 +1,8 @@
-import { AuthCard, AuthFooterLink, LoginForm } from '../components/auth';
-import { AuthLayout } from '../components/layout';
-import { ROUTES } from '../constants/routes';
+import { AuthCard, AuthFooterLink, LoginForm } from '../../components/auth';
+import { AuthLayout } from '../../components/layout';
+import { ROUTES } from '../../constants/routes';
 
-export const LoginPage = () => {
+export const Login = () => {
   return (
     <AuthLayout>
       <AuthCard description="Your trading dashboard">
@@ -17,4 +17,4 @@ export const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default Login;

@@ -1,8 +1,8 @@
-import { AuthCard, AuthFooterLink, RegisterForm } from '../components/auth';
-import { AuthLayout } from '../components/layout';
-import { ROUTES } from '../constants/routes';
+import { AuthCard, AuthFooterLink, RegisterForm } from '../../components/auth';
+import { AuthLayout } from '../../components/layout';
+import { ROUTES } from '../../constants/routes';
 
-export const RegisterPage = () => {
+export const Register = () => {
   return (
     <AuthLayout>
       <AuthCard description="Create your account">
@@ -17,4 +17,4 @@ export const RegisterPage = () => {
   );
 };
 
-export default RegisterPage;
+export default Register;
