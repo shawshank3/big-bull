@@ -3,7 +3,7 @@
  */
 import { Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { ROUTES } from '../constants/routes';
+import { ROUTES } from '../../constants/routes';
 
 export const RootRedirect = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
