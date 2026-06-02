@@ -27,8 +27,12 @@ big-bull-ui/
 │   ├── hooks/
 │   │   ├── useAuth.js          # Login / register / logout
 │   │   ├── useChat.js          # Chat panel state + send flow
-│   │   ├── useThemeMode.js     # Light/dark toggle
-│   │   └── ProtectedRoute.jsx  # Redirects unauthenticated users to login
+│   │   └── useThemeMode.js     # Light/dark toggle
+│   ├── routes/
+│   │   ├── AppRoutes.jsx       # Route table
+│   │   ├── ProtectedRoute.jsx  # Requires auth
+│   │   ├── GuestRoute.jsx      # Redirects authenticated users to dashboard
+│   │   └── RootRedirect.jsx    # `/` → dashboard or login
 │   ├── lib/
 │   │   └── utils.js            # cn() — Tailwind class merge
 │   ├── pages/                  # Thin route shells (compose layout + feature content)
@@ -146,7 +150,7 @@ On `loginSuccess`, `registerSuccess`, or `logout`, a store listener dispatches `
 | `/profile` | ProfilePage | View/edit profile, avatar upload |
 | `*` | NotFoundPage | `NotFoundCard` inside `AuthLayout` |
 
-Protected routes wrap content in `ProtectedRoute` (requires `isAuthenticated`).
+Protected routes use `ProtectedRoute`; login/register use `GuestRoute` (both read `isAuthenticated` from Redux).
 
 ## Layout and theming
 

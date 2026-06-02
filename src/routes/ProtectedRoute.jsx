@@ -1,6 +1,5 @@
 /**
- * ProtectedRoute Component
- * Route wrapper to protect authenticated pages
+ * Redirects unauthenticated users to login.
  */
 import { Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
