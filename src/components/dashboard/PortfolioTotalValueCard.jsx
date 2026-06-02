@@ -1,6 +1,6 @@
 import { Badge, Card, CardContent } from '../common';
 import { MutedText, SectionTitle, StatValue } from '../ui/typography';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency } from '@/utils';
 
 export const PortfolioTotalValueCard = ({ summary, allocation }) => {
   return (

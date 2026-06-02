@@ -1,7 +1,6 @@
 import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../common';
 import { MutedText, StatValue } from '../ui/typography';
-import { formatCurrency } from '../../utils/format';
-import { getHoldingReturn } from '../../utils/portfolio';
+import { formatCurrency, getHoldingReturn } from '@/utils';
 
 export const HoldingsTable = ({ holdings }) => {
   return (

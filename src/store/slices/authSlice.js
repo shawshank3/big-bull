@@ -3,7 +3,7 @@
  * Redux slice for authentication state management
  */
 import { createSlice } from '@reduxjs/toolkit';
-import { getFromLocalStorage, saveToLocalStorage, removeFromLocalStorage } from '../../utils/localStorage';
+import { getFromLocalStorage, saveToLocalStorage, removeFromLocalStorage } from '@/utils';
 
 const initialState = {
   user: getFromLocalStorage('user'),

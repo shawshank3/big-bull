@@ -1,6 +1,6 @@
 import { Card, CardContent } from '../common';
 import { MutedText, StatValue } from '../ui/typography';
-import { formatCurrency, formatPercentage } from '../../utils/format';
+import { formatCurrency, formatPercentage } from '@/utils';
 
 export const PortfolioStatsGrid = ({ summary }) => {
   const stats = [

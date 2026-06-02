@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Input } from '../common';
 import { useAuth } from '../../hooks/useAuth';
-import { validateLoginForm } from '../../utils/validation';
+import { validateLoginForm } from './utils';
 
 export const LoginForm = () => {
   const { login, isLoading, error } = useAuth();

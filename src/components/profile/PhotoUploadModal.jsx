@@ -5,7 +5,7 @@ import {
   useRemoveAvatarMutation,
   useUploadAvatarMutation,
 } from '../../api/apiSlice';
-import { getAvatarUrl, readFileAsDataUrl } from '../../utils/avatar';
+import { getAvatarUrl, readFileAsDataUrl } from './utils';
 import { UserAvatar } from './UserAvatar';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];

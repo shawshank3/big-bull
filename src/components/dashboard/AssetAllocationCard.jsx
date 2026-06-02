@@ -1,14 +1,12 @@
 import { Card, CardContent } from '../common';
 import { Progress } from '../ui/progress';
 import { MutedText, SectionTitle } from '../ui/typography';
-import { formatCurrency } from '../../utils/format';
-import { ALLOCATION_ROWS } from './constants';
-
-const getAllocationValue = (allocation, key) =>
-  key === 'mutual' ? allocation.mutualAllocation : allocation.stockAllocation;
-
-const getAllocationAmount = (allocation, key) =>
-  key === 'mutual' ? allocation.mutualValue : allocation.stockValue;
+import { formatCurrency } from '@/utils';
+import {
+  ALLOCATION_ROWS,
+  getAllocationAmount,
+  getAllocationValue,
+} from './utils';
 
 export const AssetAllocationCard = ({ allocation }) => {
   return (
