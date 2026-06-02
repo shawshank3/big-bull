@@ -1,0 +1,40 @@
+import { useSelector } from 'react-redux';
+import { Alert } from '../common';
+import { HoldingsBreakdown } from '../holdings';
+import { PageHeader } from '../layout/PageHeader';
+import { useGetHoldingsQuery } from '../../api/apiSlice';
+import { getAllocation, getPortfolioSummary } from '../../utils/portfolio';
+import { AssetAllocationCard } from './AssetAllocationCard';
+import { PortfolioStatsGrid } from './PortfolioStatsGrid';
+import { PortfolioTotalValueCard } from './PortfolioTotalValueCard';
+
+export const DashboardContent = () => {
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { data: holdings = [], isLoading, error } = useGetHoldingsQuery(undefined, {
+    skip: !isAuthenticated,
+  });
+  const summary = getPortfolioSummary(holdings);
+  const allocation = getAllocation(holdings);
+
+  return (
+    <>
+      <PageHeader
+        title="Dashboard"
+        description="A quick view of your portfolio health, allocation, and holdings breakdown."
+      />
+
+      {error ? <Alert variant="danger">Unable to load holdings right now.</Alert> : null}
+
+      <PortfolioStatsGrid summary={summary} />
+
+      <div className="split-grid">
+        <AssetAllocationCard allocation={allocation} />
+        <PortfolioTotalValueCard summary={summary} allocation={allocation} />
+      </div>
+
+      <HoldingsBreakdown holdings={holdings} isLoading={isLoading} showNavigate />
+    </>
+  );
+};
+
+export default DashboardContent;
