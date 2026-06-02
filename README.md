@@ -198,6 +198,16 @@ The service loads the user’s holdings from MongoDB, builds a portfolio context
 
 Returns `400` if `message` is missing, `502` if Gemini returns no text, `503` if `GEMENI_API_KEY` is not set.
 
+### Market data — `/api/market`
+
+Protected routes that proxy [Alpha Vantage](https://www.alphavantage.co/documentation/) (stocks) and [MFapi.in](https://www.mfapi.in/) (Indian mutual funds). Set `ALPHA_VANTAGE_API_KEY` in `.env` (the `demo` key works for quotes only; search needs a free key).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/search?q=` | Combined stock + mutual fund search (min 2 characters) |
+| `GET` | `/stocks/:symbol` | Latest global quote for a symbol |
+| `GET` | `/mutuals/:schemeCode` | Latest NAV for an MF scheme code |
+
 ## Database models
 
 ### User

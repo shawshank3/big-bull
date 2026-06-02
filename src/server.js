@@ -9,6 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const holdingsRoutes = require('./routes/holdingsRoutes');
 const portfolioRoutes = require('./routes/portfolioRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const marketRoutes = require('./routes/marketRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -46,6 +47,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/holdings', holdingsRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/market', marketRoutes);
 
 // 404 handler
 app.use((req, res) => {
