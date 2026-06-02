@@ -1,0 +1,1 @@
+export { NotFoundCard } from './NotFoundCard';

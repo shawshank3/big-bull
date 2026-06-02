@@ -1,6 +1,6 @@
 # BigBull Trading Dashboard — Frontend
 
-React 19 + Vite SPA for portfolio tracking. Server data is loaded with **RTK Query**; auth session (JWT) lives in a small Redux slice. The dashboard includes a floating **BigBull AI** chat assistant backed by the API’s Gemini integration.
+React 19 + Vite SPA for portfolio tracking. Server data is loaded with **RTK Query**; auth session (access + refresh JWT) lives in a Redux slice persisted to `localStorage`. The dashboard includes a floating **BigBull AI** chat assistant backed by the API’s Gemini integration.
 
 ## Project structure
 
@@ -8,55 +8,57 @@ React 19 + Vite SPA for portfolio tracking. Server data is loaded with **RTK Que
 big-bull-ui/
 ├── src/
 │   ├── api/
-│   │   └── apiSlice.js         # RTK Query endpoints and generated hooks
+│   │   └── apiSlice.js           # RTK Query endpoints, reauth, generated hooks
 │   ├── components/
-│   │   ├── chat/               # Floating chatbot UI
-│   │   │   ├── FloatingChatbot.jsx
-│   │   │   ├── ChatPanel.jsx
-│   │   │   └── ChatMessage.jsx
-│   │   ├── common/             # Shared form/UI primitives
-│   │   ├── holdings/           # Holdings table
-│   │   ├── layout/             # Navbar, MainLayout
-│   │   ├── profile/            # Avatar, profile photo upload
-│   │   └── ui/                 # shadcn-style primitives (Button, Card, …)
+│   │   ├── auth/                 # LoginForm, RegisterForm, AuthCard, AuthFooterLink
+│   │   ├── chat/                 # Floating chatbot (panel, composer, message list)
+│   │   ├── common/             # Re-exports of ui primitives + shared Input/FormTextarea
+│   │   ├── dashboard/          # Portfolio summary cards, DashboardContent
+│   │   ├── errors/             # NotFoundCard
+│   │   ├── holdings/           # HoldingsBreakdown, HoldingsTable, HoldingsContent
+│   │   ├── layout/             # AppPageLayout, AuthLayout, Navbar, theme toggle
+│   │   ├── profile/            # Profile edit, avatar upload, ProfileContent
+│   │   └── ui/                 # shadcn-style primitives (Button, Card, Tabs, …)
 │   ├── constants/
 │   │   ├── apiUrls.js          # Backend path constants
 │   │   ├── chat.js             # Chat labels, roles, welcome message
-│   │   ├── holdings.js
+│   │   ├── holdings.js         # Holding types and tab config
 │   │   └── routes.js           # React Router paths
 │   ├── hooks/
 │   │   ├── useAuth.js          # Login / register / logout
 │   │   ├── useChat.js          # Chat panel state + send flow
-│   │   ├── useThemeMode.js
-│   │   └── ProtectedRoute.jsx
+│   │   ├── useThemeMode.js     # Light/dark toggle
+│   │   └── ProtectedRoute.jsx  # Redirects unauthenticated users to login
 │   ├── lib/
 │   │   └── utils.js            # cn() — Tailwind class merge
-│   ├── pages/                  # Route-level screens
+│   ├── pages/                  # Thin route shells (compose layout + feature content)
 │   ├── store/
-│   │   ├── slices/authSlice.js # JWT + session flags only
-│   │   └── store.js
-│   ├── theme/                  # Light/dark persistence
-│   ├── utils/                  # Formatting, validation, portfolio helpers
+│   │   ├── slices/authSlice.js # JWT, refresh token, user, session flags
+│   │   └── store.js            # Listener resets RTK Query cache on auth changes
+│   ├── theme/                  # Theme tokens, persistence, applyThemeMode
+│   ├── utils/                  # Formatting, validation, portfolio helpers, localStorage
 │   ├── App.jsx
 │   └── main.jsx
+├── components.json               # shadcn/ui config (@/ aliases)
 ├── index.html
-├── vite.config.js              # Dev proxy: /api → backend
+├── vite.config.js                # Dev proxy: /api → backend; @ → src
 ├── tailwind.config.js
 ├── .env.example
 └── package.json
 ```
 
-### Where things live
+### Architecture notes
 
-| Concern | Location | Notes |
+| Layer | Location | Notes |
 |--------|----------|--------|
-| HTTP + cached server data | `src/api/apiSlice.js` | Use exported RTK Query hooks in UI |
-| Auth token / login state | `src/store/slices/authSlice.js` | Persisted via `localStorage` |
-| API path strings | `src/constants/apiUrls.js` | Used by `apiSlice` only |
-| AI chat UI + UX copy | `src/components/chat/`, `src/constants/chat.js` | Orchestrated by `useChat` |
-| Route guards | `src/hooks/ProtectedRoute.jsx` | Requires `isAuthenticated` |
+| Routes | `src/pages/` | Minimal wrappers: `AppPageLayout` or `AuthLayout` + feature component |
+| Feature UI | `src/components/{dashboard,holdings,profile,auth}/` | Data fetching and presentation |
+| HTTP + cache | `src/api/apiSlice.js` | Use exported RTK Query hooks; no separate `services/` layer |
+| Session | `src/store/slices/authSlice.js` | `token`, `refreshToken`, `user`, `isAuthenticated` |
+| API paths | `src/constants/apiUrls.js` | Consumed by `apiSlice` only |
+| Shared UI | `src/components/common/` | Barrel over `ui/` + a few form helpers |
 
-There is **no** separate `services/` layer — RTK Query handles API calls.
+Path alias: `@` resolves to `src/` (see `vite.config.js` and `components.json`).
 
 ## Getting started
 
@@ -91,7 +93,12 @@ npm run preview
 
 ## API integration (RTK Query)
 
-Endpoints are defined in `apiSlice.js`. Use hook `data` / `isLoading` / `error` in components — do not duplicate server state in Redux.
+Endpoints live in `apiSlice.js`. Components should use hook `data` / `isLoading` / `error` — do not duplicate server state in Redux.
+
+**Base query behavior**
+
+- Sends `Authorization: Bearer <accessToken>` on requests.
+- On `401`, attempts `POST /auth/refresh` with the stored refresh token, retries once, or dispatches `logout` if refresh fails.
 
 **Auth**
 
@@ -99,6 +106,7 @@ Endpoints are defined in `apiSlice.js`. Use hook `data` / `isLoading` / `error` 
 |------|---------|
 | `useLoginMutation` | Login (via `useAuth`) |
 | `useRegisterMutation` | Register (via `useAuth`) |
+| `useLogoutMutation` | Server logout (via `useAuth`) |
 
 **Profile**
 
@@ -112,9 +120,9 @@ Endpoints are defined in `apiSlice.js`. Use hook `data` / `isLoading` / `error` 
 
 | Hook | Purpose |
 |------|---------|
-| `useGetHoldingsQuery` | All holdings (dashboard) |
-| `useGetMutualHoldingsQuery` / `useGetStockHoldingsQuery` | Tabbed holdings page |
-| `useCreateHoldingMutation` / `useUpdateHoldingMutation` / `useDeleteHoldingMutation` | CRUD |
+| `useGetHoldingsQuery` | All holdings (used by dashboard and holdings pages) |
+| `useGetMutualHoldingsQuery` / `useGetStockHoldingsQuery` | Typed lists (exported; not used in UI yet) |
+| `useCreateHoldingMutation` / `useUpdateHoldingMutation` / `useDeleteHoldingMutation` | CRUD (exported; not wired in UI yet) |
 
 **Chat**
 
@@ -122,37 +130,56 @@ Endpoints are defined in `apiSlice.js`. Use hook `data` / `isLoading` / `error` 
 |------|---------|
 | `useSendChatMessageMutation` | `POST /api/chat` with `{ message }`; returns `{ reply }` |
 
-Cache tags: `Profile`, `Holdings`. Chat is not tagged — each message is a one-off mutation. On login, register, or logout, the store resets RTK Query cache so a new user never sees the previous session’s data.
+Cache tags: `Profile`, `Holdings`. Chat is not tagged — each message is a one-off mutation.
+
+On `loginSuccess`, `registerSuccess`, or `logout`, a store listener dispatches `apiSlice.util.resetApiState()` so a new session never sees the previous user’s cached data.
+
+## Pages and routes
+
+| Route | Page | Features |
+|-------|------|----------|
+| `/` | — | Redirects to `/dashboard` or `/login` |
+| `/login` | LoginPage | `AuthLayout` + `LoginForm` + `useAuth` |
+| `/register` | RegisterPage | `AuthLayout` + `RegisterForm` + `useAuth` |
+| `/dashboard` | DashboardPage | Portfolio stats, allocation, holdings breakdown; `FloatingChatbot` via `AppPageLayout showChatbot` |
+| `/holdings` | HoldingsPage | Mutual/stock tabs (`HoldingsBreakdown`) |
+| `/profile` | ProfilePage | View/edit profile, avatar upload |
+| `*` | NotFoundPage | `NotFoundCard` inside `AuthLayout` |
+
+Protected routes wrap content in `ProtectedRoute` (requires `isAuthenticated`).
+
+## Layout and theming
+
+- **`AppPageLayout`** — `MainLayout` (navbar) → `PageShell` → page content; optionally mounts **`FloatingChatbot`** when `showChatbot` is true.
+- **`AuthLayout`** — Centered layout for login, register, and 404.
+- **`Navbar`** — Brand, **`ThemeToggle`** (`useThemeMode` + `theme/`), **`UserMenu`** (profile dropdown, logout).
+- Theme mode is applied on boot in `main.jsx` (`getInitialThemeMode` / `applyThemeMode`) and persisted under `bigbull-theme-mode`.
 
 ## BigBull AI chat
 
-- **`FloatingChatbot`** is mounted on **`DashboardPage`** (fixed bottom-right).
-- **`useChat`** manages open/close state, message list (starts with `CHAT_WELCOME`), input, Enter-to-send, and errors from RTK Query.
-- **`ChatPanel`** / **`ChatMessage`** render the conversation; user messages align right, assistant left.
-- Requires an authenticated session (JWT attached by `prepareHeaders` in `apiSlice`).
+- **`FloatingChatbot`** is shown on the dashboard (`AppPageLayout showChatbot`).
+- **`useChat`** — open/close state, message list (starts with `CHAT_WELCOME`), input, Enter-to-send, RTK Query errors.
+- **`ChatPanel`** composes **`ChatPanelHeader`**, **`ChatMessageList`** (`ChatMessage`), and **`ChatComposer`**.
+- Requires an authenticated session (JWT attached in `prepareHeaders`).
 
 ## State management
 
-**Auth slice** — session only:
+**Auth slice** — client session:
 
-- `token`, `user` (minimal fields from login), `isAuthenticated`
-- Actions: `loginSuccess`, `registerSuccess`, `logout`
-- `useAuth` wraps RTK mutations and dispatches these actions
+- `token`, `refreshToken`, `user`, `isAuthenticated`, loading/error flags for auth actions
+- Actions: `loginSuccess`, `registerSuccess`, `tokenRefreshed`, `logout`, etc.
+- Persisted to `localStorage` via `utils/localStorage.js`
 
 **RTK Query (`api` reducer)** — server data:
 
 - Profile, holdings, chat responses
-- Loading/error flags on hooks (`isLoading`, `error`, …)
+- Loading/error on hooks (`isLoading`, `error`, …)
 
-## Pages
+**`useAuth`** — wraps login/register/logout mutations, dispatches auth actions, navigates after success.
 
-| Route | Page | Data / features |
-|-------|------|-----------------|
-| `/login` | LoginPage | `useAuth` |
-| `/register` | RegisterPage | `useAuth` |
-| `/dashboard` | DashboardPage | `useGetHoldingsQuery`, portfolio summary UI, `FloatingChatbot` |
-| `/holdings` | HoldingsPage | Mutual/stock tabs, CRUD mutations |
-| `/profile` | ProfilePage | `useGetProfileQuery`, avatar upload |
+## Holdings UI
+
+Dashboard and holdings pages both call **`useGetHoldingsQuery`**. **`HoldingsBreakdown`** splits holdings client-side into mutual-fund and stock tabs (`constants/holdings.js`). The dashboard variant can link to the full holdings page (`showNavigate`). Holdings are **read-only** in the UI today; CRUD hooks exist in `apiSlice` for future forms.
 
 ## Environment variables
 
@@ -165,9 +192,9 @@ Cache tags: `Profile`, `Holdings`. Chat is not tagged — each message is a one-
 
 - **react**, **react-dom**, **react-router-dom** — UI and routing
 - **@reduxjs/toolkit**, **react-redux** — Redux + RTK Query
-- **react-hook-form** — Profile form
+- **react-hook-form** — Profile edit form
 - **tailwindcss**, **class-variance-authority**, **clsx**, **tailwind-merge** — Styling
-- **@radix-ui/***, **lucide-react** — Accessible UI primitives
+- **@radix-ui/***, **lucide-react** — Accessible UI primitives (shadcn-style components in `src/components/ui/`)
 
 ## Scripts
 
