@@ -30,7 +30,8 @@ export const UserMenu = () => {
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
-          className="h-10 max-w-[10.5rem] shrink-0 gap-2 overflow-hidden px-2 sm:max-w-[12rem] sm:px-2.5"
+          size="md"
+          className="max-w-[10.5rem] shrink-0 gap-2 overflow-hidden px-2 sm:max-w-[12rem] sm:px-2.5"
           title={profile.name}
         >
           <UserAvatar

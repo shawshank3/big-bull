@@ -25,7 +25,7 @@ const Header = ({ onClose }) => (
       variant="ghost"
       size="sm"
       onClick={onClose}
-      className="h-8 w-8 p-0"
+      className="w-8 p-0"
       aria-label={CHAT_LABELS.close}
     >
       ✕
@@ -87,8 +87,8 @@ const Composer = ({ inputRef, onInputChange, onSend, onKeyDown }) => {
         />
         <Button
           type="button"
-          size="sm"
-          className="h-10 w-10 shrink-0 p-0"
+          size="md"
+          className="w-10 shrink-0 p-0"
           onClick={onSend}
           disabled={!input.trim() || isLoading}
           loading={isLoading}
