@@ -1,14 +1,17 @@
 import { FloatingChatbot } from '../chat';
-import { MainLayout } from './MainLayout';
 import { PageShell } from './PageShell';
 
-export const AppPageLayout = ({ children, showChatbot = false }) => {
-  return (
-    <MainLayout>
-      <PageShell>{children}</PageShell>
-      {showChatbot ? <FloatingChatbot /> : null}
-    </MainLayout>
-  );
+// Compound component approach - compose features instead of props
+const Content = ({ children }) => <PageShell>{children}</PageShell>;
+
+const Chatbot = () => <FloatingChatbot />;
+
+export const AppPageLayout = ({ children }) => {
+  return <>{children}</>;
 };
+
+// Attach compound components
+AppPageLayout.Content = Content;
+AppPageLayout.Chatbot = Chatbot;
 
 export default AppPageLayout;

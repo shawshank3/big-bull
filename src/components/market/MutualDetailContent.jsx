@@ -11,6 +11,7 @@ export const MutualDetailContent = () => {
   const { data: quote, isLoading, isError } = useGetMutualQuoteQuery(schemeCode, {
     skip: !schemeCode,
   });
+  
   const title = displayName || quote?.name || `Scheme ${schemeCode}`;
   const subtitle = [
     MARKET_ASSET_LABELS.mutual,
@@ -24,14 +25,25 @@ export const MutualDetailContent = () => {
     <>
       <PageHeader title={title} description={subtitle || `Scheme ${schemeCode}`} />
 
-      <MarketQuoteCard
-        title={title}
-        subtitle={subtitle}
-        quote={quote}
-        isLoading={isLoading}
-        isError={isError}
-        emptyMessage="NAV data is not available for this scheme."
-      />
+      <MarketQuoteCard quote={quote} isLoading={isLoading} isError={isError}>
+        <MarketQuoteCard.Loading />
+        <MarketQuoteCard.Error />
+        <MarketQuoteCard.Empty>NAV data is not available for this scheme.</MarketQuoteCard.Empty>
+        <MarketQuoteCard.Data>
+          <MarketQuoteCard.Header title={title} subtitle={subtitle} />
+          <MarketQuoteCard.Content>
+            <MarketQuoteCard.Price
+              value={quote?.price}
+              currency={quote?.currency}
+              label={quote?.priceLabel}
+            />
+            <MarketQuoteCard.AsOf date={quote?.asOf} />
+            <MarketQuoteCard.Notice>
+              Charts, history, and additional metrics will appear here in a future update.
+            </MarketQuoteCard.Notice>
+          </MarketQuoteCard.Content>
+        </MarketQuoteCard.Data>
+      </MarketQuoteCard>
     </>
   );
 };

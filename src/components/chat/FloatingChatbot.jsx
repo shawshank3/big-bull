@@ -21,20 +21,26 @@ export const FloatingChatbot = () => {
 
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
-      {isOpen ? (
+      {isOpen && (
         <ChatPanel
           messages={messages}
           isLoading={isLoading}
           errorMessage={errorMessage}
           input={input}
-          onInputChange={setInput}
-          onSend={sendMessage}
-          onKeyDown={handleKeyDown}
-          onClose={() => setIsOpen(false)}
-          messagesEndRef={messagesEndRef}
-          inputRef={inputRef}
-        />
-      ) : null}
+        >
+          <ChatPanel.Header onClose={() => setIsOpen(false)} />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ChatPanel.MessageList messagesEndRef={messagesEndRef} />
+            <ChatPanel.ErrorAlert />
+            <ChatPanel.Composer
+              inputRef={inputRef}
+              onInputChange={setInput}
+              onSend={sendMessage}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+        </ChatPanel>
+      )}
 
       <Button
         type="button"

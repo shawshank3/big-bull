@@ -1,12 +1,12 @@
 import { MutualDetailContent } from '../../components/market';
 import { AppPageLayout } from '../../components/layout';
 
-export const MutualDetail = () => {
-  return (
-    <AppPageLayout>
+export const MutualDetail = () => (
+  <AppPageLayout>
+    <AppPageLayout.Content>
       <MutualDetailContent />
-    </AppPageLayout>
-  );
-};
+    </AppPageLayout.Content>
+  </AppPageLayout>
+);
 
 export default MutualDetail;

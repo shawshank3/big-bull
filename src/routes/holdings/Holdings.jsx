@@ -4,7 +4,9 @@ import { AppPageLayout } from '../../components/layout';
 export const Holdings = () => {
   return (
     <AppPageLayout>
-      <HoldingsContent />
+      <AppPageLayout.Content>
+        <HoldingsContent />
+      </AppPageLayout.Content>
     </AppPageLayout>
   );
 };

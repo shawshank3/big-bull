@@ -4,7 +4,9 @@ import { ProfileContent } from '../../components/profile';
 export const Profile = () => {
   return (
     <AppPageLayout>
-      <ProfileContent />
+      <AppPageLayout.Content>
+        <ProfileContent />
+      </AppPageLayout.Content>
     </AppPageLayout>
   );
 };

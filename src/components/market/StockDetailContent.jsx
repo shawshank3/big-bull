@@ -19,13 +19,25 @@ export const StockDetailContent = () => {
         description={`${MARKET_ASSET_LABELS.stock} · ${symbol}`}
       />
 
-      <MarketQuoteCard
-        title={displayName}
-        subtitle={symbol}
-        quote={quote}
-        isLoading={isLoading}
-        isError={isError}
-      />
+      <MarketQuoteCard quote={quote} isLoading={isLoading} isError={isError}>
+        <MarketQuoteCard.Loading />
+        <MarketQuoteCard.Error />
+        <MarketQuoteCard.Empty />
+        <MarketQuoteCard.Data>
+          <MarketQuoteCard.Header title={displayName} subtitle={symbol} />
+          <MarketQuoteCard.Content>
+            <MarketQuoteCard.Price
+              value={quote?.price}
+              currency={quote?.currency}
+              label={quote?.priceLabel}
+            />
+            <MarketQuoteCard.AsOf date={quote?.asOf} />
+            <MarketQuoteCard.Notice>
+              Charts, history, and additional metrics will appear here in a future update.
+            </MarketQuoteCard.Notice>
+          </MarketQuoteCard.Content>
+        </MarketQuoteCard.Data>
+      </MarketQuoteCard>
     </>
   );
 };
