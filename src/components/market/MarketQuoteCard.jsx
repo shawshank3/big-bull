@@ -1,59 +1,102 @@
+import { createContext, useContext } from 'react';
 import { Alert, Card, CardContent, CardDescription, CardHeader, CardTitle } from '../common';
 import { Spinner } from '../ui/spinner';
 import { formatCurrency, formatMarketDate } from '@/utils';
 
-export const MarketQuoteCard = ({
-  title,
-  subtitle,
-  quote,
-  isLoading,
-  isError,
-  emptyMessage = 'Price data is not available.',
-}) => {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center gap-3 py-16">
-          <Spinner label="Loading today's price…" className="py-4" />
-        </CardContent>
-      </Card>
-    );
-  }
+// Create context for sharing state between compound components
+const MarketQuoteContext = createContext(null);
 
-  if (isError) {
-    return <Alert variant="danger">Unable to load price data right now.</Alert>;
+const useMarketQuote = () => {
+  const context = useContext(MarketQuoteContext);
+  if (!context) {
+    throw new Error('MarketQuoteCard compound components must be used within MarketQuoteCard');
   }
+  return context;
+};
 
-  if (!quote?.price && quote?.price !== 0) {
-    return <Alert variant="warning">{emptyMessage}</Alert>;
-  }
-
+// Compound components that read from context
+const Loading = ({ children = "Loading today's price…" }) => {
+  const { isLoading } = useMarketQuote();
+  
+  if (!isLoading) return null;
+  
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {subtitle ? <CardDescription>{subtitle}</CardDescription> : null}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <p className="text-sm font-medium text-muted">
-            Today&apos;s {quote.priceLabel?.toLowerCase() ?? 'price'}
-          </p>
-          <p className="text-4xl font-black tracking-tight text-foreground">
-            {formatCurrency(quote.price, quote.currency || 'INR')}
-          </p>
-        </div>
-
-        {quote.asOf ? (
-          <p className="text-sm text-muted">As of {formatMarketDate(quote.asOf)}</p>
-        ) : null}
-
-        <p className="text-sm text-muted">
-          Charts, history, and additional metrics will appear here in a future update.
-        </p>
+      <CardContent className="flex items-center justify-center gap-3 py-16">
+        <Spinner label={children} className="py-4" />
       </CardContent>
     </Card>
   );
 };
+
+const Error = ({ children = 'Unable to load price data right now.' }) => {
+  const { isError } = useMarketQuote();
+  
+  if (!isError) return null;
+  
+  return <Alert variant="danger">{children}</Alert>;
+};
+
+const Empty = ({ children = 'Price data is not available.' }) => {
+  const { quote, isLoading, isError } = useMarketQuote();
+  
+  if (isLoading || isError || quote?.price || quote?.price === 0) return null;
+  
+  return <Alert variant="warning">{children}</Alert>;
+};
+
+const Data = ({ children }) => {
+  const { quote, isLoading, isError } = useMarketQuote();
+  
+  if (isLoading || isError || (!quote?.price && quote?.price !== 0)) return null;
+  
+  return <Card>{children}</Card>;
+};
+
+const Header = ({ title, subtitle }) => (
+  <CardHeader>
+    <CardTitle>{title}</CardTitle>
+    {subtitle && <CardDescription>{subtitle}</CardDescription>}
+  </CardHeader>
+);
+
+const Content = ({ children }) => (
+  <CardContent className="space-y-4">{children}</CardContent>
+);
+
+const Price = ({ value, currency = 'INR', label = 'price' }) => (
+  <div>
+    <p className="text-sm font-medium text-muted">Today&apos;s {label?.toLowerCase() ?? 'price'}</p>
+    <p className="text-4xl font-black tracking-tight text-foreground">
+      {formatCurrency(value, currency)}
+    </p>
+  </div>
+);
+
+const AsOf = ({ date }) => (
+  date ? <p className="text-sm text-muted">As of {formatMarketDate(date)}</p> : null
+);
+
+const Notice = ({ children }) => <p className="text-sm text-muted">{children}</p>;
+
+// Main component - provides context to children
+export const MarketQuoteCard = ({ quote, isLoading, isError, children }) => {
+  return (
+    <MarketQuoteContext.Provider value={{ quote, isLoading, isError }}>
+      {children}
+    </MarketQuoteContext.Provider>
+  );
+};
+
+// Attach compound components
+MarketQuoteCard.Loading = Loading;
+MarketQuoteCard.Error = Error;
+MarketQuoteCard.Empty = Empty;
+MarketQuoteCard.Data = Data;
+MarketQuoteCard.Header = Header;
+MarketQuoteCard.Content = Content;
+MarketQuoteCard.Price = Price;
+MarketQuoteCard.AsOf = AsOf;
+MarketQuoteCard.Notice = Notice;
 
 export default MarketQuoteCard;

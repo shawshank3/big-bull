@@ -1,12 +1,12 @@
 import { StockDetailContent } from '../../components/market';
 import { AppPageLayout } from '../../components/layout';
 
-export const StockDetail = () => {
-  return (
-    <AppPageLayout>
+export const StockDetail = () => (
+  <AppPageLayout>
+    <AppPageLayout.Content>
       <StockDetailContent />
-    </AppPageLayout>
-  );
-};
+    </AppPageLayout.Content>
+  </AppPageLayout>
+);
 
 export default StockDetail;

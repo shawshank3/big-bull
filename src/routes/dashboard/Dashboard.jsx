@@ -3,8 +3,11 @@ import { AppPageLayout } from '../../components/layout';
 
 export const Dashboard = () => {
   return (
-    <AppPageLayout showChatbot>
-      <DashboardContent />
+    <AppPageLayout>
+      <AppPageLayout.Content>
+        <DashboardContent />
+      </AppPageLayout.Content>
+      <AppPageLayout.Chatbot />
     </AppPageLayout>
   );
 };

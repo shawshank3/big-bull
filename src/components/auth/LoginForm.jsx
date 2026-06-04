@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import { Alert, Button, Input } from '../common';
 import { useAuth } from '../../hooks/useAuth';
 import { validateLoginForm } from './utils';
+import { AuthForm } from './AuthForm';
 
 export const LoginForm = () => {
   const { login, isLoading, error } = useAuth();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [validationErrors, setValidationErrors] = useState({});
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
+  const handleChange = (name, value) => {
     setFormData((current) => ({ ...current, [name]: value }));
     setValidationErrors((current) => ({ ...current, [name]: undefined }));
   };
@@ -27,34 +26,22 @@ export const LoginForm = () => {
   };
 
   return (
-    <>
-      {error ? <Alert variant="danger">{error}</Alert> : null}
-      {validationErrors.general ? <Alert variant="warning">{validationErrors.general}</Alert> : null}
-
-      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-        <Input
-          name="email"
-          type="email"
-          label="Email"
-          value={formData.email}
-          onChange={handleChange}
-          error={validationErrors.email}
-          required
-        />
-        <Input
-          name="password"
-          type="password"
-          label="Password"
-          value={formData.password}
-          onChange={handleChange}
-          error={validationErrors.password}
-          required
-        />
-        <Button type="submit" variant="primary" size="lg" loading={isLoading} className="w-full">
-          {isLoading ? 'Signing in' : 'Login'}
-        </Button>
-      </form>
-    </>
+    <AuthForm
+      formData={formData}
+      validationErrors={validationErrors}
+      error={error}
+      isLoading={isLoading}
+      onSubmit={handleSubmit}
+      onChange={handleChange}
+    >
+      <AuthForm.ErrorAlert />
+      <AuthForm.ValidationAlert />
+      <AuthForm.Fields>
+        <AuthForm.Field name="email" type="email" label="Email" required />
+        <AuthForm.Field name="password" type="password" label="Password" required />
+      </AuthForm.Fields>
+      <AuthForm.Submit loadingText="Signing in">Login</AuthForm.Submit>
+    </AuthForm>
   );
 };
 
