@@ -27,6 +27,7 @@ export const API_URLS = {
   },
   MARKET: {
     SEARCH: '/market/search',
+    TICKER: '/market/ticker',
     STOCK: (symbol) => `/market/stocks/${encodeURIComponent(symbol)}`,
     MUTUAL: (schemeCode) => `/market/mutuals/${encodeURIComponent(schemeCode)}`,
   },

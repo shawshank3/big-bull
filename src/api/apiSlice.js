@@ -185,6 +185,10 @@ export const apiSlice = createApi({
       }),
       transformResponse: (response) => response?.data ?? response,
     }),
+    getTickerQuotes: builder.query({
+      query: () => API_URLS.MARKET.TICKER,
+      transformResponse: (response) => response?.data ?? response,
+    }),
     getStockQuote: builder.query({
       query: (symbol) => API_URLS.MARKET.STOCK(symbol),
       transformResponse: (response) => response?.data ?? response,
@@ -214,4 +218,5 @@ export const {
   useLazySearchMarketQuery,
   useGetStockQuoteQuery,
   useGetMutualQuoteQuery,
+  useGetTickerQuotesQuery,
 } = apiSlice

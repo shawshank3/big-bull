@@ -9,17 +9,17 @@ import { ROUTES } from '../../constants/routes';
 
 // Compound component: Navbar with composable sections
 const Start = ({ children }) => (
-  <div className="flex min-w-0 flex-1 basis-0 items-center justify-start">{children}</div>
+  <div className="flex min-w-0 items-center justify-start">{children}</div>
 );
 
 const Center = ({ children }) => (
   <div className="flex min-w-0 flex-1 basis-0 items-center justify-center px-1 sm:px-3">
-    <div className="w-full max-w-2xl">{children}</div>
+    <div className="w-full max-w-3xl">{children}</div>
   </div>
 );
 
 const End = ({ children }) => (
-  <div className="flex min-w-0 flex-1 basis-0 items-center justify-end gap-2 sm:gap-2.5">
+  <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-2.5">
     {children}
   </div>
 );
