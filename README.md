@@ -17,6 +17,7 @@ big-bull-ui/
 │   │   ├── errors/             # NotFoundCard
 │   │   ├── holdings/           # HoldingsBreakdown, HoldingsTable, HoldingsContent
 │   │   ├── layout/             # AppPageLayout, AuthLayout, Navbar, theme toggle
+│   │   ├── market/             # Market detail content and quote cards
 │   │   ├── profile/            # Profile edit, avatar upload, ProfileContent
 │   │   └── ui/                 # shadcn-style primitives (Button, Card, Tabs, …)
 │   ├── constants/
@@ -33,7 +34,9 @@ big-bull-ui/
 │   │   ├── auth/               # Login, Register, GuestRoute
 │   │   ├── app/                # ProtectedRoute, RootRedirect
 │   │   ├── dashboard/          # Dashboard route view
+│   │   ├── explore/            # Landing/explore page view
 │   │   ├── holdings/           # Holdings route view
+│   │   ├── market/             # Market stock and mutual detail views
 │   │   ├── profile/            # Profile route view
 │   │   └── not-found/          # 404 route view
 │   ├── lib/
@@ -57,8 +60,8 @@ big-bull-ui/
 
 | Layer | Location | Notes |
 |--------|----------|--------|
-| Routes | `src/routes/{auth,dashboard,holdings,profile,not-found}/` | Route views: layout shell + feature component from `components/` |
-| Feature UI | `src/components/{dashboard,holdings,profile,auth}/` | Data fetching and presentation |
+| Routes | `src/routes/{auth,dashboard,explore,holdings,market,profile,not-found}/` | Route views: layout shell + feature component from `components/` |
+| Feature UI | `src/components/{dashboard,holdings,market,auth}/` | Data fetching and presentation |
 | HTTP + cache | `src/api/apiSlice.js` | Use exported RTK Query hooks; no separate `services/` layer |
 | Session | `src/store/slices/authSlice.js` | `token`, `refreshToken`, `user`, `isAuthenticated` |
 | API paths | `src/constants/apiUrls.js` | Consumed by `apiSlice` only |
@@ -152,7 +155,7 @@ On `loginSuccess`, `registerSuccess`, or `logout`, a store listener dispatches `
 
 | Route | Page | Features |
 |-------|------|----------|
-| `/` | — | Redirects to `/dashboard` or `/login` |
+| `/` | — | Redirects to `/dashboard` or `/explore` |
 | `/login` | `routes/auth/Login` | `AuthLayout` + `LoginForm` + `useAuth` |
 | `/register` | `routes/auth/Register` | `AuthLayout` + `RegisterForm` + `useAuth` |
 | `/dashboard` | `routes/dashboard/Dashboard` | Portfolio stats, allocation, holdings breakdown; `FloatingChatbot` via `AppPageLayout showChatbot` |
@@ -160,6 +163,7 @@ On `loginSuccess`, `registerSuccess`, or `logout`, a store listener dispatches `
 | `/profile` | `routes/profile/Profile` | View/edit profile, avatar upload |
 | `/market/stocks/:symbol` | `routes/market/StockDetail` | Market stock quote (not user holdings) |
 | `/market/mutuals/:schemeCode` | `routes/market/MutualDetail` | Market MF NAV (not user holdings) |
+| `/explore` | `routes/explore/Explore` | Public landing/explore page, no auth required |
 | `*` | `routes/not-found/NotFound` | `NotFoundCard` inside `AuthLayout` |
 
 Protected routes use `ProtectedRoute`; login/register use `GuestRoute` (both read `isAuthenticated` from Redux).

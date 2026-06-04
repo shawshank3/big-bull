@@ -59,7 +59,7 @@ Navbar.Search = NavbarSearch;
 Navbar.ThemeToggle = ThemeToggle;
 Navbar.UserMenu = UserMenu;
 Navbar.LoginButton = () => (
-  <Button asChild size="sm" className="shrink-0">
+  <Button asChild size="md" className="shrink-0">
     <Link to={ROUTES.LOGIN}>Log in</Link>
   </Button>
 );

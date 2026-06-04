@@ -38,8 +38,8 @@ export const ChatComposer = ({
           />
           <Button
             type="button"
-            size="sm"
-            className="h-10 w-10 shrink-0 p-0"
+            size="md"
+            className="w-10 shrink-0 p-0"
             onClick={onSend}
             disabled={!input.trim() || isLoading}
             loading={isLoading}

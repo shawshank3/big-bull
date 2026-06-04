@@ -18,7 +18,7 @@ export const ChatPanelHeader = ({ onClose }) => {
         type="button"
         variant="ghost"
         size="sm"
-        className="h-8 w-8 p-0 text-white hover:bg-white/15"
+        className="w-8 p-0 text-white hover:bg-white/15"
         onClick={onClose}
         aria-label={CHAT_LABELS.close}
       >

@@ -8,7 +8,8 @@ export const ThemeToggle = () => {
     <Button
       type="button"
       variant="outline"
-      className="h-10 shrink-0 px-2.5 text-sm sm:px-3 sm:text-base"
+      size="md"
+      className="shrink-0 px-2.5 sm:px-3 sm:text-base"
       onClick={toggleThemeMode}
       aria-label="Toggle theme"
     >
