@@ -200,7 +200,7 @@ Returns `400` if `message` is missing, `502` if Gemini returns no text, `503` if
 
 ### Market data — `/api/market`
 
-Protected routes that proxy [Alpha Vantage](https://www.alphavantage.co/documentation/) (stocks) and [MFapi.in](https://www.mfapi.in/) (Indian mutual funds). Set `ALPHA_VANTAGE_API_KEY` in `.env` (the `demo` key works for quotes only; search needs a free key).
+Public routes that proxy [Alpha Vantage](https://www.alphavantage.co/documentation/) (stocks) and [MFapi.in](https://www.mfapi.in/) (Indian mutual funds). These endpoints no longer require `Authorization` and do not use `authMiddleware`. Set `ALPHA_VANTAGE_API_KEY` in `.env` (the `demo` key works for quotes only; search needs a free key).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -231,6 +231,7 @@ Protected routes that proxy [Alpha Vantage](https://www.alphavantage.co/document
 
 - Bcrypt password hashing
 - JWT on protected routes (`authMiddleware`)
+- Market endpoints are intentionally public and do not use `authMiddleware`
 - Mongoose validation
 - CORS enabled
 - `Cache-Control: no-store` on API responses
