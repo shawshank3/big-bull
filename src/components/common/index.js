@@ -3,6 +3,7 @@ export { Badge, badgeVariants } from '../ui/badge';
 export { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 export { default as Input } from './Input';
 export { default as FormTextarea } from './FormTextarea';
+export { default as GrowingMarketIcon } from './GrowingMarketIcon';
 export {
   Card,
   CardHeader,
