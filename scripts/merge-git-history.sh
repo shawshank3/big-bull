@@ -6,14 +6,14 @@
 set -euo pipefail
 
 echo "Step 1: Merging big-bull-ui history into apps/ui ..."
-git remote add ui https://github.com/<org>/big-bull-ui.git
+git remote add ui https://github.com/shawshank3/big-bull-ui.git
 git fetch ui
-git subtree add --prefix=apps/ui ui main --squash=false
+git subtree add --prefix=apps/ui ui main
 
 echo "Step 2: Merging big-bull-api history into apps/api ..."
-git remote add api https://github.com/<org>/big-bull-api.git
+git remote add api https://github.com/shawshank3/big-bull-api.git
 git fetch api
-git subtree add --prefix=apps/api api main --squash=false
+git subtree add --prefix=apps/api api main
 
 echo "Step 3: Removing temporary remotes ..."
 git remote remove ui
