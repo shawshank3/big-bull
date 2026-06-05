@@ -1,0 +1,16 @@
+{
+  "name": "big-bull",
+  "private": true,
+  "packageManager": "pnpm@11.5.2",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter ui dev\" \"pnpm --filter api dev\"",
+    "build": "pnpm --filter ui build",
+    "start": "pnpm --filter api start",
+    "install:all": "pnpm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "fast-check": "^3.23.2"
+  },
+  "type": "module"
+}
