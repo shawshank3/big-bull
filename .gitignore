@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
+# macOS metadata
+.DS_Store
+
+# pnpm debug log
+pnpm-debug.log*
