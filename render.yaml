@@ -1,0 +1,32 @@
+services:
+  # ── Static Site (apps/ui) ───────────────────────────────────────────
+  - type: web
+    name: big-bull-ui
+    runtime: static
+    buildCommand: pnpm install && pnpm --filter ui build
+    staticPublishPath: apps/ui/dist
+    pullRequestPreviewsEnabled: true
+
+  # ── Web Service (apps/api) ──────────────────────────────────────────
+  - type: web
+    name: big-bull-api
+    runtime: node
+    buildCommand: pnpm install
+    startCommand: pnpm --filter api start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ACCESS_EXPIRES
+        sync: false
+      - key: JWT_REFRESH_EXPIRES
+        sync: false
+      - key: GEMENI_API_KEY
+        sync: false
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
