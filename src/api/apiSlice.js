@@ -13,7 +13,7 @@ const isAuthSkipPath = (url) =>
   AUTH_SKIP_PATHS.some((path) => url?.includes(path))
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: '/api',
+  baseUrl: import.meta.env.VITE_API_URL || '/api',
   prepareHeaders: (headers, { getState }) => {
     const token = getState().auth?.token || getFromLocalStorage('token')
     if (token) {
