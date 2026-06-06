@@ -5,7 +5,7 @@ Node.js + Express REST API for portfolio tracking, user auth, and an AI assistan
 ## Project structure
 
 ```
-big-bull-api/
+apps/api/
 ├── src/
 │   ├── config/
 │   │   ├── database.js      # MongoDB connection
@@ -51,8 +51,8 @@ big-bull-api/
 ### Installation
 
 ```bash
-cd big-bull-api
-npm install
+cd apps/api
+pnpm install
 cp .env.example .env
 ```
 

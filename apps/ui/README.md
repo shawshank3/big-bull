@@ -5,7 +5,7 @@ React 19 + Vite SPA for portfolio tracking. Server data is loaded with **RTK Que
 ## Project structure
 
 ```
-big-bull-ui/
+apps/ui/
 ├── src/
 │   ├── api/
 │   │   └── apiSlice.js           # RTK Query endpoints, reauth, generated hooks
@@ -74,13 +74,13 @@ Path alias: `@` resolves to `src/` (see `vite.config.js` and `components.json`).
 ### Prerequisites
 
 - Node.js 18+
-- [big-bull-api](../big-bull-api) running on `http://localhost:4000` with `GEMENI_API_KEY` set for chat
+- `apps/api` running on `http://localhost:4000` with `GEMENI_API_KEY` set for chat
 
 ### Install
 
 ```bash
-cd big-bull-ui
-npm install
+cd apps/ui
+pnpm install
 cp .env.example .env
 ```
 
