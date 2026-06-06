@@ -16,16 +16,12 @@ big-bull/
 ├── pnpm-workspace.yaml      Declares apps/* as workspace packages so pnpm
 │                            resolves and hoists dependencies from a single
 │                            root install
-├── render.yaml              Render Blueprint — declares big-bull-ui (static
-│                            site) and big-bull-api (web service) so Render
-│                            can deploy both apps from this repository
+├── render.yaml              Render Blueprint — deploys the full-stack app
+│                            to Render from this repository
 ├── package.json             Root scripts: dev, build, start, install:all
 ├── .env.example             All environment variables for both apps with
 │                            placeholder values and inline comments
 ├── .gitignore               Excludes node_modules/, dist/, .env, .DS_Store
-├── scripts/
-│   └── merge-git-history.sh One-time script to graft original repo histories
-│                            into apps/ui and apps/api via git subtree
 └── README.md                This file
 ```
 
@@ -97,16 +93,13 @@ The `render.yaml` file at the workspace root is a [Render Blueprint](https://ren
 
 | Render service | Type | Source | Build command | Serve / start |
 |----------------|------|--------|---------------|---------------|
-| `big-bull-ui` | Static site | `apps/ui` | `pnpm install && pnpm --filter ui build` | Serves `apps/ui/dist/` |
-| `big-bull-api` | Web service | `apps/api` | `pnpm install` | `pnpm --filter api start` |
-
-Pull request previews are enabled for `big-bull-ui` — every PR gets an isolated preview URL.
+| `big-bull` | Web service | workspace root | `pnpm install && pnpm --filter ui build` | `pnpm --filter api start` |
 
 ### Environment variables on Render
 
 Secret variables are **not** stored in `render.yaml`. They are listed with `sync: false`, which means Render expects you to set their values manually in the dashboard.
 
-For the `big-bull-api` service, go to **Render Dashboard → big-bull-api → Environment** and set:
+For the `big-bull` service, go to **Render Dashboard → big-bull → Environment** and set:
 
 | Variable | Description |
 |----------|-------------|
@@ -118,41 +111,6 @@ For the `big-bull-api` service, go to **Render Dashboard → big-bull-api → En
 | `ALPHA_VANTAGE_API_KEY` | Alpha Vantage key for stock data |
 
 `NODE_ENV` and `PORT` are set automatically by `render.yaml` (`production` and `4000` respectively) and do not need to be entered manually.
-
----
-
-## Git History Merge
-
-The two original repositories (`big-bull-ui` and `big-bull-api`) are grafted into this monorepo using `git subtree`, which preserves every original commit. This is a **one-time setup step** performed when the monorepo is first initialised.
-
-A ready-to-run script is provided at `scripts/merge-git-history.sh`. Before running it, replace `<org>` with your actual GitHub username or organisation name.
-
-```bash
-# Replace <org> with your GitHub username / org, then run from the workspace root:
-bash scripts/merge-git-history.sh
-```
-
-The script executes these steps:
-
-```bash
-# 1. Merge big-bull-ui history → apps/ui
-git remote add ui https://github.com/<org>/big-bull-ui.git
-git fetch ui
-git subtree add --prefix=apps/ui ui main --squash=false
-
-# 2. Merge big-bull-api history → apps/api
-git remote add api https://github.com/<org>/big-bull-api.git
-git fetch api
-git subtree add --prefix=apps/api api main --squash=false
-
-# 3. Remove temporary remotes (keeps remote list clean)
-git remote remove ui
-git remote remove api
-```
-
-`--squash=false` preserves every original commit. After the operation, `git log --oneline` will show all commits from both source repositories interleaved chronologically.
-
-> **Note:** If either remote already exists from a previous attempt, remove it first with `git remote remove ui` / `git remote remove api` before re-running.
 
 ---
 

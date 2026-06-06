@@ -9,8 +9,7 @@
     "install:all": "pnpm install"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "fast-check": "^3.23.2"
+    "concurrently": "^9.1.2"
   },
   "type": "module"
 }
