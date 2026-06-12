@@ -1,262 +1,147 @@
-# BigBull Trading Dashboard — Backend API
+# BigBull API — Backend
 
-Node.js + Express REST API for portfolio tracking, user auth, and an AI assistant powered by Google Gemini.
+Node.js + Express REST API for the BigBull simulated Indian stock market platform.
 
-## Project structure
+## Architecture
+
+Feature-module vertical structure. Each domain lives in `src/modules/<feature>/` containing its own model, validator, service, controller, and routes.
 
 ```
-apps/api/
-├── src/
-│   ├── config/
-│   │   ├── database.js      # MongoDB connection
-│   │   └── chat.js          # Gemini model, system prompt, generation settings
-│   ├── controllers/
-│   │   ├── authController.js
-│   │   ├── holdingsController.js
-│   │   └── chatController.js
-│   ├── middleware/
-│   │   ├── authMiddleware.js
-│   │   └── errorHandler.js
-│   ├── models/
-│   │   ├── User.js
-│   │   ├── Holding.js
-│   │   └── Watchlist.js
-│   ├── routes/
-│   │   ├── authRoutes.js
-│   │   ├── holdingsRoutes.js
-│   │   ├── portfolioRoutes.js
-│   │   └── chatRoutes.js
-│   ├── services/
-│   │   └── chatService.js   # Portfolio context + Gemini API calls
-│   ├── utils/
-│   │   ├── jwt.js
-│   │   ├── response.js
-│   │   └── avatarData.js
-│   └── server.js
-├── scripts/
-│   └── seed.js
-├── .env.example
-├── index.js                 # Server entry + graceful shutdown
-└── package.json
+apps/api/src/
+├── modules/
+│   ├── auth/          # Cookie-based JWT auth (register, login, logout, me, refresh)
+│   ├── asset/         # Indian stock + MF catalog (Mongoose model + Zod validator)
+│   ├── wallet/        # VirtualWallet — ₹10L starting balance per user
+│   ├── transaction/   # BUY/SELL ledger — the source of truth for all portfolio values
+│   ├── portfolio/     # Holdings + summary computed from transactions + Redis prices
+│   └── market/        # Search, quotes, ticker, SSE stream — all from internal catalog
+├── shared/            # catchAsync, AppError, Redis singleton
+├── middleware/        # authMiddleware (cookie), rateLimiter, errorHandler
+├── config/            # database, bullmq queue definitions
+├── workers/           # mseWorker (price tick skeleton), index (worker entry point)
+├── routes/            # Legacy /api/* routes (backward compat)
+├── controllers/       # Legacy horizontal controllers (kept for old routes)
+└── server.js          # Express app — mounts both /api/v1/* and legacy /api/*
 ```
 
-## Getting started
+## Prerequisites
 
-### Prerequisites
+- **Node.js 18+**
+- **MongoDB** — local (`mongod`) or Atlas
+- **Redis** *(optional)* — prices fall back to `basePrice` if unavailable
 
-- Node.js 18+
-- MongoDB (local or Atlas)
-- [Google AI Studio API key](https://aistudio.google.com/apikey) (required for chat)
+No external market data API keys needed. All prices are simulated internally.
 
-### Installation
+## Setup
 
 ```bash
 cd apps/api
-pnpm install
+pnpm install        # or: npm install
 cp .env.example .env
+# Edit .env — set MONGODB_URI, JWT_SECRET, JWT_REFRESH_SECRET at minimum
 ```
 
-Configure `.env`:
+## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `PORT` | HTTP port (default `4000`) |
-| `NODE_ENV` | `development` or `production` |
-| `MONGO_URI` | MongoDB connection string |
-| `JWT_SECRET` | Secret for signing access tokens |
-| `JWT_ACCESS_EXPIRES` | Access token TTL (e.g. `7d`) |
-| `JWT_REFRESH_EXPIRES` | Refresh token TTL (e.g. `30d`) |
-| `GEMENI_API_KEY` | Google Gemini API key (env name matches codebase) |
+| Variable | Required | Description |
+|---|---|---|
+| `MONGODB_URI` | ✅ | MongoDB connection string |
+| `JWT_SECRET` | ✅ | Access token signing secret (min 32 chars) |
+| `JWT_REFRESH_SECRET` | ✅ | Refresh token signing secret (different from JWT_SECRET) |
+| `PORT` | — | HTTP port (default `4000`) |
+| `NODE_ENV` | — | `development` or `production` |
+| `REDIS_URL` | — | Redis connection string. If absent, caching is disabled and prices use basePrice |
+| `GEMENI_API_KEY` | — | Google Gemini key for the AI chat copilot |
 
-### Seed database (optional)
+## Seed the database
+
+Populates 20 NSE stocks + 5 Indian mutual funds and creates a demo user with ₹10L wallet:
 
 ```bash
 npm run seed
+# Demo login: demo@bigbull.com / Demo@1234
 ```
 
-Demo user:
-
-- **Email:** `demo@bigbull.com`
-- **Password:** `Demo@123`
-
-### Run
+## Run
 
 ```bash
-npm run dev    # nodemon
+npm run dev    # nodemon — auto-restarts on file changes
 npm start      # production
 ```
 
-API base: `http://localhost:4000`  
-JSON API prefix: `http://localhost:4000/api`
+API base: `http://localhost:4000`
 
-On startup, the server logs whether `JWT_SECRET` and `GEMENI_API_KEY` are set.
+## API Reference
 
-## API reference
-
-All protected routes require:
-
-```
-Authorization: Bearer <jwt_token>
+All v1 responses use the unified envelope:
+```json
+{ "success": true, "data": {}, "error": null, "timestamp": "..." }
 ```
 
-Responses use a consistent envelope via `utils/response.js` (`success`, `message`, `data`).
+Auth uses **HTTP-Only cookies** — no Bearer tokens.
 
-### Authentication — `/api/auth`
+### Auth `/api/v1/auth`
 
 | Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/register` | No | Create account |
-| `POST` | `/login` | No | Login; returns JWT |
-| `GET` | `/profile` | Yes | Current user profile |
-| `PATCH` | `/profile` | Yes | Update name, phone, bio |
-| `POST` | `/profile/avatar` | Yes | Upload profile photo (base64 in body) |
-| `DELETE` | `/profile/avatar` | Yes | Remove profile photo |
+|---|---|---|---|
+| POST | `/register` | — | Create account, set cookies, seed wallet |
+| POST | `/login` | — | Validate credentials, set cookies |
+| POST | `/logout` | ✅ | Clear cookies |
+| GET | `/me` | ✅ | Current user profile (used for app hydration) |
+| POST | `/refresh` | — | Rotate refresh token, issue new access token |
 
-**Register / login body**
-
-```json
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "password": "Password123"
-}
-```
-
-**Update profile body**
-
-```json
-{
-  "name": "Jane Doe",
-  "phone": "+1234567890",
-  "bio": "Investment enthusiast"
-}
-```
-
-### Holdings — `/api/holdings`
+### Market `/api/v1/market` (all public)
 
 | Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/` | All holdings for the user |
-| `GET` | `/mutuals` | Mutual fund holdings only |
-| `GET` | `/stocks` | Stock holdings only |
-| `GET` | `/summary` | Portfolio summary (invested, current, allocation) |
-| `GET` | `/:id` | Single holding |
-| `POST` | `/` | Create holding |
-| `PUT` | `/:id` | Update holding |
-| `DELETE` | `/:id` | Delete holding |
+|---|---|---|
+| GET | `/assets` | List all seeded assets. `?type=STOCK\|MUTUAL_FUND` |
+| GET | `/assets/:ticker` | Single asset by NSE ticker |
+| GET | `/search?q=` | Full-text search over catalog (min 2 chars) |
+| GET | `/quote/:ticker` | Current simulated price from Redis or basePrice |
+| GET | `/ticker` | Top 10 NSE stocks with live prices (ticker strip) |
+| GET | `/stream` | SSE stream — live price_update events *(auth required)* |
 
-**Create holding body**
+### Transactions `/api/v1/transactions`
 
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/` | ✅ | Paginated transaction history (`?page=&limit=`) |
+| POST | `/order` | ✅ | Execute BUY or SELL — atomically updates wallet |
+
+**Order body:**
 ```json
 {
-  "type": "stock",
-  "name": "Apple Inc.",
-  "symbol": "AAPL",
-  "qty": 10,
-  "avgPrice": 150.00,
-  "currentPrice": 175.00,
-  "notes": "Growth stock"
+  "assetId": "<MongoDB _id>",
+  "transactionType": "BUY",
+  "quantity": 10,
+  "pricePerUnit": 2950.00,
+  "fees": 0
 }
 ```
 
-`type` must be `stock` or `mutual`.
+### Portfolio `/api/v1/portfolio`
 
-### Portfolio — `/api/portfolio`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/holdings` | ✅ | Transaction-derived holdings with live P&L |
+| GET | `/summary` | ✅ | Total invested, current value, P&L, cash balance |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/summary` | Totals and mutual/stock allocation |
-| `GET` | `/stats` | Counts, top/worst performer by return % |
+### Wallet `/api/v1/wallet`
 
-### Chat (BigBull AI) — `/api/chat`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/` | ✅ | Current ₹ balance |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/` | Send a message; get an AI reply |
+## Key Design Rules
 
-**Request**
-
-```json
-{
-  "message": "How is my portfolio allocated?"
-}
-```
-
-**Response** (`data`)
-
-```json
-{
-  "reply": "..."
-}
-```
-
-The service loads the user’s holdings from MongoDB, builds a portfolio context block, and calls **Gemini 2.5 Flash** (`@google/genai`) with:
-
-- A fixed system instruction (stocks/portfolios scope, no financial advice)
-- **Google Search** tooling for live prices and news
-- Stored holding prices labeled as last saved in the app, not live exchange ticks
-
-Returns `400` if `message` is missing, `502` if Gemini returns no text, `503` if `GEMENI_API_KEY` is not set.
-
-### Market data — `/api/market`
-
-Public routes that proxy [Alpha Vantage](https://www.alphavantage.co/documentation/) (stocks) and [MFapi.in](https://www.mfapi.in/) (Indian mutual funds). These endpoints no longer require `Authorization` and do not use `authMiddleware`. Set `ALPHA_VANTAGE_API_KEY` in `.env` (the `demo` key works for quotes only; search needs a free key).
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/search?q=` | Combined stock + mutual fund search (min 2 characters) |
-| `GET` | `/stocks/:symbol` | Latest global quote for a symbol |
-| `GET` | `/mutuals/:schemeCode` | Latest NAV for an MF scheme code |
-
-## Database models
-
-### User
-
-- `name`, `email` (unique), `password` (bcrypt hashed)
-- `phone`, `bio`, `avatar` (optional)
-- Timestamps
-
-### Holding
-
-- `user` (ref to User)
-- `type`: `mutual` | `stock`
-- `name`, `symbol`, `qty`, `avgPrice`, `currentPrice`, `notes`
-- Timestamps
-
-### Watchlist
-
-- `user`, `symbol`, `name`, `type`, `targetPrice`, `notes`
-
-## Security
-
-- Bcrypt password hashing
-- JWT on protected routes (`authMiddleware`)
-- Market endpoints are intentionally public and do not use `authMiddleware`
-- Mongoose validation
-- CORS enabled
-- `Cache-Control: no-store` on API responses
-- JSON body limit `3mb` (avatars)
-
-## Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| `express` | HTTP server |
-| `mongoose` | MongoDB ODM |
-| `bcryptjs` | Password hashing |
-| `jsonwebtoken` | JWT auth |
-| `cors` | Cross-origin requests |
-| `dotenv` | Environment config |
-| `@google/genai` | Gemini chat + search tools |
+- **Transactions are the only source of truth.** Portfolio values are never stored — always computed by aggregating the Transaction ledger.
+- **No external APIs.** All market data (search, quotes, ticker) comes from the seeded Asset catalog + Redis price cache populated by the MSE worker.
+- **Cookie auth.** JWTs live in HTTP-Only cookies. The frontend never reads the raw token.
 
 ## Scripts
 
 | Command | Description |
-|---------|-------------|
+|---|---|
 | `npm run dev` | Start with nodemon |
 | `npm start` | Start production server |
-| `npm run seed` | Seed demo user and holdings |
-
-## License
-
-MIT
+| `npm run seed` | Seed demo assets and user |

@@ -2,18 +2,20 @@ import { useSelector } from 'react-redux';
 import { Alert } from '../common';
 import { HoldingsBreakdown } from '../holdings';
 import { PageHeader } from '../layout/PageHeader';
-import { useGetHoldingsQuery } from '../../api/apiSlice';
-import { getAllocation, getPortfolioSummary } from '@/utils';
+import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../../api/apiSlice';
+import { getAllocation } from '@/utils';
 import { AssetAllocationCard } from './AssetAllocationCard';
 import { PortfolioStatsGrid } from './PortfolioStatsGrid';
 import { PortfolioTotalValueCard } from './PortfolioTotalValueCard';
 
 export const DashboardContent = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
-  const { data: holdings = [], isLoading, error } = useGetHoldingsQuery(undefined, {
+  const { data: holdings = [], isLoading, error } = useGetPortfolioHoldingsQuery(undefined, {
     skip: !isAuthenticated,
   });
-  const summary = getPortfolioSummary(holdings);
+  const { data: summary = {} } = useGetPortfolioSummaryQuery(undefined, {
+    skip: !isAuthenticated,
+  });
   const allocation = getAllocation(holdings);
 
   return (

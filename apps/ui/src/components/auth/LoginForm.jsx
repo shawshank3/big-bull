@@ -1,47 +1,65 @@
-import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { useAuth } from '../../hooks/useAuth';
-import { validateLoginForm } from './utils';
-import { AuthForm } from './AuthForm';
+import { Alert, Button, Input } from '../common';
 
 export const LoginForm = () => {
   const { login, isLoading, error } = useAuth();
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [validationErrors, setValidationErrors] = useState({});
 
-  const handleChange = (name, value) => {
-    setFormData((current) => ({ ...current, [name]: value }));
-    setValidationErrors((current) => ({ ...current, [name]: undefined }));
-  };
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setError,
+  } = useForm({
+    defaultValues: { email: '', password: '' },
+  });
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const nextErrors = validateLoginForm(formData);
-
-    if (Object.keys(nextErrors).length > 0) {
-      setValidationErrors(nextErrors);
-      return;
+  const onSubmit = async ({ email, password }) => {
+    try {
+      await login(email, password);
+    } catch (err) {
+      // Server errors surface through useAuth's error state.
+      // If it's a 401 specifically, mark the fields invalid for better UX.
+      const status = err?.status ?? err?.data?.error?.code;
+      if (status === 401) {
+        setError('email', { type: 'server' });
+        setError('password', { message: 'Invalid email or password', type: 'server' });
+      }
     }
-
-    await login(formData.email, formData.password);
   };
 
   return (
-    <AuthForm
-      formData={formData}
-      validationErrors={validationErrors}
-      error={error}
-      isLoading={isLoading}
-      onSubmit={handleSubmit}
-      onChange={handleChange}
-    >
-      <AuthForm.ErrorAlert />
-      <AuthForm.ValidationAlert />
-      <AuthForm.Fields>
-        <AuthForm.Field name="email" type="email" label="Email" required />
-        <AuthForm.Field name="password" type="password" label="Password" required />
-      </AuthForm.Fields>
-      <AuthForm.Submit loadingText="Signing in">Login</AuthForm.Submit>
-    </AuthForm>
+    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+      {error && <Alert variant="danger">{error}</Alert>}
+
+      <Input
+        label="Email"
+        type="email"
+        autoComplete="email"
+        error={errors.email?.message}
+        {...register('email', {
+          required: 'Email is required',
+          pattern: {
+            value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+            message: 'Enter a valid email address',
+          },
+        })}
+      />
+
+      <Input
+        label="Password"
+        type="password"
+        autoComplete="current-password"
+        error={errors.password?.message}
+        {...register('password', {
+          required: 'Password is required',
+        })}
+      />
+
+      <Button type="submit" variant="primary" size="lg" loading={isLoading} className="w-full">
+        {isLoading ? 'Signing in…' : 'Login'}
+      </Button>
+    </form>
   );
 };
 

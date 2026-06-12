@@ -10,6 +10,9 @@ export const RootLayout = () => (
     <Navbar>
       <Navbar.Start>
         <Navbar.Brand />
+        <Navbar.Authenticated>
+          <Navbar.NavLinks />
+        </Navbar.Authenticated>
       </Navbar.Start>
 
       <Navbar.Center>

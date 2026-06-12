@@ -95,7 +95,7 @@ export const NavbarSearch = () => {
 
           {hasMinLength && isError ? (
             <p className="px-4 py-3 text-sm text-danger">
-              Search is unavailable. Check your API key and try again.
+              Search unavailable. Try again in a moment.
             </p>
           ) : null}
 

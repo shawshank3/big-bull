@@ -1,126 +1,113 @@
 /**
- * Seed Script
- * Populate database with demo data
+ * Seed Script — Indian Assets + Demo User
+ *
+ * Populates the Assets collection with 20 NSE-listed stocks and 5 Indian mutual funds.
+ * These serve as the tradeable universe for the BigBull simulation.
+ * Prices are realistic INR base prices as of mid-2025.
+ *
+ * Run: node scripts/seed.js
  */
 require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('../src/models/User');
-const Holding = require('../src/models/Holding');
+const Asset = require('../src/modules/asset/asset.model');
+const VirtualWallet = require('../src/modules/wallet/wallet.model');
+
+// ── Indian Stocks (NSE) ────────────────────────────────────────────────────────
+const STOCKS = [
+  { ticker: 'RELIANCE',   name: 'Reliance Industries Ltd',      sector: 'OIL_GAS',      basePrice: 2950, volatility: 0.018 },
+  { ticker: 'TCS',        name: 'Tata Consultancy Services Ltd', sector: 'IT',           basePrice: 3780, volatility: 0.014 },
+  { ticker: 'HDFCBANK',   name: 'HDFC Bank Ltd',                sector: 'BANKING',      basePrice: 1680, volatility: 0.016 },
+  { ticker: 'INFY',       name: 'Infosys Ltd',                  sector: 'IT',           basePrice: 1590, volatility: 0.015 },
+  { ticker: 'ICICIBANK',  name: 'ICICI Bank Ltd',               sector: 'BANKING',      basePrice: 1250, volatility: 0.017 },
+  { ticker: 'SBIN',       name: 'State Bank of India',          sector: 'BANKING',      basePrice: 820,  volatility: 0.020 },
+  { ticker: 'WIPRO',      name: 'Wipro Ltd',                    sector: 'IT',           basePrice: 460,  volatility: 0.016 },
+  { ticker: 'BAJFINANCE', name: 'Bajaj Finance Ltd',            sector: 'FINANCE',      basePrice: 7100, volatility: 0.022 },
+  { ticker: 'MARUTI',     name: 'Maruti Suzuki India Ltd',      sector: 'AUTO',         basePrice: 12400, volatility: 0.019 },
+  { ticker: 'HINDUNILVR', name: 'Hindustan Unilever Ltd',       sector: 'FMCG',         basePrice: 2450, volatility: 0.013 },
+  { ticker: 'LTIM',       name: 'LTIMindtree Ltd',              sector: 'IT',           basePrice: 5400, volatility: 0.018 },
+  { ticker: 'TITAN',      name: 'Titan Company Ltd',            sector: 'CONSUMER',     basePrice: 3600, volatility: 0.021 },
+  { ticker: 'ASIANPAINT', name: 'Asian Paints Ltd',             sector: 'CONSUMER',     basePrice: 2900, volatility: 0.015 },
+  { ticker: 'AXISBANK',   name: 'Axis Bank Ltd',                sector: 'BANKING',      basePrice: 1150, volatility: 0.018 },
+  { ticker: 'SUNPHARMA',  name: 'Sun Pharmaceutical Industries', sector: 'PHARMA',      basePrice: 1680, volatility: 0.017 },
+  { ticker: 'DRREDDY',    name: 'Dr. Reddy\'s Laboratories',    sector: 'PHARMA',       basePrice: 6300, volatility: 0.016 },
+  { ticker: 'NESTLEIND',  name: 'Nestle India Ltd',             sector: 'FMCG',         basePrice: 2350, volatility: 0.012 },
+  { ticker: 'POWERGRID',  name: 'Power Grid Corporation',       sector: 'UTILITIES',    basePrice: 330,  volatility: 0.014 },
+  { ticker: 'TATAMOTORS', name: 'Tata Motors Ltd',              sector: 'AUTO',         basePrice: 950,  volatility: 0.025 },
+  { ticker: 'ONGC',       name: 'Oil & Natural Gas Corporation', sector: 'OIL_GAS',     basePrice: 285,  volatility: 0.020 },
+];
+
+// ── Indian Mutual Funds (MFAPI scheme codes as ticker) ────────────────────────
+const MUTUAL_FUNDS = [
+  { ticker: '120503', name: 'Mirae Asset Large Cap Fund - Direct Growth',         sector: 'LARGE_CAP',  basePrice: 98.50,  volatility: 0.010 },
+  { ticker: '119598', name: 'Axis Bluechip Fund - Direct Growth',                sector: 'LARGE_CAP',  basePrice: 62.80,  volatility: 0.009 },
+  { ticker: '125494', name: 'Parag Parikh Flexi Cap Fund - Direct Growth',        sector: 'FLEXI_CAP',  basePrice: 75.20,  volatility: 0.011 },
+  { ticker: '120586', name: 'SBI Small Cap Fund - Direct Growth',                sector: 'SMALL_CAP',  basePrice: 148.60, volatility: 0.018 },
+  { ticker: '118989', name: 'HDFC Mid-Cap Opportunities Fund - Direct Growth',   sector: 'MID_CAP',    basePrice: 115.40, volatility: 0.014 },
+];
 
 const seedDatabase = async () => {
-  try {
-    const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/bigbull';
-    
-    await mongoose.connect(MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+  const MONGO_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/bigbull';
 
+  try {
+    await mongoose.connect(MONGO_URI);
     console.log('✓ Connected to MongoDB');
 
-    // Clear existing data
-    await User.deleteMany({});
-    await Holding.deleteMany({});
-    console.log('✓ Cleared existing data');
+    // ── Upsert Assets (don't wipe user data) ────────────────────────────────
+    let upserted = 0;
+    for (const stock of STOCKS) {
+      await Asset.findOneAndUpdate(
+        { ticker: stock.ticker },
+        {
+          ...stock,
+          assetType: 'STOCK',
+          exchange: 'NSE',
+          lastUpdated: new Date(),
+        },
+        { upsert: true, new: true }
+      );
+      upserted++;
+    }
 
-    // Create demo user
-    const user = await User.create({
-      name: 'Demo User',
-      email: 'demo@bigbull.com',
-      password: 'Demo@123',
-    });
-    console.log('✓ Created demo user:', user.email);
+    for (const mf of MUTUAL_FUNDS) {
+      await Asset.findOneAndUpdate(
+        { ticker: mf.ticker },
+        {
+          ...mf,
+          assetType: 'MUTUAL_FUND',
+          lastUpdated: new Date(),
+        },
+        { upsert: true, new: true }
+      );
+      upserted++;
+    }
 
-    // Create sample holdings
-    const holdings = await Holding.create([
-      {
-        user: user._id,
-        type: 'mutual',
-        name: 'Alpha Growth Fund',
-        symbol: 'AGF',
-        qty: 12,
-        avgPrice: 95.5,
-        currentPrice: 102.3,
-        notes: 'High-growth equity fund',
-      },
-      {
-        user: user._id,
-        type: 'mutual',
-        name: 'Beta Dividend Fund',
-        symbol: 'BDF',
-        qty: 8,
-        avgPrice: 120.0,
-        currentPrice: 118.4,
-        notes: 'Dividend-focused balanced fund',
-      },
-      {
-        user: user._id,
-        type: 'stock',
-        name: 'Apple Inc.',
-        symbol: 'AAPL',
-        qty: 5,
-        avgPrice: 150.0,
-        currentPrice: 172.2,
-        notes: 'Tech giant',
-      },
-      {
-        user: user._id,
-        type: 'stock',
-        name: 'Microsoft Corporation',
-        symbol: 'MSFT',
-        qty: 3,
-        avgPrice: 210.5,
-        currentPrice: 215.1,
-        notes: 'Cloud computing leader',
-      },
-      {
-        user: user._id,
-        type: 'stock',
-        name: 'Tesla Inc.',
-        symbol: 'TSLA',
-        qty: 2,
-        avgPrice: 250.0,
-        currentPrice: 268.5,
-        notes: 'EV manufacturer',
-      },
-      {
-        user: user._id,
-        type: 'mutual',
-        name: 'Gamma Income Fund',
-        symbol: 'GIF',
-        qty: 10,
-        avgPrice: 110.0,
-        currentPrice: 109.5,
-        notes: 'Fixed income fund',
-      },
-    ]);
+    console.log(`✓ Upserted ${upserted} assets (${STOCKS.length} stocks + ${MUTUAL_FUNDS.length} mutual funds)`);
 
-    console.log(`✓ Created ${holdings.length} sample holdings`);
+    // ── Demo user (idempotent) ───────────────────────────────────────────────
+    let demoUser = await User.findOne({ email: 'demo@bigbull.com' });
+    if (!demoUser) {
+      demoUser = await User.create({
+        name: 'Demo Investor',
+        email: 'demo@bigbull.com',
+        password: 'Demo@1234',
+        role: 'CLIENT',
+      });
+      await VirtualWallet.create({ userId: demoUser._id, balance: 1000000 });
+      console.log('✓ Created demo user: demo@bigbull.com / Demo@1234');
+    } else {
+      console.log('✓ Demo user already exists — skipped');
+    }
 
-    // Calculate and display portfolio stats
-    let totalInvested = 0;
-    let totalCurrent = 0;
-
-    holdings.forEach(h => {
-      totalInvested += h.qty * h.avgPrice;
-      totalCurrent += h.qty * h.currentPrice;
-    });
-
-    console.log('\n📊 Portfolio Statistics:');
-    console.log(`   Total Invested: ₹${totalInvested.toFixed(2)}`);
-    console.log(`   Current Value: ₹${totalCurrent.toFixed(2)}`);
-    console.log(`   Total Return: ₹${(totalCurrent - totalInvested).toFixed(2)}`);
-    console.log(`   Return %: ${(((totalCurrent - totalInvested) / totalInvested) * 100).toFixed(2)}%`);
-
-    console.log('\n✅ Database seeding completed successfully!');
-    console.log('\nDemo Credentials:');
-    console.log('Email: demo@bigbull.com');
-    console.log('Password: Demo@123');
-
-    process.exit(0);
-  } catch (error) {
-    console.error('✗ Error seeding database:', error.message);
+    console.log('\n✅ Seed complete!');
+    console.log('   Assets tradeable: 20 NSE stocks + 5 mutual funds');
+    console.log('   Demo login: demo@bigbull.com / Demo@1234');
+    console.log('   Starting wallet: ₹10,00,000');
+  } catch (err) {
+    console.error('✗ Seed failed:', err.message);
     process.exit(1);
+  } finally {
+    await mongoose.disconnect();
   }
 };
 

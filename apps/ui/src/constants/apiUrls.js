@@ -1,35 +1,39 @@
 /**
  * API URLs Constants
- * Defines all backend API endpoints for the application
+ * v1 routes use /api/v1/* (cookie-based auth, rate limited)
+ * Legacy routes use /api/* (Bearer token, backward compat during Phase 1)
  */
 
 export const API_URLS = {
   AUTH: {
-    REGISTER: '/auth/register',
-    LOGIN: '/auth/login',
-    LOGOUT: '/auth/logout',
-    REFRESH: '/auth/refresh',
-    PROFILE: '/auth/profile',
-    PROFILE_AVATAR: '/auth/profile/avatar',
-  },
-  HOLDINGS: {
-    BASE: '/holdings',
-    MUTUALS: '/holdings/mutuals',
-    STOCKS: '/holdings/stocks',
-    BY_ID: (id) => `/holdings/${id}`,
+    REGISTER: '/api/v1/auth/register',
+    LOGIN: '/api/v1/auth/login',
+    LOGOUT: '/api/v1/auth/logout',
+    REFRESH: '/api/v1/auth/refresh',
+    ME: '/api/v1/auth/me',
+    PROFILE: '/api/auth/profile',              // legacy — still active
+    PROFILE_AVATAR: '/api/auth/profile/avatar', // legacy — still active
   },
   PORTFOLIO: {
-    SUMMARY: '/holdings/summary',
-    STATS: '/portfolio/stats',
+    SUMMARY: '/api/v1/portfolio/summary',
+    HOLDINGS: '/api/v1/portfolio/holdings',
+  },
+  WALLET: {
+    BASE: '/api/v1/wallet',
+  },
+  TRANSACTIONS: {
+    BASE: '/api/v1/transactions',
+    ORDER: '/api/v1/transactions/order',
   },
   CHAT: {
-    BASE: '/chat',
+    BASE: '/api/chat',
   },
   MARKET: {
-    SEARCH: '/market/search',
-    TICKER: '/market/ticker',
-    STOCK: (symbol) => `/market/stocks/${encodeURIComponent(symbol)}`,
-    MUTUAL: (schemeCode) => `/market/mutuals/${encodeURIComponent(schemeCode)}`,
+    SEARCH: '/api/v1/market/search',
+    TICKER: '/api/market/ticker',               // legacy ticker still works
+    STOCK: (symbol) => `/api/v1/market/quote/${encodeURIComponent(symbol)}`,
+    MUTUAL: (schemeCode) => `/api/v1/market/quote/${encodeURIComponent(schemeCode)}`,
+    STREAM: '/api/v1/market/stream',
   },
 };
 

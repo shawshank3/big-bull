@@ -8,6 +8,7 @@ import Login from './auth/Login';
 import Register from './auth/Register';
 import Dashboard from './dashboard/Dashboard';
 import Holdings from './holdings/Holdings';
+import Market from './market/Market';
 import Profile from './profile/Profile';
 import StockDetail from './market/StockDetail';
 import MutualDetail from './market/MutualDetail';
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
         children: [
           { path: ROUTES.DASHBOARD, element: <Dashboard /> },
           { path: ROUTES.HOLDINGS, element: <Holdings /> },
+          { path: ROUTES.MARKET, element: <Market /> },
           { path: ROUTES.PROFILE, element: <Profile /> },
         ],
       },

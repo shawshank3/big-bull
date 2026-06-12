@@ -1,100 +1,70 @@
 /**
  * Auth Slice
- * Redux slice for authentication state management
+ * Cookie-based auth — no tokens stored in localStorage or Redux state.
+ * Auth state is hydrated by calling GET /api/v1/auth/me on app load.
  */
 import { createSlice } from '@reduxjs/toolkit';
-import { getFromLocalStorage, saveToLocalStorage, removeFromLocalStorage } from '@/utils';
-
-const initialState = {
-  user: getFromLocalStorage('user'),
-  token: getFromLocalStorage('token'),
-  refreshToken: getFromLocalStorage('refreshToken'),
-  isLoading: false,
-  error: null,
-  isAuthenticated: !!getFromLocalStorage('token'),
-};
-
-const persistAuth = (state) => {
-  saveToLocalStorage('user', state.user);
-  saveToLocalStorage('token', state.token);
-  saveToLocalStorage('refreshToken', state.refreshToken);
-};
-
-const clearAuth = (state) => {
-  state.user = null;
-  state.token = null;
-  state.refreshToken = null;
-  state.isAuthenticated = false;
-  state.error = null;
-  removeFromLocalStorage('user');
-  removeFromLocalStorage('token');
-  removeFromLocalStorage('refreshToken');
-};
 
 const authSlice = createSlice({
   name: 'auth',
-  initialState,
+  initialState: {
+    user: null,
+    isAuthenticated: false,
+    isLoading: true,  // true until getMe hydration completes on app load
+    error: null,
+  },
   reducers: {
-    loginStart: (state) => {
-      state.isLoading = true;
-      state.error = null;
-    },
-    loginSuccess: (state, action) => {
-      const { user, token, refreshToken } = action.payload;
-      state.user = user;
-      state.token = token;
-      state.refreshToken = refreshToken;
+    setUser: (state, action) => {
+      state.user = action.payload;
       state.isAuthenticated = true;
       state.isLoading = false;
       state.error = null;
-      persistAuth(state);
     },
-    loginFailure: (state, action) => {
-      state.isLoading = false;
-      state.error = action.payload;
+    clearUser: (state) => {
+      state.user = null;
       state.isAuthenticated = false;
-    },
-
-    registerStart: (state) => {
-      state.isLoading = true;
-      state.error = null;
-    },
-    registerSuccess: (state, action) => {
-      const { user, token, refreshToken } = action.payload;
-      state.user = user;
-      state.token = token;
-      state.refreshToken = refreshToken;
-      state.isAuthenticated = true;
       state.isLoading = false;
       state.error = null;
-      persistAuth(state);
     },
-    registerFailure: (state, action) => {
-      state.isLoading = false;
-      state.error = action.payload;
+    setLoading: (state, action) => {
+      state.isLoading = action.payload;
     },
-
-    tokenRefreshed: (state, action) => {
-      const { token, refreshToken } = action.payload;
-      state.token = token;
-      if (refreshToken) {
-        state.refreshToken = refreshToken;
-      }
-      state.isAuthenticated = true;
-      persistAuth(state);
-    },
-
-    logout: (state) => {
-      clearAuth(state);
-    },
-
     clearError: (state) => {
       state.error = null;
     },
+    // Backward-compat aliases kept so existing components don't break
+    loginSuccess: (state, action) => {
+      state.user = action.payload?.user ?? action.payload;
+      state.isAuthenticated = true;
+      state.isLoading = false;
+      state.error = null;
+    },
+    registerSuccess: (state, action) => {
+      state.user = action.payload?.user ?? action.payload;
+      state.isAuthenticated = true;
+      state.isLoading = false;
+      state.error = null;
+    },
+    logout: (state) => {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.error = null;
+    },
+    // No-op stubs kept for components that dispatch these
+    loginStart: (state) => { state.isLoading = true; },
+    loginFailure: (state, action) => { state.isLoading = false; state.error = action.payload; },
+    registerStart: (state) => { state.isLoading = true; },
+    registerFailure: (state, action) => { state.isLoading = false; state.error = action.payload; },
+    tokenRefreshed: (state) => { /* cookies handled server-side — no-op */ },
   },
 });
 
 export const {
+  setUser,
+  clearUser,
+  setLoading,
+  clearError,
   loginStart,
   loginSuccess,
   loginFailure,
@@ -103,7 +73,6 @@ export const {
   registerFailure,
   tokenRefreshed,
   logout,
-  clearError,
 } = authSlice.actions;
 
 export default authSlice.reducer;

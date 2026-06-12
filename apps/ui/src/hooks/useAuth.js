@@ -1,38 +1,40 @@
 /**
  * useAuth Hook
- * Custom hook for authentication operations
+ * Cookie-based auth — no token stored client-side.
+ * JWT lives in an HTTP-Only cookie managed by the server.
  */
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
+  setUser,
+  clearUser,
   loginStart,
-  loginSuccess,
   loginFailure,
   registerStart,
-  registerSuccess,
   registerFailure,
-  logout as logoutAction,
 } from '../store/slices/authSlice';
-import { useLoginMutation, useRegisterMutation, useLogoutMutation } from '../api/apiSlice';
+import { useLoginV1Mutation, useRegisterV1Mutation, useLogoutV1Mutation } from '../api/authApi';
 
 export const useAuth = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [loginMutation, { isLoading: isLoginLoading }] = useLoginMutation();
-  const [registerMutation, { isLoading: isRegisterLoading }] = useRegisterMutation();
-  const [logoutMutation] = useLogoutMutation();
-  const { user, token, error, isAuthenticated } = useSelector((state) => state.auth);
+
+  const [loginMutation, { isLoading: isLoginLoading }] = useLoginV1Mutation();
+  const [registerMutation, { isLoading: isRegisterLoading }] = useRegisterV1Mutation();
+  const [logoutMutation] = useLogoutV1Mutation();
+
+  const { user, isAuthenticated, isLoading, error } = useSelector((state) => state.auth);
 
   const login = async (email, password) => {
     try {
       dispatch(loginStart());
-      const authData = await loginMutation({ email, password }).unwrap();
-      dispatch(loginSuccess(authData));
+      const user = await loginMutation({ email, password }).unwrap();
+      dispatch(setUser(user));
       navigate('/dashboard');
-      return authData;
+      return user;
     } catch (err) {
-      const errorMessage = err?.data?.message || err?.error || 'Login failed';
-      dispatch(loginFailure(errorMessage));
+      const message = err?.data?.error?.message || err?.data?.message || 'Login failed';
+      dispatch(loginFailure(message));
       throw err;
     }
   };
@@ -40,13 +42,13 @@ export const useAuth = () => {
   const register = async (userData) => {
     try {
       dispatch(registerStart());
-      const authData = await registerMutation(userData).unwrap();
-      dispatch(registerSuccess(authData));
+      const user = await registerMutation(userData).unwrap();
+      dispatch(setUser(user));
       navigate('/dashboard');
-      return authData;
+      return user;
     } catch (err) {
-      const errorMessage = err?.data?.message || err?.error || 'Registration failed';
-      dispatch(registerFailure(errorMessage));
+      const message = err?.data?.error?.message || err?.data?.message || 'Registration failed';
+      dispatch(registerFailure(message));
       throw err;
     }
   };
@@ -55,19 +57,18 @@ export const useAuth = () => {
     try {
       await logoutMutation().unwrap();
     } catch {
-      // Proceed with client-side logout even if server call fails
+      // Server error is non-fatal — clear client state regardless
     } finally {
-      dispatch(logoutAction());
+      dispatch(clearUser());
       navigate('/login');
     }
   };
 
   return {
     user,
-    token,
-    isLoading: isLoginLoading || isRegisterLoading,
-    error,
     isAuthenticated,
+    isLoading: isLoading || isLoginLoading || isRegisterLoading,
+    error,
     login,
     register,
     logout,

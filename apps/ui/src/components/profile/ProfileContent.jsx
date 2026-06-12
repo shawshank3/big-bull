@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { Alert, Button, Card, CardContent } from '../common';
@@ -26,14 +26,10 @@ export const ProfileContent = () => {
     reset,
     formState: { errors },
   } = useForm({
-    defaultValues: profileToFormValues(),
+    // RHF v7.37+ `values` option: whenever `profile` changes (server refetch),
+    // the form is synchronised automatically — no useEffect needed.
+    values: profileToFormValues(profile),
   });
-
-  useEffect(() => {
-    if (profile && !isEditing) {
-      reset(profileToFormValues(profile));
-    }
-  }, [profile, isEditing, reset]);
 
   const handleStartEdit = () => {
     reset(profileToFormValues(profile));
