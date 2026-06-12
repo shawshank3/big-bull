@@ -4,6 +4,7 @@
  */
 import { configureStore, createListenerMiddleware } from '@reduxjs/toolkit';
 import authReducer, {
+  clearUser,
   loginSuccess,
   logout,
   registerSuccess,
@@ -12,8 +13,12 @@ import { apiSlice } from '../api/apiSlice';
 
 const listenerMiddleware = createListenerMiddleware();
 
+// Reset all RTK Query cache on auth state changes
+// clearUser is dispatched by useAuth.logout() — the actual logout flow
+// logout/loginSuccess/registerSuccess are backup triggers for any direct slice actions
 listenerMiddleware.startListening({
   matcher: (action) =>
+    clearUser.match(action) ||
     logout.match(action) ||
     loginSuccess.match(action) ||
     registerSuccess.match(action),

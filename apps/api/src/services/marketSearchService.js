@@ -1,28 +1,15 @@
 /**
- * Market Search Service
- * Combines stock and mutual fund search results
+ * Market Search Service (legacy facade)
+ *
+ * This module used to proxy Alpha Vantage / MFAPI. Search is now served
+ * from the internal Asset catalog and Redis price cache via the
+ * modules/market service. Keep this small facade so legacy routes keep working.
  */
-const { searchMutualFunds } = require('./mfapiService');
-const { searchStocks } = require('./alphaVantageService');
+const { searchAssets } = require('../modules/market/market.service');
 
 const searchMarket = async (query) => {
-  const [stocks, mutuals] = await Promise.all([
-    searchStocks(query).catch((error) => {
-      console.error('Stock search error:', error.message);
-      return [];
-    }),
-    searchMutualFunds(query).catch((error) => {
-      console.error('Mutual fund search error:', error.message);
-      return [];
-    }),
-  ]);
-
-  return {
-    query,
-    stocks,
-    mutuals,
-    results: [...stocks, ...mutuals],
-  };
+  // Delegate to new catalog-backed search
+  return searchAssets(query);
 };
 
 module.exports = {

@@ -2,12 +2,12 @@ import { Card, CardContent } from '../common';
 import { MutedText, StatValue } from '../ui/typography';
 import { formatCurrency, formatPercentage } from '@/utils';
 
-export const PortfolioStatsGrid = ({ summary }) => {
+export const PortfolioStatsGrid = ({ summary = {} }) => {
   const stats = [
-    { label: 'Total invested', value: formatCurrency(summary.totalInvested) },
-    { label: 'Current value', value: formatCurrency(summary.totalValue) },
-    { label: 'Total return', value: formatCurrency(summary.totalReturn) },
-    { label: 'Return %', value: formatPercentage(summary.returnPercentage) },
+    { label: 'Total invested', value: formatCurrency(summary.totalInvested ?? 0) },
+    { label: 'Current value', value: formatCurrency(summary.currentValue ?? summary.totalValue ?? 0) },
+    { label: 'Total return', value: formatCurrency(summary.totalPnL ?? summary.totalReturn ?? 0) },
+    { label: 'Return %', value: formatPercentage(summary.totalPnLPercent ?? summary.returnPercentage ?? 0) },
   ];
 
   return (

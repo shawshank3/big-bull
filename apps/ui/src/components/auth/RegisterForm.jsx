@@ -1,57 +1,83 @@
-import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { useAuth } from '../../hooks/useAuth';
-import { validateRegisterForm } from './utils';
-import { AuthForm } from './AuthForm';
+import { Alert, Button, Input } from '../common';
 
 export const RegisterForm = () => {
-  const { register, isLoading, error } = useAuth();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+  const { register: registerUser, isLoading, error } = useAuth();
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm({
+    defaultValues: { name: '', email: '', password: '', confirmPassword: '' },
   });
-  const [validationErrors, setValidationErrors] = useState({});
 
-  const handleChange = (name, value) => {
-    setFormData((current) => ({ ...current, [name]: value }));
-    setValidationErrors((current) => ({ ...current, [name]: undefined }));
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const nextErrors = validateRegisterForm(formData);
-
-    if (Object.keys(nextErrors).length > 0) {
-      setValidationErrors(nextErrors);
-      return;
-    }
-
-    await register({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
-    });
+  const onSubmit = async ({ name, email, password }) => {
+    await registerUser({ name, email, password });
   };
 
   return (
-    <AuthForm
-      formData={formData}
-      validationErrors={validationErrors}
-      error={error}
-      isLoading={isLoading}
-      onSubmit={handleSubmit}
-      onChange={handleChange}
-    >
-      <AuthForm.ErrorAlert />
-      <AuthForm.Fields>
-        <AuthForm.Field name="name" label="Full name" required />
-        <AuthForm.Field name="email" type="email" label="Email" required />
-        <AuthForm.Field name="password" type="password" label="Password" required />
-        <AuthForm.Field name="confirmPassword" type="password" label="Confirm password" required />
-      </AuthForm.Fields>
-      <AuthForm.Submit loadingText="Creating account">Register</AuthForm.Submit>
-    </AuthForm>
+    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+      {error && <Alert variant="danger">{error}</Alert>}
+
+      <Input
+        label="Full name"
+        type="text"
+        autoComplete="name"
+        error={errors.name?.message}
+        {...register('name', {
+          required: 'Full name is required',
+          minLength: { value: 2, message: 'Name must be at least 2 characters' },
+          maxLength: { value: 50, message: 'Name cannot exceed 50 characters' },
+        })}
+      />
+
+      <Input
+        label="Email"
+        type="email"
+        autoComplete="email"
+        error={errors.email?.message}
+        {...register('email', {
+          required: 'Email is required',
+          pattern: {
+            value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+            message: 'Enter a valid email address',
+          },
+        })}
+      />
+
+      <Input
+        label="Password"
+        type="password"
+        autoComplete="new-password"
+        error={errors.password?.message}
+        {...register('password', {
+          required: 'Password is required',
+          minLength: { value: 8, message: 'Password must be at least 8 characters' },
+          pattern: {
+            value: /(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~])/,
+            message: 'Password must contain a number and a special character',
+          },
+        })}
+      />
+
+      <Input
+        label="Confirm password"
+        type="password"
+        autoComplete="new-password"
+        error={errors.confirmPassword?.message}
+        {...register('confirmPassword', {
+          required: 'Please confirm your password',
+          validate: (value) => value === watch('password') || 'Passwords do not match',
+        })}
+      />
+
+      <Button type="submit" variant="primary" size="lg" loading={isLoading} className="w-full">
+        {isLoading ? 'Creating account…' : 'Register'}
+      </Button>
+    </form>
   );
 };
 

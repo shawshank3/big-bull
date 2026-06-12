@@ -5,6 +5,7 @@ export const ROUTES = Object.freeze({
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
   HOLDINGS: '/holdings',
+  MARKET: '/market',
   PROFILE: '/profile',
   STOCK_DETAIL: '/market/stocks/:symbol',
   MUTUAL_DETAIL: '/market/mutuals/:schemeCode',

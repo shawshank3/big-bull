@@ -108,7 +108,7 @@ For the `big-bull` service, go to **Render Dashboard → big-bull → Environmen
 | `JWT_ACCESS_EXPIRES` | Access token lifetime (e.g. `7d`) |
 | `JWT_REFRESH_EXPIRES` | Refresh token lifetime (e.g. `30d`) |
 | `GEMENI_API_KEY` | Google AI Studio key |
-| `ALPHA_VANTAGE_API_KEY` | Alpha Vantage key for stock data |
+| `REDIS_URL` | Redis connection string for price cache and BullMQ (recommended)
 
 `NODE_ENV` and `PORT` are set automatically by `render.yaml` (`production` and `4000` respectively) and do not need to be entered manually.
 

@@ -19,8 +19,11 @@ export const MARKET_SEARCH = Object.freeze({
   PLACEHOLDER: 'Search stocks and mutual funds…',
 });
 
-export const buildStockDetailPath = (symbol) =>
-  `/market/stocks/${encodeURIComponent(symbol)}`;
+export const buildStockDetailPath = (symbol) => {
+  // Strip exchange suffix (e.g. RELIANCE.BSE → RELIANCE) for clean NSE ticker paths
+  const nse = symbol.replace(/\.(BSE|NSE|BOM)$/i, '');
+  return `/market/stocks/${encodeURIComponent(nse)}`;
+};
 
 export const buildMutualDetailPath = (schemeCode) =>
   `/market/mutuals/${encodeURIComponent(schemeCode)}`;

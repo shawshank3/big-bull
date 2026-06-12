@@ -1,6 +1,18 @@
 require('dotenv').config();
 const app = require('./src/server');
 
+function validateEnv() {
+  const required = ['MONGODB_URI', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
+  const missing = required.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    missing.forEach((key) => console.error(`Missing required environment variable: ${key}`));
+    process.exit(1);
+  }
+}
+
+validateEnv();
+
 const PORT = process.env.PORT || 4000;
 
 const server = app.listen(PORT, () => {
@@ -8,7 +20,6 @@ const server = app.listen(PORT, () => {
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔐 JWT Secret configured: ${!!process.env.JWT_SECRET}`);
   console.log(`🤖 Gemini API key configured: ${!!process.env.GEMENI_API_KEY}`);
-  console.log(`📊 MongoDB URI: ${process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/bigbull'}`);
   console.log('\n');
 });
 

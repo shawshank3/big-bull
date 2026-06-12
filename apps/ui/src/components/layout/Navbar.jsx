@@ -35,6 +35,25 @@ const Guest = ({ children }) => {
   return !isAuthenticated ? children : null;
 };
 
+// Nav links shown when authenticated
+const NavLinks = () => (
+  <nav className="flex items-center gap-1">
+    {[
+      { to: ROUTES.DASHBOARD, label: 'Dashboard' },
+      { to: ROUTES.MARKET,    label: 'Market' },
+      { to: ROUTES.HOLDINGS,  label: 'Portfolio' },
+    ].map(({ to, label }) => (
+      <Link
+        key={to}
+        to={to}
+        className="rounded-md px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-foreground"
+      >
+        {label}
+      </Link>
+    ))}
+  </nav>
+);
+
 // Main component
 export const Navbar = ({ children }) => {
   return (
@@ -52,6 +71,7 @@ Navbar.Center = Center;
 Navbar.End = End;
 Navbar.Authenticated = Authenticated;
 Navbar.Guest = Guest;
+Navbar.NavLinks = NavLinks;
 
 // Export ready-to-use components
 Navbar.Brand = NavbarBrand;
