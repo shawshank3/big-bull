@@ -34,10 +34,23 @@ const searchAssets = async (query) => {
     .limit(20)
     .lean();
 
-  const stocks  = assets.filter((a) => a.assetType === 'STOCK').map(formatAssetResult);
-  const mutuals = assets.filter((a) => a.assetType === 'MUTUAL_FUND').map(formatAssetResult);
+  const enriched = await Promise.all(
+    assets.map(async (asset) => {
+      let livePrice = null;
+      try {
+        const cached = await redis.get(`price:${asset.ticker}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          livePrice = parsed.price ?? parsed;
+        }
+      } catch (_) { /* Redis unavailable — use basePrice */ }
+      return formatAssetResult(asset, livePrice);
+    })
+  );
 
-  const result = { query, stocks, mutuals, results: [...stocks, ...mutuals] };
+  const stocks  = enriched.filter((a) => a.type === 'stock');
+  const mutuals = enriched.filter((a) => a.type === 'mutual');
+  const result  = { query, stocks, mutuals, results: enriched };
 
   try {
     await redis.setex(cacheKey, 300, JSON.stringify(result));
@@ -152,7 +165,7 @@ const getTicker = async () => {
 
 // ─── Internal helper ──────────────────────────────────────────────────────────
 
-const formatAssetResult = (asset) => ({
+const formatAssetResult = (asset, livePrice) => ({
   type: asset.assetType === 'STOCK' ? 'stock' : 'mutual',
   id: asset.ticker,
   assetId: asset._id,
@@ -163,6 +176,7 @@ const formatAssetResult = (asset) => ({
   sector: asset.sector,
   exchange: asset.exchange ?? null,
   basePrice: asset.basePrice,
+  currentPrice: livePrice ?? asset.basePrice,   // ← new field
   currency: 'INR',
 });
 

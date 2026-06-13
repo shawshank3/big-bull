@@ -155,6 +155,7 @@ React SPA (Vite)
         ▼
 Express API (Node.js)
   /modules/auth        → register, login, logout, me, refresh, profile
+  /modules/asset       → asset model and validation (shared by market + seeder)
   /modules/market      → assets, search, quote, ticker, SSE stream
   /modules/transaction → BUY/SELL order execution, history
   /modules/portfolio   → holdings + summary (computed, never stored)
