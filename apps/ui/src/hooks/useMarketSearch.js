@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLazySearchMarketQuery } from '../api/apiSlice';
+import { useLazySearchMarketQuery } from '../api/marketApi';
 import { useDebounce } from './useDebounce';
 import { MARKET_SEARCH } from '../constants/market';
 

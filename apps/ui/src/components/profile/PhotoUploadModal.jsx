@@ -4,7 +4,7 @@ import { MutedText } from '../ui/typography';
 import {
   useRemoveAvatarMutation,
   useUploadAvatarMutation,
-} from '../../api/apiSlice';
+} from '../../api/authApi';
 import { getAvatarUrl, readFileAsDataUrl } from './utils';
 import { UserAvatar } from './UserAvatar';
 

@@ -13,15 +13,15 @@ import {
   registerStart,
   registerFailure,
 } from '../store/slices/authSlice';
-import { useLoginV1Mutation, useRegisterV1Mutation, useLogoutV1Mutation } from '../api/authApi';
+import { useLoginMutation, useRegisterMutation, useLogoutMutation } from '../api/authApi';
 
 export const useAuth = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const [loginMutation, { isLoading: isLoginLoading }] = useLoginV1Mutation();
-  const [registerMutation, { isLoading: isRegisterLoading }] = useRegisterV1Mutation();
-  const [logoutMutation] = useLogoutV1Mutation();
+  const [loginMutation, { isLoading: isLoginLoading }] = useLoginMutation();
+  const [registerMutation, { isLoading: isRegisterLoading }] = useRegisterMutation();
+  const [logoutMutation] = useLogoutMutation();
 
   const { user, isAuthenticated, isLoading, error } = useSelector((state) => state.auth);
 

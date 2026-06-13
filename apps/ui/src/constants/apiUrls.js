@@ -1,7 +1,5 @@
 /**
- * API URLs Constants
- * v1 routes use /api/v1/* (cookie-based auth, rate limited)
- * Legacy routes use /api/* (Bearer token, backward compat during Phase 1)
+ * API URLs Constants — all paths use /api/v1/*
  */
 
 export const API_URLS = {
@@ -11,8 +9,8 @@ export const API_URLS = {
     LOGOUT: '/api/v1/auth/logout',
     REFRESH: '/api/v1/auth/refresh',
     ME: '/api/v1/auth/me',
-    PROFILE: '/api/auth/profile',              // legacy — still active
-    PROFILE_AVATAR: '/api/auth/profile/avatar', // legacy — still active
+    PROFILE: '/api/v1/auth/profile',
+    PROFILE_AVATAR: '/api/v1/auth/profile/avatar',
   },
   PORTFOLIO: {
     SUMMARY: '/api/v1/portfolio/summary',
@@ -26,11 +24,11 @@ export const API_URLS = {
     ORDER: '/api/v1/transactions/order',
   },
   CHAT: {
-    BASE: '/api/chat',
+    BASE: '/api/v1/chat',
   },
   MARKET: {
     SEARCH: '/api/v1/market/search',
-    TICKER: '/api/market/ticker',               // legacy ticker still works
+    TICKER: '/api/v1/market/ticker',
     STOCK: (symbol) => `/api/v1/market/quote/${encodeURIComponent(symbol)}`,
     MUTUAL: (schemeCode) => `/api/v1/market/quote/${encodeURIComponent(schemeCode)}`,
     STREAM: '/api/v1/market/stream',

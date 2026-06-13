@@ -12,5 +12,6 @@ dist/
 # macOS metadata
 .DS_Store
 
-# pnpm debug log
+# pnpm
 pnpm-debug.log*
+.pnpm-store

@@ -10,7 +10,7 @@ import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Spinner } from '../ui/spinner';
 import { Alert } from '../common';
-import { useGetAssetsQuery } from '../../api/apiSlice';
+import { useGetAssetsQuery } from '../../api/marketApi';
 import { buildStockDetailPath, buildMutualDetailPath } from '../../constants/market';
 
 const fmt = (n) =>

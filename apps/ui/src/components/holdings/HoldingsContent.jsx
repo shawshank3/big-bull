@@ -8,7 +8,7 @@ import { Alert, Card, CardContent, Table, TableBody, TableCell, TableHead, Table
 import { PageHeader } from '../layout/PageHeader';
 import { Spinner } from '../ui/spinner';
 import { MutedText, StatValue } from '../ui/typography';
-import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../../api/apiSlice';
+import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../../api/portfolioApi';
 
 const fmt = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n ?? 0);

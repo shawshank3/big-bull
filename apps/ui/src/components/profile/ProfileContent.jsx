@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Alert, Button, Card, CardContent } from '../common';
 import { PageHeader } from '../layout/PageHeader';
 import { Spinner } from '../ui/spinner';
-import { useGetProfileQuery, useUpdateProfileMutation } from '../../api/apiSlice';
+import { useGetProfileQuery, useUpdateProfileMutation } from '../../api/authApi';
 import { ProfileDetails } from './ProfileDetails';
 import { ProfileEditForm } from './ProfileEditForm';
 import { ProfilePhotoSection } from './ProfilePhotoSection';

@@ -1,6 +1,7 @@
 /**
  * Auth Controller
- * Handlers: register, login, logout, me, refresh
+ * Handlers: register, login, logout, me, refresh, getProfile, updateProfile,
+ *           uploadProfileAvatar, removeProfileAvatar
  *
  * Rules:
  *  - All handlers wrapped in catchAsync (no bare try/catch)
@@ -14,6 +15,7 @@ const VirtualWallet = require('../wallet/wallet.model');
 const catchAsync = require('../../shared/catchAsync');
 const AppError = require('../../shared/AppError');
 const { sendSuccess } = require('../../utils/response');
+const { validateAvatarData } = require('../../utils/avatarData');
 const { registerSchema, loginSchema } = require('./auth.validator');
 const {
   issueAuthCookies,
@@ -163,6 +165,103 @@ const refresh = catchAsync(async (req, res) => {
   sendSuccess(res, { user: formatUser(user) }, 'Token refreshed successfully', 200);
 });
 
+// ─── Profile Helpers ──────────────────────────────────────────────────────────
+
+/** Shape the user object returned by profile endpoints. */
+const formatProfile = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  bio: user.bio,
+  avatar: user.avatar,
+});
+
+// ─── Profile Controllers ──────────────────────────────────────────────────────
+
+/**
+ * GET /api/v1/auth/profile
+ *
+ * Returns the authenticated user's full profile.
+ */
+const getProfile = catchAsync(async (req, res) => {
+  const user = await User.findById(req.user.id);
+  if (!user) throw new AppError('User not found', 404);
+  sendSuccess(res, formatProfile(user), 'Profile retrieved successfully');
+});
+
+/**
+ * PATCH /api/v1/auth/profile
+ *
+ * Partial update — accepts any subset of { name, phone, bio, avatar }.
+ * Passing avatar=null or avatar='' clears the stored photo.
+ */
+const updateProfile = catchAsync(async (req, res) => {
+  const { name, phone, bio, avatar } = req.body;
+  const updates = {};
+
+  if (name  !== undefined) updates.name  = name;
+  if (phone !== undefined) updates.phone = phone;
+  if (bio   !== undefined) updates.bio   = bio;
+
+  if (avatar !== undefined) {
+    if (avatar === null || avatar === '') {
+      updates.avatar = null;
+    } else {
+      const { avatar: validAvatar, error } = validateAvatarData(avatar);
+      if (error) throw new AppError(error, 400);
+      updates.avatar = validAvatar;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new AppError('No fields to update', 400);
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    updates,
+    { new: true, runValidators: true },
+  );
+  if (!user) throw new AppError('User not found', 404);
+
+  sendSuccess(res, formatProfile(user), 'Profile updated successfully');
+});
+
+/**
+ * POST /api/v1/auth/profile/avatar
+ *
+ * Validates and stores a base64 data-URL avatar for the authenticated user.
+ */
+const uploadProfileAvatar = catchAsync(async (req, res) => {
+  const { avatar } = req.body;
+  const { avatar: validAvatar, error } = validateAvatarData(avatar);
+  if (error) throw new AppError(error, 400);
+
+  const user = await User.findById(req.user.id);
+  if (!user) throw new AppError('User not found', 404);
+
+  user.avatar = validAvatar;
+  await user.save();
+
+  sendSuccess(res, formatProfile(user), 'Profile photo updated successfully');
+});
+
+/**
+ * DELETE /api/v1/auth/profile/avatar
+ *
+ * Removes the stored avatar for the authenticated user.
+ */
+const removeProfileAvatar = catchAsync(async (req, res) => {
+  const user = await User.findById(req.user.id);
+  if (!user) throw new AppError('User not found', 404);
+
+  user.avatar = null;
+  await user.save();
+
+  sendSuccess(res, formatProfile(user), 'Profile photo removed successfully');
+});
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -171,4 +270,8 @@ module.exports = {
   logout,
   me,
   refresh,
+  getProfile,
+  updateProfile,
+  uploadProfileAvatar,
+  removeProfileAvatar,
 };
