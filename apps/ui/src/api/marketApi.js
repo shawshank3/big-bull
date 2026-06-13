@@ -28,7 +28,7 @@ export const marketApi = apiSlice.injectEndpoints({
     }),
     searchMarket: builder.query({
       query: (q) => ({ url: '/api/v1/market/search', params: { q } }),
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => res?.data?.results ?? res?.data ?? res,
     }),
     getStockQuote: builder.query({
       query: (symbol) => `/api/v1/market/quote/${encodeURIComponent(symbol)}`,

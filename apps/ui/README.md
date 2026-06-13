@@ -29,7 +29,10 @@ apps/ui/src/
 │   ├── transactionApi.js    # /api/v1/transactions/* (history, order)
 │   └── chatApi.js           # /api/v1/chat (sendMessage)
 ├── components/
-│   ├── auth/                # LoginForm, RegisterForm
+│   ├── auth/                # Auth context and form components
+│   │   ├── AuthProvider.jsx # AuthContext + useAuth() hook; calls useGetMeQuery on mount
+│   │   ├── LoginForm.jsx
+│   │   └── RegisterForm.jsx
 │   ├── chat/                # FloatingChatbot — AI copilot panel
 │   ├── common/              # Alert, Button, Input shared components
 │   ├── dashboard/           # DashboardContent — portfolio stats cards
@@ -137,7 +140,8 @@ npm test          # Jest unit / property tests
 
 ### Authentication
 - JWTs live in **HTTP-Only cookies** set by the server. The frontend never reads the raw token.
-- `App.jsx` calls `useGetMeQuery` on mount to hydrate Redux auth state. No `useEffect` for auth.
+- `App.jsx` wraps `<RouterProvider>` with `<AuthProvider>`, which calls `useGetMeQuery` on mount to hydrate Redux auth state. No `useEffect` for auth.
+- `AuthContext` exposes `{ isAuthenticated, isLoading, user }` via the `useAuth()` hook, available to any component that needs context-based auth state access.
 - `ProtectedRoute` shows a loading spinner while `isLoading` is true (during hydration).
 - On 401, `baseQueryWithReauth` in `apiSlice.js` calls `POST /api/v1/auth/refresh` transparently using a mutex so only one refresh is ever in flight at a time.
 

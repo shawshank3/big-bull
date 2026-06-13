@@ -42,6 +42,10 @@ export const OrderForm = ({ asset, currentPrice }) => {
     });
   };
 
+  const displayLabel = asset?.assetType === 'MUTUAL_FUND'
+    ? (asset?.name ?? 'Fund').slice(0, 20) + ((asset?.name?.length ?? 0) > 20 ? '…' : '')
+    : (asset?.ticker ?? '');
+
   if (isSuccess) {
     return (
       <div className="space-y-3">
@@ -140,7 +144,7 @@ export const OrderForm = ({ asset, currentPrice }) => {
       >
         {isLoading
           ? transactionType === 'BUY' ? 'Buying…' : 'Selling…'
-          : `${transactionType} ${asset?.ticker ?? ''}`}
+          : `${transactionType} ${displayLabel}`}
       </Button>
     </form>
   );
