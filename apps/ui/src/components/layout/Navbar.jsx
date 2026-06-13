@@ -125,7 +125,7 @@ const MobileDrawer = () => {
         </SheetHeader>
 
         <SheetBody className="space-y-1">
-          {isAuthenticated && (
+          {isAuthenticated ? (
             <nav className="space-y-0.5">
               {NAV_LINKS.map(({ to, label }) => (
                 <SheetClose key={to} asChild>
@@ -163,14 +163,26 @@ const MobileDrawer = () => {
                   </div>
                 </>
               ) : (
-                /* Guest or profile not yet loaded */
-                <SheetClose asChild>
-                  <Button asChild size="md" className="w-full">
-                    <Link to={ROUTES.LOGIN}>Log in</Link>
-                  </Button>
-                </SheetClose>
+                /* Profile query still in-flight */
+                <div className="flex items-center justify-between rounded-md">
+                  <span className="text-sm font-medium text-muted">Theme</span>
+                  <ThemeToggle />
+                </div>
               )}
             </nav>
+          ) : (
+            /* Guest — not logged in */
+            <div className="space-y-2 pt-1">
+              <SheetClose asChild>
+                <Button asChild size="md" className="w-full">
+                  <Link to={ROUTES.LOGIN}>Log in</Link>
+                </Button>
+              </SheetClose>
+              <div className="flex items-center justify-between rounded-md px-0.5">
+                <span className="text-sm font-medium text-muted">Theme</span>
+                <ThemeToggle />
+              </div>
+            </div>
           )}
         </SheetBody>
       </SheetContent>
