@@ -22,8 +22,7 @@ export const useMarketSearch = () => {
   const hasMinLength = trimmedQuery.length >= MARKET_SEARCH.MIN_LENGTH;
   const stocks = hasMinLength ? (data?.stocks ?? []) : [];
   const mutuals = hasMinLength ? (data?.mutuals ?? []) : [];
-  const isEmpty =
-    hasMinLength && !isFetching && stocks.length === 0 && mutuals.length === 0;
+  const isEmpty = hasMinLength && !isFetching && stocks.length === 0 && mutuals.length === 0;
 
   return {
     query,

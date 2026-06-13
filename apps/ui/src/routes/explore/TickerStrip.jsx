@@ -11,7 +11,8 @@ const TickerItem = ({ item, isLive }) => (
       {/* Price — only shown when live data is available */}
       {isLive && item.price != null && (
         <span className="text-muted">
-          ₹{Number(item.price).toLocaleString('en-IN', {
+          ₹
+          {Number(item.price).toLocaleString('en-IN', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
@@ -25,7 +26,10 @@ const TickerItem = ({ item, isLive }) => (
     </span>
 
     {/* Dot divider — sits between items, not inside them */}
-    <span className="inline-flex shrink-0 items-center px-4 text-border text-xs select-none" aria-hidden="true">
+    <span
+      className="inline-flex shrink-0 items-center px-4 text-border text-xs select-none"
+      aria-hidden="true"
+    >
       •
     </span>
   </>

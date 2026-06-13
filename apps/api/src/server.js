@@ -26,7 +26,6 @@ const setNoCacheHeaders = (req, res, next) => {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   next();
-
 };
 
 // Middleware
@@ -67,7 +66,7 @@ app.get('/api/health', (req, res) => {
 // API Routes
 // v1 API — rate limited
 app.use('/api/v1', generalLimiter);
-app.use('/api/v1/auth', authLimiter, v1AuthRoutes);    // auth gets both limiters
+app.use('/api/v1/auth', authLimiter, v1AuthRoutes); // auth gets both limiters
 app.use('/api/v1/wallet', v1WalletRoutes);
 app.use('/api/v1/transactions', v1TransactionRoutes);
 app.use('/api/v1/portfolio', v1PortfolioRoutes);

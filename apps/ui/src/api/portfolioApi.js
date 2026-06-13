@@ -10,36 +10,22 @@
  *   getPortfolioSummary  — GET /api/v1/portfolio/summary
  */
 import { apiSlice } from './apiSlice';
+import { toHoldingListDTO, toSummaryDTO } from './dto';
 
 export const portfolioApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getPortfolioHoldings: builder.query({
       query: () => '/api/v1/portfolio/holdings',
-      transformResponse: (res) => {
-        const holdings = res?.data?.holdings ?? [];
-        return holdings.map((h) => ({
-          _id: h.assetId,
-          name: h.asset?.name || '',
-          symbol: h.asset?.ticker || '',
-          type: h.asset?.assetType === 'MUTUAL_FUND' ? 'mutual' : 'stock',
-          qty: h.netQuantity,
-          avgPrice: h.avgCostBasis,
-          currentPrice: h.currentPrice,
-          ...h,
-        }));
-      },
+      transformResponse: (res) => toHoldingListDTO(res?.data?.holdings),
       providesTags: ['Portfolio', 'Holdings'],
     }),
     getPortfolioSummary: builder.query({
       query: () => '/api/v1/portfolio/summary',
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toSummaryDTO(res?.data),
       providesTags: ['Portfolio'],
     }),
   }),
   overrideExisting: false,
 });
 
-export const {
-  useGetPortfolioHoldingsQuery,
-  useGetPortfolioSummaryQuery,
-} = portfolioApi;
+export const { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } = portfolioApi;

@@ -15,13 +15,14 @@
  *   removeAvatar     — DELETE /api/v1/auth/profile/avatar
  */
 import { apiSlice } from './apiSlice';
+import { toUserDTO, toProfileDTO } from './dto';
 
 export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // ── Session hydration ───────────────────────────────────────────────────
     getMe: builder.query({
       query: () => '/api/v1/auth/me',
-      transformResponse: (res) => res?.data?.user ?? res?.data ?? null,
+      transformResponse: (res) => toUserDTO(res?.data?.user ?? res?.data),
     }),
 
     // ── Auth mutations ───────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: credentials,
       }),
-      transformResponse: (res) => res?.data?.user ?? res?.data ?? null,
+      transformResponse: (res) => toUserDTO(res?.data?.user ?? res?.data),
     }),
     register: builder.mutation({
       query: (userData) => ({
@@ -39,7 +40,7 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: userData,
       }),
-      transformResponse: (res) => res?.data?.user ?? res?.data ?? null,
+      transformResponse: (res) => toUserDTO(res?.data?.user ?? res?.data),
     }),
     logout: builder.mutation({
       query: () => ({ url: '/api/v1/auth/logout', method: 'POST' }),
@@ -48,7 +49,7 @@ export const authApi = apiSlice.injectEndpoints({
     // ── Profile queries & mutations ─────────────────────────────────────────
     getProfile: builder.query({
       query: () => '/api/v1/auth/profile',
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toProfileDTO(res?.data),
       providesTags: ['Profile'],
     }),
     updateProfile: builder.mutation({
@@ -57,7 +58,7 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'PATCH',
         body: profileData,
       }),
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toProfileDTO(res?.data),
       invalidatesTags: ['Profile'],
     }),
     uploadAvatar: builder.mutation({
@@ -66,7 +67,7 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body,
       }),
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toProfileDTO(res?.data),
       invalidatesTags: ['Profile'],
     }),
     removeAvatar: builder.mutation({
@@ -74,7 +75,7 @@ export const authApi = apiSlice.injectEndpoints({
         url: '/api/v1/auth/profile/avatar',
         method: 'DELETE',
       }),
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toProfileDTO(res?.data),
       invalidatesTags: ['Profile'],
     }),
   }),

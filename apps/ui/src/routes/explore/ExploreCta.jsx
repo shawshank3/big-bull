@@ -8,10 +8,15 @@ export const ExploreCta = () => (
     <div className="flex flex-col items-center gap-6 rounded-2xl bg-primary px-8 py-12 text-center text-white shadow-soft">
       <h2 className="text-2xl font-bold sm:text-3xl">Ready to track your investments?</h2>
       <p className="max-w-lg text-sm leading-relaxed text-white/80 sm:text-base">
-        Create a free account to add holdings, monitor your portfolio, and get personalised
-        insights — all in one place.
+        Create a free account to add holdings, monitor your portfolio, and get personalised insights
+        — all in one place.
       </p>
-      <Button asChild variant="secondary" size="lg" className="bg-white text-primary hover:bg-white/90">
+      <Button
+        asChild
+        variant="secondary"
+        size="lg"
+        className="bg-white text-primary hover:bg-white/90"
+      >
         <Link to={ROUTES.REGISTER}>
           Create free account
           <ArrowRight className="ml-2 h-4 w-4" aria-hidden />

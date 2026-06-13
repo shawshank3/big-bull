@@ -25,7 +25,9 @@ const searchAssets = async (query) => {
   try {
     const cached = await redis.get(cacheKey);
     if (cached) return JSON.parse(cached);
-  } catch (_) { /* Redis unavailable — fall through */ }
+  } catch (_) {
+    /* Redis unavailable — fall through */
+  }
 
   const regex = new RegExp(query, 'i');
   const assets = await Asset.find({
@@ -43,18 +45,22 @@ const searchAssets = async (query) => {
           const parsed = JSON.parse(cached);
           livePrice = parsed.price ?? parsed;
         }
-      } catch (_) { /* Redis unavailable — use basePrice */ }
+      } catch (_) {
+        /* Redis unavailable — use basePrice */
+      }
       return formatAssetResult(asset, livePrice);
     })
   );
 
-  const stocks  = enriched.filter((a) => a.type === 'stock');
+  const stocks = enriched.filter((a) => a.type === 'stock');
   const mutuals = enriched.filter((a) => a.type === 'mutual');
-  const result  = { query, stocks, mutuals, results: enriched };
+  const result = { query, stocks, mutuals, results: enriched };
 
   try {
     await redis.setex(cacheKey, 300, JSON.stringify(result));
-  } catch (_) { /* cache write failure is non-fatal */ }
+  } catch (_) {
+    /* cache write failure is non-fatal */
+  }
 
   return result;
 };
@@ -79,7 +85,9 @@ const getQuote = async (ticker) => {
       const parsed = JSON.parse(cached);
       livePrice = parsed.price ?? parsed; // handle both {price:N} and bare number
     }
-  } catch (_) { /* fall through */ }
+  } catch (_) {
+    /* fall through */
+  }
 
   // Load asset metadata from catalog
   const asset = await Asset.findOne({ ticker: ticker.toUpperCase() }).lean();
@@ -117,7 +125,9 @@ const getQuote = async (ticker) => {
   // Cache the response
   try {
     await redis.setex(cacheKey, 60, JSON.stringify(quote));
-  } catch (_) { /* non-fatal */ }
+  } catch (_) {
+    /* non-fatal */
+  }
 
   return quote;
 };
@@ -129,8 +139,16 @@ const getQuote = async (ticker) => {
  * Used by the UI ticker strip.
  */
 const TICKER_SYMBOLS = [
-  'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK',
-  'SBIN', 'WIPRO', 'BAJFINANCE', 'MARUTI', 'HINDUNILVR',
+  'RELIANCE',
+  'TCS',
+  'HDFCBANK',
+  'INFY',
+  'ICICIBANK',
+  'SBIN',
+  'WIPRO',
+  'BAJFINANCE',
+  'MARUTI',
+  'HINDUNILVR',
 ];
 
 const getTicker = async () => {
@@ -145,7 +163,9 @@ const getTicker = async () => {
           const parsed = JSON.parse(cached);
           price = parsed.price ?? parsed ?? price;
         }
-      } catch (_) { /* use basePrice */ }
+      } catch (_) {
+        /* use basePrice */
+      }
 
       return {
         symbol: asset.ticker,
@@ -176,7 +196,7 @@ const formatAssetResult = (asset, livePrice) => ({
   sector: asset.sector,
   exchange: asset.exchange ?? null,
   basePrice: asset.basePrice,
-  currentPrice: livePrice ?? asset.basePrice,   // ← new field
+  currentPrice: livePrice ?? asset.basePrice, // ← new field
   currency: 'INR',
 });
 

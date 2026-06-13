@@ -11,9 +11,7 @@ const HeroBadge = ({ children }) => (
 );
 
 const HeroHeading = ({ children }) => (
-  <h1 className="mb-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-    {children}
-  </h1>
+  <h1 className="mb-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">{children}</h1>
 );
 
 const HeroDescription = ({ children }) => (

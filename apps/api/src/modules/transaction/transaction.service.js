@@ -57,7 +57,7 @@ const aggregateHoldings = async (userId) => {
       },
     },
 
-    // ── Stage 3: Derive netQuantity and avgCostBasis ──────────────────────
+    // ── Stage 3: Derive netQuantity, avgCostBasis, and adjusted totalBuyCost ─
     {
       $addFields: {
         assetId: '$_id',
@@ -65,12 +65,19 @@ const aggregateHoldings = async (userId) => {
         // Guard against division by zero (totalBuyQty should never be 0 here
         // but we protect defensively)
         avgCostBasis: {
-          $cond: [
-            { $gt: ['$totalBuyQty', 0] },
-            { $divide: ['$totalBuyCost', '$totalBuyQty'] },
-            0,
-          ],
+          $cond: [{ $gt: ['$totalBuyQty', 0] }, { $divide: ['$totalBuyCost', '$totalBuyQty'] }, 0],
         },
+      },
+    },
+
+    // ── Stage 3b: Recompute totalBuyCost as cost of CURRENTLY HELD shares ─
+    // Using raw totalBuyCost (all historical buys) causes totalInvested to
+    // grow on every buy/sell cycle. Instead, totalBuyCost should represent
+    // only the cost basis of the net position still held:
+    //   adjustedTotalBuyCost = avgCostBasis × netQuantity
+    {
+      $addFields: {
+        totalBuyCost: { $multiply: ['$avgCostBasis', '$netQuantity'] },
       },
     },
 
@@ -141,18 +148,13 @@ const executeOrder = async (userId, orderData) => {
   if (transactionType === 'SELL') {
     // Ensure the user actually holds enough of this asset
     const holdings = await aggregateHoldings(userId);
-    const holding = holdings.find(
-      (h) => h.assetId.toString() === assetId.toString()
-    );
+    const holding = holdings.find((h) => h.assetId.toString() === assetId.toString());
 
     const heldQty = holding ? holding.netQuantity : 0;
 
     if (heldQty < quantity) {
       const ticker = holding?.asset?.ticker ?? assetId;
-      throw new AppError(
-        `Insufficient holdings. You hold ${heldQty} units of ${ticker}`,
-        400
-      );
+      throw new AppError(`Insufficient holdings. You hold ${heldQty} units of ${ticker}`, 400);
     }
   }
 
@@ -170,10 +172,9 @@ const executeOrder = async (userId, orderData) => {
   session.startTransaction();
 
   try {
-    const [tx] = await Transaction.create(
-      [{ userId, ...orderData, executedAt: new Date() }],
-      { session }
-    );
+    const [tx] = await Transaction.create([{ userId, ...orderData, executedAt: new Date() }], {
+      session,
+    });
 
     if (transactionType === 'BUY') {
       const totalCost = quantity * pricePerUnit + fees;
@@ -207,11 +208,7 @@ const getTransactionHistory = async (userId, { page = 1, limit = 20 } = {}) => {
   const skip = (page - 1) * limit;
 
   const [transactions, total] = await Promise.all([
-    Transaction.find({ userId })
-      .sort({ executedAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
+    Transaction.find({ userId }).sort({ executedAt: -1 }).skip(skip).limit(limit).lean(),
     Transaction.countDocuments({ userId }),
   ]);
 

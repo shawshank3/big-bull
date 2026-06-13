@@ -18,3 +18,12 @@ export {
 } from './dropdown-menu';
 export { Avatar, AvatarImage, AvatarFallback } from './avatar';
 export { PageTitle, PageDescription, SectionTitle, MutedText, StatValue } from './typography';
+export {
+  Sheet,
+  SheetTrigger,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetBody,
+} from './sheet';

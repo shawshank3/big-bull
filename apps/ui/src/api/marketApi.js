@@ -12,6 +12,7 @@
  *   getTickerQuotes  — GET /api/v1/market/ticker            (ticker strip)
  */
 import { apiSlice } from './apiSlice';
+import { toAssetListDTO, toAssetDTO, toSearchResultDTO, toQuoteDTO, toTickerDTO } from './dto';
 
 export const marketApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -20,27 +21,27 @@ export const marketApi = apiSlice.injectEndpoints({
         url: '/api/v1/market/assets',
         params: type ? { type } : undefined,
       }),
-      transformResponse: (res) => res?.data?.assets ?? res?.data ?? [],
+      transformResponse: (res) => toAssetListDTO(res?.data?.assets ?? res?.data),
     }),
     getAssetByTicker: builder.query({
       query: (ticker) => `/api/v1/market/assets/${encodeURIComponent(ticker)}`,
-      transformResponse: (res) => res?.data?.asset ?? res?.data ?? null,
+      transformResponse: (res) => toAssetDTO(res?.data?.asset ?? res?.data),
     }),
     searchMarket: builder.query({
       query: (q) => ({ url: '/api/v1/market/search', params: { q } }),
-      transformResponse: (res) => res?.data?.results ?? res?.data ?? res,
+      transformResponse: (res) => toSearchResultDTO(res?.data?.results ?? res?.data),
     }),
     getStockQuote: builder.query({
       query: (symbol) => `/api/v1/market/quote/${encodeURIComponent(symbol)}`,
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toQuoteDTO(res?.data),
     }),
     getMutualQuote: builder.query({
       query: (schemeCode) => `/api/v1/market/quote/${encodeURIComponent(schemeCode)}`,
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toQuoteDTO(res?.data),
     }),
     getTickerQuotes: builder.query({
       query: () => '/api/v1/market/ticker',
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toTickerDTO(res?.data),
     }),
   }),
   overrideExisting: false,

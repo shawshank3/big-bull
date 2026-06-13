@@ -4,26 +4,41 @@
  * All values (quantity, avg cost, P&L) are computed on the server from the Transaction ledger.
  */
 import { useSelector } from 'react-redux';
-import { Alert, Card, CardContent, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../common';
+import {
+  Alert,
+  Card,
+  CardContent,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../common';
 import { PageHeader } from '../layout/PageHeader';
 import { Spinner } from '../ui/spinner';
 import { MutedText, StatValue } from '../ui/typography';
 import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../../api/portfolioApi';
 
 const fmt = (n) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n ?? 0);
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(n ?? 0);
 
-const pct = (n) =>
-  `${n >= 0 ? '+' : ''}${(n ?? 0).toFixed(2)}%`;
+const pct = (n) => `${n >= 0 ? '+' : ''}${(n ?? 0).toFixed(2)}%`;
 
 const SummaryBar = ({ summary }) => (
   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
     {[
-      { label: 'Invested',     value: fmt(summary?.totalInvested) },
+      { label: 'Invested', value: fmt(summary?.totalInvested) },
       { label: 'Current value', value: fmt(summary?.currentValue) },
-      { label: 'Total P&L',
+      {
+        label: 'Total P&L',
         value: fmt(summary?.totalPnL),
-        className: summary?.totalPnL >= 0 ? 'text-success' : 'text-danger' },
+        className: summary?.totalPnL >= 0 ? 'text-success' : 'text-danger',
+      },
       { label: 'Cash balance', value: fmt(summary?.cashBalance) },
     ].map(({ label, value, className }) => (
       <Card key={label}>
@@ -68,7 +83,11 @@ export const HoldingsContent = () => {
     skip: !isAuthenticated,
   });
 
-  const { data: holdingsData, isLoading, error } = useGetPortfolioHoldingsQuery(undefined, {
+  const {
+    data: holdingsData,
+    isLoading,
+    error,
+  } = useGetPortfolioHoldingsQuery(undefined, {
     skip: !isAuthenticated,
     pollingInterval: 30000, // refresh with SSE tick cadence
   });

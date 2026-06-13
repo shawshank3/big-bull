@@ -1,9 +1,9 @@
 module.exports = [
   {
-    ignores: ["node_modules/**", "dist/**", "build/**", "public/**"],
+    ignores: ['node_modules/**', 'dist/**', 'build/**', 'public/**'],
   },
   {
-    files: ["**/*.js", "**/*.jsx"],
+    files: ['**/*.js', '**/*.jsx'],
     languageOptions: {
       ecmaVersion: 2021,
       sourceType: 'module',

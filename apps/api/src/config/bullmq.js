@@ -13,8 +13,8 @@ const makeQueue = (name) => {
   return new Queue(name, { connection: redis });
 };
 
-const msePriceTickQueue     = makeQueue('mse-price-tick');
+const msePriceTickQueue = makeQueue('mse-price-tick');
 const netWorthSnapshotQueue = makeQueue('net-worth-snapshot');
-const goalStatusSyncQueue   = makeQueue('goal-status-sync');
+const goalStatusSyncQueue = makeQueue('goal-status-sync');
 
 module.exports = { msePriceTickQueue, netWorthSnapshotQueue, goalStatusSyncQueue };

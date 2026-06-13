@@ -47,24 +47,23 @@ const computeHoldings = async (userId) => {
         // Redis unavailable or JSON parse error — use basePrice silently
       }
 
-      const currentValue   = holding.netQuantity * currentPrice;
-      const totalInvested  = holding.totalBuyCost;
-      const unrealisedPnL  = currentValue - totalInvested;
-      const unrealisedPnLPercent =
-        totalInvested > 0 ? (unrealisedPnL / totalInvested) * 100 : 0;
+      const currentValue = holding.netQuantity * currentPrice;
+      const totalInvested = holding.totalBuyCost;
+      const unrealisedPnL = currentValue - totalInvested;
+      const unrealisedPnLPercent = totalInvested > 0 ? (unrealisedPnL / totalInvested) * 100 : 0;
 
       return {
-        assetId:       holding.assetId,
-        netQuantity:   holding.netQuantity,
-        totalBuyQty:   holding.totalBuyQty,
-        totalBuyCost:  holding.totalBuyCost,
-        avgCostBasis:  holding.avgCostBasis,
+        assetId: holding.assetId,
+        netQuantity: holding.netQuantity,
+        totalBuyQty: holding.totalBuyQty,
+        totalBuyCost: holding.totalBuyCost,
+        avgCostBasis: holding.avgCostBasis,
         asset: {
-          ticker:    holding.asset.ticker,
-          name:      holding.asset.name,
+          ticker: holding.asset.ticker,
+          name: holding.asset.name,
           assetType: holding.asset.assetType,
-          exchange:  holding.asset.exchange,
-          sector:    holding.asset.sector,
+          exchange: holding.asset.exchange,
+          sector: holding.asset.sector,
         },
         currentPrice,
         currentValue,
@@ -82,9 +81,7 @@ const computeHoldings = async (userId) => {
   // Append portfolio weight to each holding
   enriched.forEach((holding) => {
     holding.portfolioWeight =
-      totalPortfolioValue > 0
-        ? (holding.currentValue / totalPortfolioValue) * 100
-        : 0;
+      totalPortfolioValue > 0 ? (holding.currentValue / totalPortfolioValue) * 100 : 0;
   });
 
   return enriched;
@@ -109,10 +106,9 @@ const computeSummary = async (userId) => {
   ]);
 
   const totalInvested = holdings.reduce((sum, h) => sum + h.totalInvested, 0);
-  const currentValue  = holdings.reduce((sum, h) => sum + h.currentValue, 0);
-  const totalPnL      = currentValue - totalInvested;
-  const totalPnLPercent =
-    totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
+  const currentValue = holdings.reduce((sum, h) => sum + h.currentValue, 0);
+  const totalPnL = currentValue - totalInvested;
+  const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
 
   return {
     totalInvested,
@@ -120,8 +116,8 @@ const computeSummary = async (userId) => {
     totalPnL,
     totalPnLPercent,
     holdingCount: holdings.length,
-    cashBalance:  wallet.balance,
-    currency:     'INR',
+    cashBalance: wallet.balance,
+    currency: 'INR',
   };
 };
 

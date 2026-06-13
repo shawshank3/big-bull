@@ -39,7 +39,7 @@ export const baseQueryWithReauth = async (args, api, extraOptions) => {
       const refreshResult = await rawBaseQuery(
         { url: '/api/v1/auth/refresh', method: 'POST' },
         api,
-        extraOptions,
+        extraOptions
       );
 
       if (refreshResult.data) {

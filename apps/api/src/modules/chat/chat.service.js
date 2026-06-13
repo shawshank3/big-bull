@@ -41,14 +41,13 @@ const buildPortfolioContext = async (userId) => {
   });
 
   const totalReturn = totalCurrent - totalInvested;
-  const returnPct = totalInvested > 0
-    ? ((totalReturn / totalInvested) * 100).toFixed(2) : '0.00';
+  const returnPct = totalInvested > 0 ? ((totalReturn / totalInvested) * 100).toFixed(2) : '0.00';
 
   return [
     'USER PORTFOLIO (prices from Redis cache, not live exchange ticks):',
     ...lines,
     `Totals: invested ${totalInvested.toFixed(2)}, current ${totalCurrent.toFixed(2)}, ` +
-    `return ${totalReturn.toFixed(2)} (${returnPct}%)`,
+      `return ${totalReturn.toFixed(2)} (${returnPct}%)`,
   ].join('\n');
 };
 

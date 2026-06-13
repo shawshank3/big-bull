@@ -53,11 +53,11 @@ cp apps/api/.env.example apps/api/.env
 
 Edit `apps/api/.env` — at minimum, set:
 
-| Variable | Description |
-|---|---|
+| Variable                    | Description                                            |
+| --------------------------- | ------------------------------------------------------ |
 | `MONGO_URI` + `MONGODB_URI` | MongoDB connection string (set both to the same value) |
-| `JWT_SECRET` | Long random string for signing access tokens |
-| `JWT_REFRESH_SECRET` | Different long random string for refresh tokens |
+| `JWT_SECRET`                | Long random string for signing access tokens           |
+| `JWT_REFRESH_SECRET`        | Different long random string for refresh tokens        |
 
 Everything else has working defaults for local development.
 
@@ -76,9 +76,9 @@ pnpm --filter api seed
 pnpm dev
 ```
 
-| Process | URL |
-|---|---|
-| Frontend (Vite) | http://localhost:5173 |
+| Process           | URL                   |
+| ----------------- | --------------------- |
+| Frontend (Vite)   | http://localhost:5173 |
 | Backend (nodemon) | http://localhost:4000 |
 
 The Vite dev server proxies all `/api` requests to `http://localhost:4000` — no CORS configuration or hardcoded origins needed.
@@ -89,20 +89,20 @@ The Vite dev server proxies all `/api` requests to `http://localhost:4000` — n
 
 ### Full reference
 
-| Variable | App | Required | Default | Description |
-|---|---|---|---|---|
-| `MONGO_URI` | API | ✅ | — | MongoDB connection string |
-| `MONGODB_URI` | API | ✅ | — | Same value as `MONGO_URI` (alias checked by `validateEnv()`) |
-| `JWT_SECRET` | API | ✅ | — | Access token signing secret |
-| `JWT_REFRESH_SECRET` | API | ✅ | — | Refresh token signing secret (must differ from `JWT_SECRET`) |
-| `JWT_ACCESS_EXPIRES` | API | — | `30s` | Access token lifetime (`s`, `m`, `h`, `d` units) |
-| `JWT_REFRESH_EXPIRES` | API | — | `2h` | Refresh token lifetime |
-| `PORT` | API | — | `4000` | Express server port |
-| `NODE_ENV` | API | — | `development` | Set to `production` on Render |
-| `REDIS_URL` | API | — | — | Redis connection string. If absent, price caching is disabled |
-| `GEMENI_API_KEY` | API | — | — | [Google AI Studio](https://aistudio.google.com/apikey) key for the chat copilot |
-| `VITE_API_URL` | UI | — | `http://localhost:4000/api` | API base URL (production only; dev uses Vite proxy) |
-| `VITE_APP_NAME` | UI | — | `BigBull` | App display name |
+| Variable              | App | Required | Default                     | Description                                                                     |
+| --------------------- | --- | -------- | --------------------------- | ------------------------------------------------------------------------------- |
+| `MONGO_URI`           | API | ✅       | —                           | MongoDB connection string                                                       |
+| `MONGODB_URI`         | API | ✅       | —                           | Same value as `MONGO_URI` (alias checked by `validateEnv()`)                    |
+| `JWT_SECRET`          | API | ✅       | —                           | Access token signing secret                                                     |
+| `JWT_REFRESH_SECRET`  | API | ✅       | —                           | Refresh token signing secret (must differ from `JWT_SECRET`)                    |
+| `JWT_ACCESS_EXPIRES`  | API | —        | `30s`                       | Access token lifetime (`s`, `m`, `h`, `d` units)                                |
+| `JWT_REFRESH_EXPIRES` | API | —        | `2h`                        | Refresh token lifetime                                                          |
+| `PORT`                | API | —        | `4000`                      | Express server port                                                             |
+| `NODE_ENV`            | API | —        | `development`               | Set to `production` on Render                                                   |
+| `REDIS_URL`           | API | —        | —                           | Redis connection string. If absent, price caching is disabled                   |
+| `GEMENI_API_KEY`      | API | —        | —                           | [Google AI Studio](https://aistudio.google.com/apikey) key for the chat copilot |
+| `VITE_API_URL`        | UI  | —        | `http://localhost:4000/api` | API base URL (production only; dev uses Vite proxy)                             |
+| `VITE_APP_NAME`       | UI  | —        | `BigBull`                   | App display name                                                                |
 
 ---
 
@@ -121,9 +121,9 @@ pnpm --filter ui test    # Run UI Jest test suite
 
 The `render.yaml` at the workspace root is a [Render Blueprint](https://render.com/docs/infrastructure-as-code). Connect this repository to Render once and both services are provisioned automatically.
 
-| Render Service | Build | Start |
-|---|---|---|
-| `big-bull` | `pnpm install && pnpm --filter ui build` | `pnpm --filter api start` |
+| Render Service | Build                                    | Start                     |
+| -------------- | ---------------------------------------- | ------------------------- |
+| `big-bull`     | `pnpm install && pnpm --filter ui build` | `pnpm --filter api start` |
 
 The built UI (`apps/ui/dist/`) is served as static files by the Express API on the same origin — no separate static hosting is needed.
 
@@ -131,14 +131,14 @@ The built UI (`apps/ui/dist/`) is served as static files by the Express API on t
 
 Go to **Render Dashboard → big-bull → Environment** and set:
 
-| Variable | Notes |
-|---|---|
-| `MONGO_URI` | MongoDB Atlas connection string |
-| `MONGODB_URI` | Same value as `MONGO_URI` |
-| `JWT_SECRET` | Generate with `openssl rand -base64 64` |
-| `JWT_REFRESH_SECRET` | Generate separately with `openssl rand -base64 64` |
-| `GEMENI_API_KEY` | Google AI Studio key (optional — chat feature disabled without it) |
-| `REDIS_URL` | Upstash Redis connection string (optional — prices use `basePrice` without it) |
+| Variable             | Notes                                                                          |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `MONGO_URI`          | MongoDB Atlas connection string                                                |
+| `MONGODB_URI`        | Same value as `MONGO_URI`                                                      |
+| `JWT_SECRET`         | Generate with `openssl rand -base64 64`                                        |
+| `JWT_REFRESH_SECRET` | Generate separately with `openssl rand -base64 64`                             |
+| `GEMENI_API_KEY`     | Google AI Studio key (optional — chat feature disabled without it)             |
+| `REDIS_URL`          | Upstash Redis connection string (optional — prices use `basePrice` without it) |
 
 `NODE_ENV=production` and `PORT=4000` are set automatically by `render.yaml`.
 
@@ -169,6 +169,7 @@ Express API (Node.js)
 ```
 
 **Key design rules:**
+
 - Transactions are the only source of truth for portfolio values — nothing is pre-computed and stored.
 - All market data comes from the seeded internal asset catalog — no external market API calls.
 - JWTs live in HTTP-Only cookies only — the frontend never reads the raw token.

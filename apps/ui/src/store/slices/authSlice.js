@@ -10,7 +10,7 @@ const authSlice = createSlice({
   initialState: {
     user: null,
     isAuthenticated: false,
-    isLoading: true,  // true until getMe hydration completes on app load
+    isLoading: true, // true until getMe hydration completes on app load
     error: null,
   },
   reducers: {
@@ -52,11 +52,23 @@ const authSlice = createSlice({
       state.error = null;
     },
     // No-op stubs kept for components that dispatch these
-    loginStart: (state) => { state.isLoading = true; },
-    loginFailure: (state, action) => { state.isLoading = false; state.error = action.payload; },
-    registerStart: (state) => { state.isLoading = true; },
-    registerFailure: (state, action) => { state.isLoading = false; state.error = action.payload; },
-    tokenRefreshed: (state) => { /* cookies handled server-side — no-op */ },
+    loginStart: (state) => {
+      state.isLoading = true;
+    },
+    loginFailure: (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload;
+    },
+    registerStart: (state) => {
+      state.isLoading = true;
+    },
+    registerFailure: (state, action) => {
+      state.isLoading = false;
+      state.error = action.payload;
+    },
+    tokenRefreshed: (state) => {
+      /* cookies handled server-side — no-op */
+    },
   },
 });
 

@@ -1,15 +1,7 @@
 import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
 
-export function FormTextarea({
-  ref,
-  label,
-  error,
-  id,
-  name,
-  className = '',
-  ...props
-}) {
+export function FormTextarea({ ref, label, error, id, name, className = '', ...props }) {
   const fieldId = id || name;
 
   return (

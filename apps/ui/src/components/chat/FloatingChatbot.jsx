@@ -49,7 +49,11 @@ export const FloatingChatbot = () => {
         aria-label={isOpen ? CHAT_LABELS.close : CHAT_LABELS.open}
         aria-expanded={isOpen}
       >
-        {isOpen ? <X className="h-6 w-6" aria-hidden /> : <MessageCircle className="h-6 w-6" aria-hidden />}
+        {isOpen ? (
+          <X className="h-6 w-6" aria-hidden />
+        ) : (
+          <MessageCircle className="h-6 w-6" aria-hidden />
+        )}
       </Button>
     </div>
   );

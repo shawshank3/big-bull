@@ -34,11 +34,7 @@ export const UserMenu = () => {
           className="max-w-[10.5rem] shrink-0 gap-2 overflow-hidden px-2 sm:max-w-[12rem] sm:px-2.5"
           title={profile.name}
         >
-          <UserAvatar
-            name={profile.name}
-            avatar={profile.avatar}
-            className="h-8 w-8 shrink-0"
-          />
+          <UserAvatar name={profile.name} avatar={profile.avatar} className="h-8 w-8 shrink-0" />
           <span className="hidden min-w-0 truncate font-semibold text-sm lg:inline">
             {profile.name}
           </span>

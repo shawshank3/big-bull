@@ -9,6 +9,7 @@
  * caches so the UI reflects the new state immediately after an order.
  */
 import { apiSlice } from './apiSlice';
+import { toTransactionHistoryDTO, toOrderResultDTO } from './dto';
 
 export const transactionApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -17,7 +18,7 @@ export const transactionApi = apiSlice.injectEndpoints({
         url: '/api/v1/transactions',
         params: { page, limit },
       }),
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toTransactionHistoryDTO(res?.data),
       providesTags: ['Transactions'],
     }),
     executeOrder: builder.mutation({
@@ -26,14 +27,11 @@ export const transactionApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: orderData,
       }),
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toOrderResultDTO(res?.data),
       invalidatesTags: ['Portfolio', 'Holdings', 'Wallet', 'Transactions'],
     }),
   }),
   overrideExisting: false,
 });
 
-export const {
-  useGetTransactionsQuery,
-  useExecuteOrderMutation,
-} = transactionApi;
+export const { useGetTransactionsQuery, useExecuteOrderMutation } = transactionApi;

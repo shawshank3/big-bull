@@ -8,6 +8,7 @@
  * before responding. The response envelope is { reply: string }.
  */
 import { apiSlice } from './apiSlice';
+import { toChatReplyDTO } from './dto';
 
 export const chatApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -17,7 +18,7 @@ export const chatApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: { message },
       }),
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toChatReplyDTO(res?.data),
     }),
   }),
   overrideExisting: false,

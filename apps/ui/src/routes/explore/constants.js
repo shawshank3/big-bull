@@ -10,7 +10,7 @@ export const STOCK_QUOTES = [
     author: 'Robert Arnott',
   },
   {
-    text: "The four most dangerous words in investing are: \"this time it's different.\"",
+    text: 'The four most dangerous words in investing are: "this time it\'s different."',
     author: 'Sir John Templeton',
   },
   {
@@ -29,29 +29,47 @@ export const STOCK_QUOTES = [
 
 export const MARKET_FACTS = [
   { icon: TrendingUp, label: 'NSE Listed Companies', value: '2,000+', note: 'across 20+ sectors' },
-  { icon: BarChart2, label: 'Daily Traded Volume', value: '₹50,000 Cr+', note: 'average turnover on NSE' },
-  { icon: Shield, label: 'Mutual Fund Schemes', value: '1,500+', note: 'across equity, debt & hybrid' },
-  { icon: Zap, label: 'SEBI Registered Investors', value: '15 Cr+', note: 'and growing every year' },
+  {
+    icon: BarChart2,
+    label: 'Daily Traded Volume',
+    value: '₹50,000 Cr+',
+    note: 'average turnover on NSE',
+  },
+  {
+    icon: Shield,
+    label: 'Mutual Fund Schemes',
+    value: '1,500+',
+    note: 'across equity, debt & hybrid',
+  },
+  {
+    icon: Zap,
+    label: 'SEBI Registered Investors',
+    value: '15 Cr+',
+    note: 'and growing every year',
+  },
 ];
 
 export const FEATURE_HIGHLIGHTS = [
   {
     title: 'Real-time Search',
-    description: 'Search across thousands of NSE/BSE stocks and mutual fund schemes instantly with live quotes.',
+    description:
+      'Search across thousands of NSE/BSE stocks and mutual fund schemes instantly with live quotes.',
     gradient: 'from-primary/10 to-primary/5',
     iconBg: 'bg-primary/10 text-primary',
     icon: '🔍',
   },
   {
     title: 'Portfolio Tracking',
-    description: 'Log your holdings, track P&L, and get a consolidated view of your entire investment portfolio.',
+    description:
+      'Log your holdings, track P&L, and get a consolidated view of your entire investment portfolio.',
     gradient: 'from-secondary/10 to-secondary/5',
     iconBg: 'bg-secondary/10 text-secondary',
     icon: '📊',
   },
   {
     title: 'AI Market Assistant',
-    description: 'Ask anything about markets, stocks, or investing and get smart, context-aware answers.',
+    description:
+      'Ask anything about markets, stocks, or investing and get smart, context-aware answers.',
     gradient: 'from-warning/10 to-warning/5',
     iconBg: 'bg-warning/10 text-warning',
     icon: '🤖',

@@ -39,11 +39,7 @@ export const ProfilePhotoSection = ({ profile }) => {
         </div>
       </div>
 
-      <PhotoUploadModal
-        profile={profile}
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-      />
+      <PhotoUploadModal profile={profile} open={uploadOpen} onClose={() => setUploadOpen(false)} />
     </>
   );
 };

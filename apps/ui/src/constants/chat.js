@@ -5,7 +5,8 @@ export const CHAT_ROLES = {
 
 export const CHAT_WELCOME = {
   role: CHAT_ROLES.ASSISTANT,
-  content: 'Hi! Ask about markets, your holdings, or investing. I can search the web for latest prices.',
+  content:
+    'Hi! Ask about markets, your holdings, or investing. I can search the web for latest prices.',
 };
 
 export const CHAT_LABELS = {

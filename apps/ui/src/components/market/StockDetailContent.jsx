@@ -16,20 +16,26 @@ import { MarketQuoteCard } from './MarketQuoteCard';
 import { OrderForm } from './OrderForm';
 
 const fmt = (n, currency = 'INR') =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n);
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(
+    n
+  );
 
 const PriceChange = ({ change, changePercent }) => {
   if (change == null) return null;
   const up = change >= 0;
   return (
-    <span className={['text-sm font-semibold tabular-nums', up ? 'text-success' : 'text-danger'].join(' ')}>
+    <span
+      className={['text-sm font-semibold tabular-nums', up ? 'text-success' : 'text-danger'].join(
+        ' '
+      )}
+    >
       {up ? '▲' : '▼'} {fmt(Math.abs(change))} ({changePercent})
     </span>
   );
 };
 
 export const StockDetailContent = () => {
-  const { symbol } = useParams();                     // plain NSE ticker from URL
+  const { symbol } = useParams(); // plain NSE ticker from URL
   const location = useLocation();
   const { isAuthenticated } = useSelector((s) => s.auth);
   const displayName = location.state?.name || symbol;
@@ -37,7 +43,11 @@ export const StockDetailContent = () => {
   // Use plain NSE ticker — server now resolves quotes from the Asset catalog / Redis
   const quoteSymbol = symbol;
 
-  const { data: quote, isLoading, isError } = useGetStockQuoteQuery(quoteSymbol, {
+  const {
+    data: quote,
+    isLoading,
+    isError,
+  } = useGetStockQuoteQuery(quoteSymbol, {
     skip: !symbol,
     pollingInterval: 30000,
   });
@@ -47,10 +57,7 @@ export const StockDetailContent = () => {
 
   return (
     <>
-      <PageHeader
-        title={displayName}
-        description={`${MARKET_ASSET_LABELS.stock} · ${symbol}`}
-      />
+      <PageHeader title={displayName} description={`${MARKET_ASSET_LABELS.stock} · ${symbol}`} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* ── Left: price card ── */}
@@ -83,7 +90,8 @@ export const StockDetailContent = () => {
               {isError && <Alert variant="danger">Price unavailable — cannot place order.</Alert>}
               {!isLoading && !isError && !asset && (
                 <Alert variant="warning">
-                  {symbol} is not in the simulation catalog. Only seeded Indian stocks are tradeable.
+                  {symbol} is not in the simulation catalog. Only seeded Indian stocks are
+                  tradeable.
                 </Alert>
               )}
               {!isLoading && !isError && asset && (

@@ -23,13 +23,11 @@ const executeOrder = catchAsync(async (req, res) => {
   const result = orderSchema.safeParse(req.body);
 
   if (!result.success) {
-    throw new AppError(result.error.errors[0].message, 400);
+    const message = result.error.errors?.[0]?.message ?? 'Invalid order payload';
+    throw new AppError(message, 400);
   }
 
-  const transaction = await transactionService.executeOrder(
-    req.user.id,
-    result.data
-  );
+  const transaction = await transactionService.executeOrder(req.user.id, result.data);
 
   sendSuccess(res, { transaction }, 'Order executed successfully', 201);
 });
@@ -44,13 +42,11 @@ const getHistory = catchAsync(async (req, res) => {
   const result = historyQuerySchema.safeParse(req.query);
 
   if (!result.success) {
-    throw new AppError(result.error.errors[0].message, 400);
+    const message = result.error.errors?.[0]?.message ?? 'Invalid query parameters';
+    throw new AppError(message, 400);
   }
 
-  const data = await transactionService.getTransactionHistory(
-    req.user.id,
-    result.data
-  );
+  const data = await transactionService.getTransactionHistory(req.user.id, result.data);
 
   sendSuccess(res, data, 'Transaction history retrieved');
 });

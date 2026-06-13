@@ -17,16 +17,8 @@ export const NavbarSearch = () => {
   const navigate = useNavigate();
   const containerRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
-  const {
-    query,
-    setQuery,
-    stocks,
-    mutuals,
-    isFetching,
-    isEmpty,
-    isError,
-    hasMinLength,
-  } = useMarketSearch();
+  const { query, setQuery, stocks, mutuals, isFetching, isEmpty, isError, hasMinLength } =
+    useMarketSearch();
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -138,9 +130,7 @@ const SearchResultSection = ({ title, items, onSelect }) => (
                 {item.name}
               </span>
               <span className="block truncate text-xs text-muted">
-                {item.type === MARKET_ASSET_TYPES.STOCK
-                  ? item.symbol
-                  : `Scheme ${item.schemeCode}`}
+                {item.type === MARKET_ASSET_TYPES.STOCK ? item.symbol : `Scheme ${item.schemeCode}`}
                 {item.region ? ` · ${item.region}` : ''}
               </span>
             </span>
