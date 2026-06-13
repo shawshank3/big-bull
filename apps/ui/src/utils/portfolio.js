@@ -15,7 +15,10 @@ export const getHoldingReturn = (holding) => {
 };
 
 export const getPortfolioSummary = (holdings = []) => {
-  const totalInvested = holdings.reduce((sum, holding) => sum + getHoldingInvestedValue(holding), 0);
+  const totalInvested = holdings.reduce(
+    (sum, holding) => sum + getHoldingInvestedValue(holding),
+    0
+  );
   const totalValue = holdings.reduce((sum, holding) => sum + getHoldingValue(holding), 0);
   const totalReturn = totalValue - totalInvested;
 

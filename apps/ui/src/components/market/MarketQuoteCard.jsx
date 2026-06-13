@@ -17,9 +17,9 @@ const useMarketQuote = () => {
 // Compound components that read from context
 const Loading = ({ children = "Loading today's price…" }) => {
   const { isLoading } = useMarketQuote();
-  
+
   if (!isLoading) return null;
-  
+
   return (
     <Card>
       <CardContent className="flex items-center justify-center gap-3 py-16">
@@ -31,25 +31,25 @@ const Loading = ({ children = "Loading today's price…" }) => {
 
 const Error = ({ children = 'Unable to load price data right now.' }) => {
   const { isError } = useMarketQuote();
-  
+
   if (!isError) return null;
-  
+
   return <Alert variant="danger">{children}</Alert>;
 };
 
 const Empty = ({ children = 'Price data is not available.' }) => {
   const { quote, isLoading, isError } = useMarketQuote();
-  
+
   if (isLoading || isError || quote?.price || quote?.price === 0) return null;
-  
+
   return <Alert variant="warning">{children}</Alert>;
 };
 
 const Data = ({ children }) => {
   const { quote, isLoading, isError } = useMarketQuote();
-  
+
   if (isLoading || isError || (!quote?.price && quote?.price !== 0)) return null;
-  
+
   return <Card>{children}</Card>;
 };
 
@@ -60,9 +60,7 @@ const Header = ({ title, subtitle }) => (
   </CardHeader>
 );
 
-const Content = ({ children }) => (
-  <CardContent className="space-y-4">{children}</CardContent>
-);
+const Content = ({ children }) => <CardContent className="space-y-4">{children}</CardContent>;
 
 const Price = ({ value, currency = 'INR', label = 'price' }) => (
   <div>
@@ -73,9 +71,8 @@ const Price = ({ value, currency = 'INR', label = 'price' }) => (
   </div>
 );
 
-const AsOf = ({ date }) => (
-  date ? <p className="text-sm text-muted">As of {formatMarketDate(date)}</p> : null
-);
+const AsOf = ({ date }) =>
+  date ? <p className="text-sm text-muted">As of {formatMarketDate(date)}</p> : null;
 
 const Notice = ({ children }) => <p className="text-sm text-muted">{children}</p>;
 

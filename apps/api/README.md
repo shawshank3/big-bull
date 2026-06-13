@@ -4,16 +4,16 @@ Node.js + Express 4 REST API for the BigBull simulated Indian stock market platf
 
 ## Stack
 
-| Layer | Library / Tool |
-|---|---|
-| Runtime | Node.js 18+ |
-| Framework | Express 4 |
-| Database | MongoDB via Mongoose 7 |
-| Cache / Queues | Redis (ioredis) + BullMQ |
-| Auth | HTTP-Only JWT cookies (jsonwebtoken, bcryptjs) |
-| Validation | Zod (schema-first, per module) |
-| AI | Google Gemini (`@google/genai`) |
-| Testing | Jest + fast-check (property-based tests) |
+| Layer          | Library / Tool                                 |
+| -------------- | ---------------------------------------------- |
+| Runtime        | Node.js 18+                                    |
+| Framework      | Express 4                                      |
+| Database       | MongoDB via Mongoose 7                         |
+| Cache / Queues | Redis (ioredis) + BullMQ                       |
+| Auth           | HTTP-Only JWT cookies (jsonwebtoken, bcryptjs) |
+| Validation     | Zod (schema-first, per module)                 |
+| AI             | Google Gemini (`@google/genai`)                |
+| Testing        | Jest + fast-check (property-based tests)       |
 
 ---
 
@@ -60,7 +60,7 @@ apps/api/src/
 
 - **Node.js 18+**
 - **MongoDB** — local (`mongod`) or MongoDB Atlas
-- **Redis** *(optional)* — prices fall back to `basePrice` if Redis is unavailable
+- **Redis** _(optional)_ — prices fall back to `basePrice` if Redis is unavailable
 
 No external market data API keys are needed. All prices are simulated internally by the MSE worker.
 
@@ -79,18 +79,18 @@ cp .env.example .env
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `MONGO_URI` | ✅ | — | MongoDB connection string |
-| `MONGODB_URI` | ✅ | — | Alias checked by `validateEnv()` — set to the same value as `MONGO_URI` |
-| `JWT_SECRET` | ✅ | — | Access token signing secret (min 32 chars) |
-| `JWT_REFRESH_SECRET` | ✅ | — | Refresh token signing secret (must differ from `JWT_SECRET`) |
-| `JWT_ACCESS_EXPIRES` | — | `30s` | Access token lifetime — parsed by `parseExpiry()` for cookie `maxAge` |
-| `JWT_REFRESH_EXPIRES` | — | `2h` | Refresh token lifetime — parsed by `parseExpiry()` for cookie `maxAge` |
-| `PORT` | — | `4000` | HTTP port |
-| `NODE_ENV` | — | `development` | Set to `production` on Render |
-| `REDIS_URL` | — | — | Redis connection string. If absent, caching is disabled and prices use `basePrice` |
-| `GEMENI_API_KEY` | — | — | Google AI Studio API key for the chat copilot |
+| Variable              | Required | Default       | Description                                                                        |
+| --------------------- | -------- | ------------- | ---------------------------------------------------------------------------------- |
+| `MONGO_URI`           | ✅       | —             | MongoDB connection string                                                          |
+| `MONGODB_URI`         | ✅       | —             | Alias checked by `validateEnv()` — set to the same value as `MONGO_URI`            |
+| `JWT_SECRET`          | ✅       | —             | Access token signing secret (min 32 chars)                                         |
+| `JWT_REFRESH_SECRET`  | ✅       | —             | Refresh token signing secret (must differ from `JWT_SECRET`)                       |
+| `JWT_ACCESS_EXPIRES`  | —        | `30s`         | Access token lifetime — parsed by `parseExpiry()` for cookie `maxAge`              |
+| `JWT_REFRESH_EXPIRES` | —        | `2h`          | Refresh token lifetime — parsed by `parseExpiry()` for cookie `maxAge`             |
+| `PORT`                | —        | `4000`        | HTTP port                                                                          |
+| `NODE_ENV`            | —        | `development` | Set to `production` on Render                                                      |
+| `REDIS_URL`           | —        | —             | Redis connection string. If absent, caching is disabled and prices use `basePrice` |
+| `GEMENI_API_KEY`      | —        | —             | Google AI Studio API key for the chat copilot                                      |
 
 `JWT_ACCESS_EXPIRES` and `JWT_REFRESH_EXPIRES` accept the format `<number><unit>` where unit is `s`, `m`, `h`, or `d` (e.g. `30s`, `15m`, `2h`, `7d`). Cookie `maxAge` is derived from these values at runtime — there are no separate hardcoded constants.
 
@@ -122,6 +122,7 @@ API base: `http://localhost:4000`
 ## API Reference
 
 All v1 responses use the unified envelope:
+
 ```json
 { "success": true, "data": {}, "error": null, "timestamp": "..." }
 ```
@@ -130,85 +131,99 @@ Auth uses **HTTP-Only cookies** — no Bearer tokens in any response body or req
 
 ### Health
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/health` | Returns `{ version, db: "connected" }` or 503 if MongoDB is unreachable |
+| Method | Path          | Description                                                             |
+| ------ | ------------- | ----------------------------------------------------------------------- |
+| GET    | `/api/health` | Returns `{ version, db: "connected" }` or 503 if MongoDB is unreachable |
 
 ### Auth `/api/v1/auth`
+
 Rate-limited: 5 requests / 15 min per IP.
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/register` | — | Create account, issue HTTP-Only cookies, seed ₹10L wallet |
-| POST | `/login` | — | Validate credentials, issue cookies |
-| POST | `/logout` | ✅ | Invalidate refresh token, clear cookies |
-| GET | `/me` | ✅ | Current user `{ id, name, email, role }` — used for app-load hydration |
-| POST | `/refresh` | — | Rotate refresh token (reads cookie), issue new access cookie |
-| GET | `/profile` | ✅ | Full profile `{ id, name, email, phone, bio, avatar }` |
-| PATCH | `/profile` | ✅ | Partial update — any subset of `{ name, phone, bio, avatar }` |
-| POST | `/profile/avatar` | ✅ | Upload base64 data URL avatar |
-| DELETE | `/profile/avatar` | ✅ | Remove avatar (sets field to `null`) |
+| Method | Path              | Auth | Description                                                            |
+| ------ | ----------------- | ---- | ---------------------------------------------------------------------- |
+| POST   | `/register`       | —    | Create account, issue HTTP-Only cookies, seed ₹10L wallet              |
+| POST   | `/login`          | —    | Validate credentials, issue cookies                                    |
+| POST   | `/logout`         | ✅   | Invalidate refresh token, clear cookies                                |
+| GET    | `/me`             | ✅   | Current user `{ id, name, email, role }` — used for app-load hydration |
+| POST   | `/refresh`        | —    | Rotate refresh token (reads cookie), issue new access cookie           |
+| GET    | `/profile`        | ✅   | Full profile `{ id, name, email, phone, bio, avatar }`                 |
+| PATCH  | `/profile`        | ✅   | Partial update — any subset of `{ name, phone, bio, avatar }`          |
+| POST   | `/profile/avatar` | ✅   | Upload base64 data URL avatar                                          |
+| DELETE | `/profile/avatar` | ✅   | Remove avatar (sets field to `null`)                                   |
 
 ### Chat `/api/v1/chat`
+
 Rate-limited: `generalLimiter` (100 requests / 15 min).
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/` | ✅ | Send a message to the AI copilot (Google Gemini) |
+| Method | Path | Auth | Description                                      |
+| ------ | ---- | ---- | ------------------------------------------------ |
+| POST   | `/`  | ✅   | Send a message to the AI copilot (Google Gemini) |
 
 **Request body:**
+
 ```json
 { "message": "What are my top holdings?" }
 ```
+
 **Response 200:**
+
 ```json
-{ "success": true, "data": { "reply": "Your top holding is..." }, "error": null, "timestamp": "..." }
+{
+  "success": true,
+  "data": { "reply": "Your top holding is..." },
+  "error": null,
+  "timestamp": "..."
+}
 ```
+
 **Error responses:** 400 (missing/blank message), 502 (Gemini returned empty), 503 (API key not configured).
 
 ### Market `/api/v1/market`
+
 All routes are **public** (no auth required) except the SSE stream.
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/assets` | — | Full asset catalog. `?type=STOCK\|MUTUAL_FUND` to filter |
-| GET | `/assets/:ticker` | — | Single asset by NSE ticker or MF scheme code |
-| GET | `/search?q=` | — | Full-text search over catalog (name + ticker, min 2 chars) |
-| GET | `/quote/:ticker` | — | Current simulated price from Redis cache or `basePrice` fallback |
-| GET | `/ticker` | — | Top 10 NSE stocks with live prices — used by the UI ticker strip |
-| GET | `/stream` | ✅ | SSE endpoint — streams `price_update` events for live price ticks |
+| Method | Path              | Auth | Description                                                       |
+| ------ | ----------------- | ---- | ----------------------------------------------------------------- |
+| GET    | `/assets`         | —    | Full asset catalog. `?type=STOCK\|MUTUAL_FUND` to filter          |
+| GET    | `/assets/:ticker` | —    | Single asset by NSE ticker or MF scheme code                      |
+| GET    | `/search?q=`      | —    | Full-text search over catalog (name + ticker, min 2 chars)        |
+| GET    | `/quote/:ticker`  | —    | Current simulated price from Redis cache or `basePrice` fallback  |
+| GET    | `/ticker`         | —    | Top 10 NSE stocks with live prices — used by the UI ticker strip  |
+| GET    | `/stream`         | ✅   | SSE endpoint — streams `price_update` events for live price ticks |
 
 ### Transactions `/api/v1/transactions`
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/` | ✅ | Paginated transaction history (`?page=1&limit=20`) |
-| POST | `/order` | ✅ | Execute BUY or SELL — atomically updates wallet and writes ledger |
+| Method | Path     | Auth | Description                                                       |
+| ------ | -------- | ---- | ----------------------------------------------------------------- |
+| GET    | `/`      | ✅   | Paginated transaction history (`?page=1&limit=20`)                |
+| POST   | `/order` | ✅   | Execute BUY or SELL — atomically updates wallet and writes ledger |
 
 **Order body:**
+
 ```json
 {
   "assetId": "<MongoDB _id>",
   "transactionType": "BUY",
   "quantity": 10,
-  "pricePerUnit": 2950.00,
+  "pricePerUnit": 2950.0,
   "fees": 0
 }
 ```
 
 ### Portfolio `/api/v1/portfolio`
+
 Values are computed on demand — nothing is stored. Source: Transaction ledger + Redis price cache.
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/holdings` | ✅ | Per-asset: `{ assetId, asset, netQuantity, avgCostBasis, currentPrice, currentValue, totalInvested, unrealizedPnL, pnlPercent }` |
-| GET | `/summary` | ✅ | Aggregate: `{ totalInvested, currentValue, totalPnL, pnlPercent, cashBalance }` |
+| Method | Path        | Auth | Description                                                                                                                      |
+| ------ | ----------- | ---- | -------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/holdings` | ✅   | Per-asset: `{ assetId, asset, netQuantity, avgCostBasis, currentPrice, currentValue, totalInvested, unrealizedPnL, pnlPercent }` |
+| GET    | `/summary`  | ✅   | Aggregate: `{ totalInvested, currentValue, totalPnL, pnlPercent, cashBalance }`                                                  |
 
 ### Wallet `/api/v1/wallet`
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/` | ✅ | Current ₹ virtual wallet balance |
+| Method | Path | Auth | Description                      |
+| ------ | ---- | ---- | -------------------------------- |
+| GET    | `/`  | ✅   | Current ₹ virtual wallet balance |
 
 ---
 
@@ -223,9 +238,9 @@ Values are computed on demand — nothing is stored. Source: Transaction ledger 
 
 ## Scripts
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Start with nodemon (auto-restart on file changes) |
-| `npm start` | Start production server |
-| `npm run seed` | Seed 20 NSE stocks + 5 MFs + demo user |
-| `npm test` | Run Jest test suite |
+| Command        | Description                                       |
+| -------------- | ------------------------------------------------- |
+| `npm run dev`  | Start with nodemon (auto-restart on file changes) |
+| `npm start`    | Start production server                           |
+| `npm run seed` | Seed 20 NSE stocks + 5 MFs + demo user            |
+| `npm test`     | Run Jest test suite                               |

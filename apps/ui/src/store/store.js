@@ -3,12 +3,7 @@
  * Redux store setup with all slices
  */
 import { configureStore, createListenerMiddleware } from '@reduxjs/toolkit';
-import authReducer, {
-  clearUser,
-  loginSuccess,
-  logout,
-  registerSuccess,
-} from './slices/authSlice';
+import authReducer, { clearUser, loginSuccess, logout, registerSuccess } from './slices/authSlice';
 import { apiSlice } from '../api/apiSlice';
 
 const listenerMiddleware = createListenerMiddleware();
@@ -33,9 +28,7 @@ export const store = configureStore({
     [apiSlice.reducerPath]: apiSlice.reducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware()
-      .concat(listenerMiddleware.middleware)
-      .concat(apiSlice.middleware),
+    getDefaultMiddleware().concat(listenerMiddleware.middleware).concat(apiSlice.middleware),
 });
 
 export default store;

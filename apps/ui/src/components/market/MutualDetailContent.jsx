@@ -21,7 +21,11 @@ export const MutualDetailContent = () => {
 
   const displayName = location.state?.name;
 
-  const { data: quote, isLoading, isError } = useGetMutualQuoteQuery(schemeCode, {
+  const {
+    data: quote,
+    isLoading,
+    isError,
+  } = useGetMutualQuoteQuery(schemeCode, {
     skip: !schemeCode,
     pollingInterval: 30000,
   });
@@ -30,11 +34,9 @@ export const MutualDetailContent = () => {
   const { data: asset } = useGetAssetByTickerQuery(schemeCode, { skip: !schemeCode });
 
   const title = displayName || quote?.name || `Scheme ${schemeCode}`;
-  const subtitle = [
-    MARKET_ASSET_LABELS.mutual,
-    quote?.fundHouse,
-    quote?.schemeCategory,
-  ].filter(Boolean).join(' · ');
+  const subtitle = [MARKET_ASSET_LABELS.mutual, quote?.fundHouse, quote?.schemeCategory]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <>

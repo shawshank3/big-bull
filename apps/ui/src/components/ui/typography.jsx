@@ -1,7 +1,9 @@
 import { cn } from '@/lib/utils';
 
 export const PageTitle = ({ children, className }) => (
-  <h1 className={cn('text-3xl font-extrabold tracking-tight text-foreground', className)}>{children}</h1>
+  <h1 className={cn('text-3xl font-extrabold tracking-tight text-foreground', className)}>
+    {children}
+  </h1>
 );
 
 export const PageDescription = ({ children, className }) => (

@@ -25,13 +25,11 @@ const ValidationAlert = () => {
   return <Alert variant="warning">{validationErrors.general}</Alert>;
 };
 
-const Fields = ({ children }) => (
-  <div className="space-y-4">{children}</div>
-);
+const Fields = ({ children }) => <div className="space-y-4">{children}</div>;
 
 const Field = ({ name, type = 'text', label, required = false }) => {
   const { formData, validationErrors, handleChange } = useAuthForm();
-  
+
   return (
     <Input
       name={name}
@@ -47,7 +45,7 @@ const Field = ({ name, type = 'text', label, required = false }) => {
 
 const Submit = ({ children, loadingText }) => {
   const { isLoading } = useAuthForm();
-  
+
   return (
     <Button type="submit" variant="primary" size="lg" loading={isLoading} className="w-full">
       {isLoading ? loadingText : children}
@@ -56,14 +54,14 @@ const Submit = ({ children, loadingText }) => {
 };
 
 // Main component
-export const AuthForm = ({ 
-  formData, 
-  validationErrors, 
-  error, 
-  isLoading, 
-  onSubmit, 
+export const AuthForm = ({
+  formData,
+  validationErrors,
+  error,
+  isLoading,
+  onSubmit,
   onChange,
-  children 
+  children,
 }) => {
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -71,13 +69,13 @@ export const AuthForm = ({
   };
 
   return (
-    <AuthFormContext.Provider 
-      value={{ 
-        formData, 
-        validationErrors, 
-        error, 
-        isLoading, 
-        handleChange 
+    <AuthFormContext.Provider
+      value={{
+        formData,
+        validationErrors,
+        error,
+        isLoading,
+        handleChange,
       }}
     >
       <form className="space-y-4" onSubmit={onSubmit} noValidate>

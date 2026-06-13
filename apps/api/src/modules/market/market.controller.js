@@ -18,7 +18,8 @@ const sseClients = new Map();
 const search = catchAsync(async (req, res) => {
   const result = searchQuerySchema.safeParse(req.query);
   if (!result.success) {
-    throw new AppError(result.error.errors[0].message, 400);
+    const message = result.error.errors?.[0]?.message ?? 'Invalid search query';
+    throw new AppError(message, 400);
   }
 
   const results = await marketService.searchAssets(result.data.q);
@@ -104,4 +105,12 @@ const broadcastPriceUpdate = (payload) => {
   }
 };
 
-module.exports = { search, getQuote, getTicker, getAssets, getAssetByTicker, stream, broadcastPriceUpdate };
+module.exports = {
+  search,
+  getQuote,
+  getTicker,
+  getAssets,
+  getAssetByTicker,
+  stream,
+  broadcastPriceUpdate,
+};

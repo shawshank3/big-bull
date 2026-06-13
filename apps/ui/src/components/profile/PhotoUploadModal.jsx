@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button } from '../common';
 import { MutedText } from '../ui/typography';
-import {
-  useRemoveAvatarMutation,
-  useUploadAvatarMutation,
-} from '../../api/authApi';
+import { useRemoveAvatarMutation, useUploadAvatarMutation } from '../../api/authApi';
 import { getAvatarUrl, readFileAsDataUrl } from './utils';
 import { UserAvatar } from './UserAvatar';
 
@@ -122,9 +119,7 @@ export const PhotoUploadModal = ({ profile, open, onClose }) => {
         <h2 id="photo-upload-title" className="text-lg font-bold text-foreground">
           Profile photo
         </h2>
-        <MutedText className="mt-1">
-          Max {MAX_SIZE_MB}MB · JPEG, PNG, WebP, or GIF
-        </MutedText>
+        <MutedText className="mt-1">Max {MAX_SIZE_MB}MB · JPEG, PNG, WebP, or GIF</MutedText>
 
         <div className="mt-6 flex justify-center">
           <UserAvatar
@@ -181,7 +176,11 @@ export const PhotoUploadModal = ({ profile, open, onClose }) => {
         {selectedFile ? (
           <p className="mt-2 text-center text-sm text-muted">{selectedFile.name}</p>
         ) : null}
-        {localError ? <Alert variant="danger" className="mt-4">{localError}</Alert> : null}
+        {localError ? (
+          <Alert variant="danger" className="mt-4">
+            {localError}
+          </Alert>
+        ) : null}
 
         <div className="mt-4 flex justify-end">
           <Button type="button" variant="ghost" size="sm" onClick={handleClose} disabled={isBusy}>

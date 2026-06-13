@@ -6,10 +6,20 @@
     "dev": "concurrently \"pnpm --filter ui dev\" \"pnpm --filter api dev\"",
     "build": "pnpm --filter ui build",
     "start": "pnpm --filter api start",
-    "install:all": "pnpm install"
+    "install:all": "pnpm install",
+    "prepare": "husky",
+    "format": "prettier --write ."
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.8.4"
+  },
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx,json,css,md}": [
+      "prettier --write"
+    ]
   },
   "type": "module"
 }

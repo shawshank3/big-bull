@@ -28,8 +28,7 @@ const { verifyRefreshToken } = require('../../utils/jwt');
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** SHA-256 hash a raw token string (mirrors auth.service.js hashToken). */
-const hashToken = (token) =>
-  crypto.createHash('sha256').update(token).digest('hex');
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 /** Shape the user object returned in response bodies. */
 const formatUser = (user) => ({
@@ -53,7 +52,8 @@ const formatUser = (user) => ({
 const register = catchAsync(async (req, res) => {
   const result = registerSchema.safeParse(req.body);
   if (!result.success) {
-    throw new AppError(result.error.errors[0].message, 400);
+    const message = result.error.errors?.[0]?.message ?? 'Invalid registration payload';
+    throw new AppError(message, 400);
   }
 
   const { name, email, password } = result.data;
@@ -84,7 +84,8 @@ const register = catchAsync(async (req, res) => {
 const login = catchAsync(async (req, res) => {
   const result = loginSchema.safeParse(req.body);
   if (!result.success) {
-    throw new AppError(result.error.errors[0].message, 400);
+    const message = result.error.errors?.[0]?.message ?? 'Invalid login payload';
+    throw new AppError(message, 400);
   }
 
   const { email, password } = result.data;
@@ -200,9 +201,9 @@ const updateProfile = catchAsync(async (req, res) => {
   const { name, phone, bio, avatar } = req.body;
   const updates = {};
 
-  if (name  !== undefined) updates.name  = name;
+  if (name !== undefined) updates.name = name;
   if (phone !== undefined) updates.phone = phone;
-  if (bio   !== undefined) updates.bio   = bio;
+  if (bio !== undefined) updates.bio = bio;
 
   if (avatar !== undefined) {
     if (avatar === null || avatar === '') {
@@ -218,11 +219,10 @@ const updateProfile = catchAsync(async (req, res) => {
     throw new AppError('No fields to update', 400);
   }
 
-  const user = await User.findByIdAndUpdate(
-    req.user.id,
-    updates,
-    { new: true, runValidators: true },
-  );
+  const user = await User.findByIdAndUpdate(req.user.id, updates, {
+    new: true,
+    runValidators: true,
+  });
   if (!user) throw new AppError('User not found', 404);
 
   sendSuccess(res, formatProfile(user), 'Profile updated successfully');

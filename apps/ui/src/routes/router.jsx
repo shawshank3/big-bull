@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import { RootLayout } from '../components/layout/RootLayout';
+import { RouteErrorBoundary } from '../components/errors';
 import GuestRoute from './auth/GuestRoute';
 import ProtectedRoute from './app/ProtectedRoute';
 import RootRedirect from './app/RootRedirect';
@@ -19,6 +20,7 @@ export const router = createBrowserRouter([
   // Auth pages — full-screen layout, no shared navbar
   {
     element: <GuestRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: ROUTES.LOGIN, element: <Login /> },
       { path: ROUTES.REGISTER, element: <Register /> },
@@ -27,6 +29,7 @@ export const router = createBrowserRouter([
   // All other pages share RootLayout (navbar + constrained main)
   {
     element: <RootLayout />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute />,

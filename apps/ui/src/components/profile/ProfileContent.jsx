@@ -12,7 +12,11 @@ import { profileToFormValues } from './utils';
 
 export const ProfileContent = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
-  const { data: profile, isLoading, error } = useGetProfileQuery(undefined, {
+  const {
+    data: profile,
+    isLoading,
+    error,
+  } = useGetProfileQuery(undefined, {
     skip: !isAuthenticated,
   });
   const [updateProfile, { isLoading: isSaving }] = useUpdateProfileMutation();

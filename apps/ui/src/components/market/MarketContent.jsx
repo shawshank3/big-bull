@@ -14,11 +14,15 @@ import { useGetAssetsQuery } from '../../api/marketApi';
 import { buildStockDetailPath, buildMutualDetailPath } from '../../constants/market';
 
 const fmt = (n) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n ?? 0);
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(n ?? 0);
 
 const TABS = [
-  { label: 'All',          value: '' },
-  { label: 'Stocks',       value: 'STOCK' },
+  { label: 'All', value: '' },
+  { label: 'Stocks', value: 'STOCK' },
   { label: 'Mutual Funds', value: 'MUTUAL_FUND' },
 ];
 
@@ -40,7 +44,9 @@ const AssetRow = ({ asset, onClick }) => (
       </Badge>
     </td>
     <td className="py-3 pr-4 text-sm text-muted">{asset.sector?.replace(/_/g, ' ')}</td>
-    <td className="py-3 pr-6 tabular-nums text-right text-sm font-semibold">{fmt(asset.basePrice)}</td>
+    <td className="py-3 pr-6 tabular-nums text-right text-sm font-semibold">
+      {fmt(asset.basePrice)}
+    </td>
   </tr>
 );
 
@@ -48,19 +54,20 @@ export const MarketContent = () => {
   const navigate = useNavigate();
   const [activeType, setActiveType] = useState('');
 
-  const { data: assets = [], isLoading, isError } = useGetAssetsQuery(
-    activeType ? { type: activeType } : undefined,
-    { pollingInterval: 60000 }
-  );
+  const {
+    data: assets = [],
+    isLoading,
+    isError,
+  } = useGetAssetsQuery(activeType ? { type: activeType } : undefined, { pollingInterval: 60000 });
 
   const handleRowClick = (asset) => {
     if (asset.assetType === 'STOCK') {
       navigate(buildStockDetailPath(asset.ticker), {
-        state: { name: asset.name, assetId: asset._id },
+        state: { name: asset.name, assetId: asset.id ?? asset._id },
       });
     } else {
       navigate(buildMutualDetailPath(asset.ticker), {
-        state: { name: asset.name, assetId: asset._id },
+        state: { name: asset.name, assetId: asset.id ?? asset._id },
       });
     }
   };
@@ -115,7 +122,11 @@ export const MarketContent = () => {
               </thead>
               <tbody>
                 {assets.map((asset) => (
-                  <AssetRow key={asset._id} asset={asset} onClick={() => handleRowClick(asset)} />
+                  <AssetRow
+                    key={asset.id ?? asset._id}
+                    asset={asset}
+                    onClick={() => handleRowClick(asset)}
+                  />
                 ))}
               </tbody>
             </table>

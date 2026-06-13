@@ -7,7 +7,9 @@ export const UserAvatar = ({ name, avatar, className = 'h-9 w-9', fallbackClassN
 
   return (
     <Avatar className={className}>
-      {avatarUrl ? <AvatarImage src={avatarUrl} alt={name ? `${name}'s avatar` : 'User avatar'} /> : null}
+      {avatarUrl ? (
+        <AvatarImage src={avatarUrl} alt={name ? `${name}'s avatar` : 'User avatar'} />
+      ) : null}
       <AvatarFallback className={fallbackClassName}>{initial}</AvatarFallback>
     </Avatar>
   );

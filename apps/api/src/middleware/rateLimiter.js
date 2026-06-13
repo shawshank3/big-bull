@@ -15,36 +15,36 @@ const rateLimitHandler = (req, res) => {
 };
 
 /**
- * authLimiter — 5 requests per 15 minutes per IP.
- * Applied to login, register, and other auth endpoints to prevent brute-force attacks.
+ * authLimiter — relaxed for development (no effective limit).
+ * TODO: tighten before production (e.g. 5 req / 15 min)
  */
 const authLimiter = rateLimit({
-  windowMs: 0.25 * 60 * 1000, // 15 seconds for testing, change to 15 * 60 * 1000 for production
-  max: 5,
+  windowMs: 60 * 1000, // 1 minute
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitHandler,
 });
 
 /**
- * generalLimiter — 100 requests per 15 minutes per IP.
- * Applied broadly to most API routes.
+ * generalLimiter — relaxed for development (no effective limit).
+ * TODO: tighten before production (e.g. 100 req / 15 min)
  */
 const generalLimiter = rateLimit({
-  windowMs: 0.25 * 60 * 1000, // 15 seconds for testing, change to 15 * 60 * 1000 for production
-  max: 100,
+  windowMs: 60 * 1000, // 1 minute
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitHandler,
 });
 
 /**
- * chatLimiter — 20 requests per 1 minute per IP.
- * Applied to chat/AI endpoints to prevent abuse of expensive LLM calls.
+ * chatLimiter — relaxed for development (no effective limit).
+ * TODO: tighten before production (e.g. 20 req / 1 min)
  */
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 20,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitHandler,

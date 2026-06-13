@@ -35,11 +35,15 @@ const Header = ({ onClose }) => (
 
 const MessageList = ({ messagesEndRef }) => {
   const { messages, isLoading } = useChatContext();
-  
+
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
       {messages.map((message, index) => (
-        <ChatMessage key={`${message.role}-${index}`} role={message.role} content={message.content} />
+        <ChatMessage
+          key={`${message.role}-${index}`}
+          role={message.role}
+          content={message.content}
+        />
       ))}
       {isLoading && (
         <div className="flex justify-start">
@@ -55,9 +59,9 @@ const MessageList = ({ messagesEndRef }) => {
 
 const ErrorAlert = () => {
   const { errorMessage } = useChatContext();
-  
+
   if (!errorMessage) return null;
-  
+
   return (
     <div className="shrink-0 px-4 pb-2">
       <Alert variant="danger">{errorMessage}</Alert>
@@ -67,7 +71,7 @@ const ErrorAlert = () => {
 
 const Composer = ({ inputRef, onInputChange, onSend, onKeyDown }) => {
   const { input, isLoading } = useChatContext();
-  
+
   return (
     <footer className="shrink-0 border-t border-border p-3">
       <div className="flex items-end gap-2">

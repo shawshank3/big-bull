@@ -10,7 +10,11 @@ import { PortfolioTotalValueCard } from './PortfolioTotalValueCard';
 
 export const DashboardContent = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
-  const { data: holdings = [], isLoading, error } = useGetPortfolioHoldingsQuery(undefined, {
+  const {
+    data: holdings = [],
+    isLoading,
+    error,
+  } = useGetPortfolioHoldingsQuery(undefined, {
     skip: !isAuthenticated,
   });
   const { data: summary = {} } = useGetPortfolioSummaryQuery(undefined, {

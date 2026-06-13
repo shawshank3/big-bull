@@ -7,11 +7,7 @@ export const Register = () => {
     <AuthLayout>
       <AuthCard description="Create your account">
         <RegisterForm />
-        <AuthFooterLink
-          prompt="Already have an account?"
-          linkText="Login here"
-          to={ROUTES.LOGIN}
-        />
+        <AuthFooterLink prompt="Already have an account?" linkText="Login here" to={ROUTES.LOGIN} />
       </AuthCard>
     </AuthLayout>
   );

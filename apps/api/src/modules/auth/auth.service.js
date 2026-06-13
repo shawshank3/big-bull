@@ -38,8 +38,7 @@ const parseExpiry = (str) => {
  * SHA-256 hash a token string (same pattern as legacy authController.js).
  * The hash is stored in MongoDB so the raw refresh token never persists at rest.
  */
-const hashToken = (token) =>
-  crypto.createHash('sha256').update(token).digest('hex');
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 /** Shared cookie options (security flags). */
 const cookieOptions = (maxAge) => ({
@@ -62,15 +61,23 @@ const cookieOptions = (maxAge) => ({
  * @param {import('mongoose').Document} user  - must be a Mongoose User document
  */
 const issueAuthCookies = async (res, user) => {
-  const accessToken  = generateAccessToken(user);
+  const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
 
   // Store only the hash — never the raw token
   user.refreshToken = hashToken(refreshToken);
   await user.save({ validateBeforeSave: false });
 
-  res.cookie('access_token',  accessToken,  cookieOptions(parseExpiry(process.env.JWT_ACCESS_EXPIRES)));
-  res.cookie('refresh_token', refreshToken, cookieOptions(parseExpiry(process.env.JWT_REFRESH_EXPIRES)));
+  res.cookie(
+    'access_token',
+    accessToken,
+    cookieOptions(parseExpiry(process.env.JWT_ACCESS_EXPIRES))
+  );
+  res.cookie(
+    'refresh_token',
+    refreshToken,
+    cookieOptions(parseExpiry(process.env.JWT_REFRESH_EXPIRES))
+  );
 };
 
 /**
@@ -81,8 +88,16 @@ const issueAuthCookies = async (res, user) => {
  * @param {import('express').Response} res
  */
 const clearAuthCookies = (res) => {
-  res.clearCookie('access_token',  { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
-  res.clearCookie('refresh_token', { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+  res.clearCookie('access_token', {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+  });
+  res.clearCookie('refresh_token', {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+  });
 };
 
 /**

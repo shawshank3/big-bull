@@ -2,7 +2,12 @@ import { cn } from '@/lib/utils';
 import { FEATURE_HIGHLIGHTS } from './constants';
 
 const FeatureCard = ({ title, description, gradient, iconBg, icon }) => (
-  <div className={cn('flex flex-col gap-4 rounded-2xl border border-border bg-gradient-to-br p-6', gradient)}>
+  <div
+    className={cn(
+      'flex flex-col gap-4 rounded-2xl border border-border bg-gradient-to-br p-6',
+      gradient
+    )}
+  >
     <div className={cn('flex h-12 w-12 items-center justify-center rounded-xl text-xl', iconBg)}>
       {icon}
     </div>

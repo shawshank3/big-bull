@@ -5,12 +5,13 @@
  *   getWallet — GET /api/v1/wallet  (current ₹ balance)
  */
 import { apiSlice } from './apiSlice';
+import { toWalletDTO } from './dto';
 
 export const walletApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getWallet: builder.query({
       query: () => '/api/v1/wallet',
-      transformResponse: (res) => res?.data ?? res,
+      transformResponse: (res) => toWalletDTO(res?.data),
       providesTags: ['Wallet'],
     }),
   }),

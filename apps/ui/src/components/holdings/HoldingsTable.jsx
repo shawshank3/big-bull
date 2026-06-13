@@ -21,8 +21,8 @@ export const HoldingsTable = ({ holdings }) => {
           const { value, percentage } = getHoldingReturn(holding);
 
           return (
-            <TableRow key={holding._id}>
-              <TableCell>{holding.name || holding.symbol}</TableCell>
+            <TableRow key={holding.assetId ?? holding._id}>
+              <TableCell>{holding.name || holding.ticker}</TableCell>
               <TableCell>
                 <Badge variant={holding.type === 'mutual' ? 'info' : 'warning'}>
                   {holding.type === 'mutual' ? 'MF' : 'STK'}
@@ -32,7 +32,7 @@ export const HoldingsTable = ({ holdings }) => {
               <TableCell className="text-right">{formatCurrency(holding.avgPrice)}</TableCell>
               <TableCell className="text-right">{formatCurrency(holding.currentPrice)}</TableCell>
               <TableCell className="text-right">
-                {formatCurrency(value + holding.qty * holding.avgPrice)}
+                {formatCurrency(holding.currentValue ?? holding.qty * holding.currentPrice)}
               </TableCell>
               <TableCell className="text-right">
                 <div className="space-y-0.5">

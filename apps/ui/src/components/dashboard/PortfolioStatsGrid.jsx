@@ -5,9 +5,15 @@ import { formatCurrency, formatPercentage } from '@/utils';
 export const PortfolioStatsGrid = ({ summary = {} }) => {
   const stats = [
     { label: 'Total invested', value: formatCurrency(summary.totalInvested ?? 0) },
-    { label: 'Current value', value: formatCurrency(summary.currentValue ?? summary.totalValue ?? 0) },
+    {
+      label: 'Current value',
+      value: formatCurrency(summary.currentValue ?? summary.totalValue ?? 0),
+    },
     { label: 'Total return', value: formatCurrency(summary.totalPnL ?? summary.totalReturn ?? 0) },
-    { label: 'Return %', value: formatPercentage(summary.totalPnLPercent ?? summary.returnPercentage ?? 0) },
+    {
+      label: 'Return %',
+      value: formatPercentage(summary.totalPnLPercent ?? summary.returnPercentage ?? 0),
+    },
   ];
 
   return (
