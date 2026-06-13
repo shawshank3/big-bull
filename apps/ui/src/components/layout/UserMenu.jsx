@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { ROUTES } from '../../constants/routes';
-import { useGetProfileQuery } from '../../api/apiSlice';
+import { useGetProfileQuery } from '../../api/authApi';
 import { useAuth } from '../../hooks/useAuth';
 import { UserAvatar } from '../profile/UserAvatar';
 import { Button } from '../ui/button';

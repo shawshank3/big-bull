@@ -6,7 +6,8 @@
 import { useForm } from 'react-hook-form';
 import { useSelector } from 'react-redux';
 import { Alert, Button, Input } from '../common';
-import { useExecuteOrderMutation, useGetWalletQuery } from '../../api/apiSlice';
+import { useExecuteOrderMutation } from '../../api/transactionApi';
+import { useGetWalletQuery } from '../../api/walletApi';
 
 const fmt = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n);

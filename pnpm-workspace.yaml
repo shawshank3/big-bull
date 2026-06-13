@@ -5,3 +5,4 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
   protobufjs: true
+  unrs-resolver: set this to true or false

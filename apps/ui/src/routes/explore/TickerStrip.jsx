@@ -1,4 +1,4 @@
-import { useGetTickerQuotesQuery } from '../../api/apiSlice';
+import { useGetTickerQuotesQuery } from '../../api/marketApi';
 import { TICKER_ITEMS } from './constants';
 import { cn } from '../../lib/utils';
 

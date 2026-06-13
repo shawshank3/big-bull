@@ -9,16 +9,12 @@ const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 const connectDB = require('./config/database');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
-const authRoutes = require('./routes/authRoutes');
 const v1AuthRoutes = require('./modules/auth/auth.routes');
 const v1WalletRoutes = require('./modules/wallet/wallet.routes');
 const v1TransactionRoutes = require('./modules/transaction/transaction.routes');
 const v1PortfolioRoutes = require('./modules/portfolio/portfolio.routes');
 const v1MarketRoutes = require('./modules/market/market.routes');
-const holdingsRoutes = require('./routes/holdingsRoutes');
-const portfolioRoutes = require('./routes/portfolioRoutes');
-const chatRoutes = require('./routes/chatRoutes');
-const marketRoutes = require('./routes/marketRoutes');
+const v1ChatRoutes = require('./modules/chat/chat.routes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -76,11 +72,7 @@ app.use('/api/v1/wallet', v1WalletRoutes);
 app.use('/api/v1/transactions', v1TransactionRoutes);
 app.use('/api/v1/portfolio', v1PortfolioRoutes);
 app.use('/api/v1/market', v1MarketRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/holdings', holdingsRoutes);
-app.use('/api/portfolio', portfolioRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/market', marketRoutes);
+app.use('/api/v1/chat', generalLimiter, v1ChatRoutes);
 
 // SPA fallback for frontend routes
 app.get('*', (req, res, next) => {

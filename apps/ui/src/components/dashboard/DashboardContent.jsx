@@ -2,7 +2,7 @@ import { useSelector } from 'react-redux';
 import { Alert } from '../common';
 import { HoldingsBreakdown } from '../holdings';
 import { PageHeader } from '../layout/PageHeader';
-import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../../api/apiSlice';
+import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../../api/portfolioApi';
 import { getAllocation } from '@/utils';
 import { AssetAllocationCard } from './AssetAllocationCard';
 import { PortfolioStatsGrid } from './PortfolioStatsGrid';

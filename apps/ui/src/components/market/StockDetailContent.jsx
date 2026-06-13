@@ -10,7 +10,7 @@ import { PageHeader } from '../layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Alert } from '../common';
 import { Spinner } from '../ui/spinner';
-import { useGetStockQuoteQuery, useGetAssetByTickerQuery } from '../../api/apiSlice';
+import { useGetStockQuoteQuery, useGetAssetByTickerQuery } from '../../api/marketApi';
 import { MARKET_ASSET_LABELS } from '../../constants/market';
 import { MarketQuoteCard } from './MarketQuoteCard';
 import { OrderForm } from './OrderForm';

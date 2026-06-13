@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSendChatMessageMutation } from '../api/apiSlice';
+import { useSendChatMessageMutation } from '../api/chatApi';
 import { CHAT_ROLES, CHAT_WELCOME } from '../constants/chat';
 import { getChatErrorMessage } from '@/components/chat/utils';
 
