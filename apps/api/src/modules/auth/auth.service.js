@@ -1,10 +1,10 @@
 /**
  * Auth Service
  * Business logic for authentication: issuing/clearing cookies,
- * validating credentials, and fetching users.
+ * validating credentials.
  */
 const crypto = require('crypto');
-const User = require('../../models/User');
+const User = require('../user/user.model');
 const { generateAccessToken, generateRefreshToken } = require('../../utils/jwt');
 const AppError = require('../../shared/AppError');
 
@@ -35,7 +35,7 @@ const parseExpiry = (str) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * SHA-256 hash a token string (same pattern as legacy authController.js).
+ * SHA-256 hash a token string.
  * The hash is stored in MongoDB so the raw refresh token never persists at rest.
  */
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
@@ -55,7 +55,7 @@ const cookieOptions = (maxAge) => ({
  *
  * Signs access and refresh tokens, sets both as HTTP-Only cookies on the
  * response, and persists a SHA-256 hash of the refresh token to the user
- * document in MongoDB. Cookie maxAge is derived from JWT_*_EXPIRES env vars.
+ * document in MongoDB.
  *
  * @param {import('express').Response} res
  * @param {import('mongoose').Document} user  - must be a Mongoose User document
@@ -122,29 +122,9 @@ const validateCredentials = async (email, password) => {
   return user;
 };
 
-/**
- * getUserById(id)
- *
- * Finds a user by their MongoDB _id and returns the document.
- *
- * @param {string} id  - MongoDB ObjectId string
- * @returns {Promise<import('mongoose').Document>}
- * @throws {AppError} 404 if no user found with the given id
- */
-const getUserById = async (id) => {
-  const user = await User.findById(id);
-
-  if (!user) {
-    throw new AppError('User not found', 404);
-  }
-
-  return user;
-};
-
 module.exports = {
   parseExpiry,
   issueAuthCookies,
   clearAuthCookies,
   validateCredentials,
-  getUserById,
 };

@@ -9,7 +9,7 @@
  */
 require('dotenv').config();
 const mongoose = require('mongoose');
-const User = require('../src/models/User');
+const User = require('../src/modules/user/user.model');
 const Asset = require('../src/modules/asset/asset.model');
 const VirtualWallet = require('../src/modules/wallet/wallet.model');
 
@@ -179,8 +179,7 @@ const MUTUAL_FUNDS = [
 ];
 
 const seedDatabase = async () => {
-  const MONGO_URI =
-    process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/bigbull';
+  const MONGO_URI = process.env.MONGODB_URI;
 
   try {
     await mongoose.connect(MONGO_URI);

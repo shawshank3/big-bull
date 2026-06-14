@@ -21,10 +21,21 @@ Node.js + Express 4 REST API for the BigBull simulated Indian stock market platf
 
 Vertical feature-module structure. Each domain lives in `src/modules/<feature>/` and owns its model, validator, service, controller, and routes. No cross-module model imports — modules communicate through services only.
 
+**Ownership principle:** The `user` module owns the User entity and all profile operations. The `auth` module handles authentication only — it calls into `user.service.js` when it needs user data. No other module imports the User model directly.
+
 ```
 apps/api/src/
 ├── modules/
-│   ├── auth/          # register, login, logout, me, refresh + profile CRUD
+│   ├── auth/          # register, login, logout, me, refresh — auth logic only
+│   │   ├── auth.controller.js
+│   │   ├── auth.service.js    # issueAuthCookies, clearAuthCookies, validateCredentials
+│   │   ├── auth.routes.js     # /api/v1/auth/*
+│   │   └── auth.validator.js
+│   ├── user/          # User entity — schema, profile CRUD, avatar management
+│   │   ├── user.model.js      # Mongoose User schema (source of truth for the User entity)
+│   │   ├── user.service.js    # getUserById, updateUserProfile, setUserAvatar, removeUserAvatar
+│   │   ├── user.controller.js # getProfile, updateProfile, uploadProfileAvatar, removeProfileAvatar
+│   │   └── user.routes.js     # /api/v1/users/*
 │   ├── asset/         # Indian stock + MF catalog (Mongoose model + Zod validator)
 │   ├── wallet/        # VirtualWallet — ₹10L starting balance per user
 │   ├── transaction/   # BUY/SELL ledger — the single source of truth for portfolio values
@@ -139,17 +150,26 @@ Auth uses **HTTP-Only cookies** — no Bearer tokens in any response body or req
 
 Rate-limited: 5 requests / 15 min per IP.
 
-| Method | Path              | Auth | Description                                                            |
-| ------ | ----------------- | ---- | ---------------------------------------------------------------------- |
-| POST   | `/register`       | —    | Create account, issue HTTP-Only cookies, seed ₹10L wallet              |
-| POST   | `/login`          | —    | Validate credentials, issue cookies                                    |
-| POST   | `/logout`         | ✅   | Invalidate refresh token, clear cookies                                |
-| GET    | `/me`             | ✅   | Current user `{ id, name, email, role }` — used for app-load hydration |
-| POST   | `/refresh`        | —    | Rotate refresh token (reads cookie), issue new access cookie           |
-| GET    | `/profile`        | ✅   | Full profile `{ id, name, email, phone, bio, avatar }`                 |
-| PATCH  | `/profile`        | ✅   | Partial update — any subset of `{ name, phone, bio, avatar }`          |
-| POST   | `/profile/avatar` | ✅   | Upload base64 data URL avatar                                          |
-| DELETE | `/profile/avatar` | ✅   | Remove avatar (sets field to `null`)                                   |
+Owns authentication flow only. Profile operations live under `/api/v1/users`.
+
+| Method | Path        | Auth | Description                                                            |
+| ------ | ----------- | ---- | ---------------------------------------------------------------------- |
+| POST   | `/register` | —    | Create account, issue HTTP-Only cookies, seed ₹10L wallet              |
+| POST   | `/login`    | —    | Validate credentials, issue cookies                                    |
+| POST   | `/logout`   | ✅   | Invalidate refresh token, clear cookies                                |
+| GET    | `/me`       | ✅   | Current user `{ id, name, email, role }` — used for app-load hydration |
+| POST   | `/refresh`  | —    | Rotate refresh token (reads cookie), issue new access cookie           |
+
+### Users `/api/v1/users`
+
+Profile and avatar management. All routes require authentication.
+
+| Method | Path              | Auth | Description                                                   |
+| ------ | ----------------- | ---- | ------------------------------------------------------------- |
+| GET    | `/profile`        | ✅   | Full profile `{ id, name, email, phone, bio, avatar }`        |
+| PATCH  | `/profile`        | ✅   | Partial update — any subset of `{ name, phone, bio, avatar }` |
+| POST   | `/profile/avatar` | ✅   | Upload base64 data URL avatar                                 |
+| DELETE | `/profile/avatar` | ✅   | Remove avatar (sets field to `null`)                          |
 
 ### Chat `/api/v1/chat`
 
@@ -229,10 +249,12 @@ Values are computed on demand — nothing is stored. Source: Transaction ledger 
 
 ## Key Design Rules
 
+- **User module owns the User entity.** The `auth` module handles authentication flow and calls `user.service.js` when it needs user data. No other module imports `user.model.js` directly.
 - **Transactions are the single source of truth.** Portfolio values are never stored — always computed by aggregating the Transaction ledger.
 - **No external market APIs.** All data (search, quotes, ticker) comes from the seeded Asset catalog + Redis price cache populated by the MSE worker.
 - **Cookie auth only.** JWTs live in HTTP-Only cookies. No Bearer tokens. The frontend never reads the raw token value.
 - **Cookie lifetime from env vars.** `parseExpiry(process.env.JWT_ACCESS_EXPIRES)` and `parseExpiry(process.env.JWT_REFRESH_EXPIRES)` are called at request time to compute cookie `maxAge` — no hardcoded constants.
+- **Frontend mirrors backend modules.** The React SPA uses the same vertical module boundaries: `auth`, `user`, `market`, `portfolio`, `transaction`, `wallet`, `chat`. Each frontend feature owns its API slice, DTOs, components, hooks, and routes — see `apps/ui/README.md`.
 
 ---
 

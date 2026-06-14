@@ -1,4 +1,4 @@
-import { getFromLocalStorage, saveToLocalStorage } from '@/utils';
+import { getFromLocalStorage, saveToLocalStorage } from '@/shared/utils';
 import { THEME_MODES, THEME_STORAGE_KEY } from '../constants';
 
 export const getInitialThemeMode = () => {

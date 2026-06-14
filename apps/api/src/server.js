@@ -8,8 +8,9 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 const connectDB = require('./config/database');
-const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
+const { generalLimiter, authLimiter, chatLimiter } = require('./middleware/rateLimiter');
 const v1AuthRoutes = require('./modules/auth/auth.routes');
+const v1UserRoutes = require('./modules/user/user.routes');
 const v1WalletRoutes = require('./modules/wallet/wallet.routes');
 const v1TransactionRoutes = require('./modules/transaction/transaction.routes');
 const v1PortfolioRoutes = require('./modules/portfolio/portfolio.routes');
@@ -67,11 +68,12 @@ app.get('/api/health', (req, res) => {
 // v1 API — rate limited
 app.use('/api/v1', generalLimiter);
 app.use('/api/v1/auth', authLimiter, v1AuthRoutes); // auth gets both limiters
+app.use('/api/v1/users', v1UserRoutes);
 app.use('/api/v1/wallet', v1WalletRoutes);
 app.use('/api/v1/transactions', v1TransactionRoutes);
 app.use('/api/v1/portfolio', v1PortfolioRoutes);
 app.use('/api/v1/market', v1MarketRoutes);
-app.use('/api/v1/chat', generalLimiter, v1ChatRoutes);
+app.use('/api/v1/chat', chatLimiter, v1ChatRoutes);
 
 // SPA fallback for frontend routes
 app.get('*', (req, res, next) => {
