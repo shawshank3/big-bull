@@ -1,16 +1,13 @@
 const { Queue } = require('bullmq');
-const redis = require('../shared/redis');
-
-// BullMQ needs a real ioredis instance. If redis is the no-op Proxy (no REDIS_URL),
-// skip queue creation and export nulls so workers degrade gracefully.
-const isRedisAvailable = redis && typeof redis.options !== 'undefined';
+const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
 
 const makeQueue = (name) => {
-  if (!isRedisAvailable) {
+  if (!isRedisConfigured) {
     console.warn(`⚠️  BullMQ: skipping queue "${name}" — Redis not configured`);
     return null;
   }
-  return new Queue(name, { connection: redis });
+  // Each Queue gets its own connection as recommended by BullMQ docs
+  return new Queue(name, { connection: makeBullMQConnection() });
 };
 
 const msePriceTickQueue = makeQueue('mse-price-tick');

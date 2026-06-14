@@ -18,7 +18,7 @@ export const MutualDetailContent = () => {
     data: quote,
     isLoading,
     isError,
-  } = useGetMutualQuoteQuery(schemeCode, { skip: !schemeCode, pollingInterval: 30000 });
+  } = useGetMutualQuoteQuery(schemeCode, { skip: !schemeCode, pollingInterval: 60000 });
   const { data: asset } = useGetAssetByTickerQuery(schemeCode, { skip: !schemeCode });
   const title = displayName || quote?.name || `Scheme ${schemeCode}`;
   const subtitle = [MARKET_ASSET_LABELS.mutual, quote?.fundHouse, quote?.schemeCategory]

@@ -37,7 +37,7 @@ export const StockDetailContent = () => {
     data: quote,
     isLoading,
     isError,
-  } = useGetStockQuoteQuery(symbol, { skip: !symbol, pollingInterval: 30000 });
+  } = useGetStockQuoteQuery(symbol, { skip: !symbol, pollingInterval: 60000 });
   const { data: asset } = useGetAssetByTickerQuery(symbol, { skip: !symbol });
 
   return (

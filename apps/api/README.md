@@ -43,9 +43,10 @@ apps/api/src/
 │   ├── market/        # Assets, search, quotes, ticker strip, SSE stream
 │   └── chat/          # AI copilot — Google Gemini with live portfolio context
 ├── shared/
-│   ├── catchAsync.js  # Wraps async handlers — forwards rejections to errorHandler
-│   ├── AppError.js    # Operational error class with statusCode
-│   └── redis.js       # ioredis singleton (Upstash or local)
+│   ├── catchAsync.js     # Wraps async handlers — forwards rejections to errorHandler
+│   ├── AppError.js       # Operational error class with statusCode
+│   ├── redis.js          # ioredis singleton for cache ops (maxRetriesPerRequest: 3)
+│   └── redisBullMQ.js    # ioredis factory for BullMQ (maxRetriesPerRequest: null)
 ├── middleware/
 │   ├── authMiddleware.js  # Reads + verifies access_token cookie, attaches req.user
 │   ├── rateLimiter.js     # generalLimiter (100/15 min), authLimiter (5/15 min)
@@ -60,8 +61,10 @@ apps/api/src/
 │   ├── response.js    # sendSuccess(res, data, message, status)
 │   └── avatarData.js  # validateAvatarData(avatar)
 ├── workers/
-│   ├── mseWorker.js   # Market Simulation Engine — BullMQ price tick job
-│   └── index.js       # Worker process entry point
+│   ├── mseWorker.js      # Market Simulation Engine — BullMQ 30s price tick (stocks only)
+│   ├── mseLiveTicker.js  # In-process 1s SSE broadcast — micro-noise on stock prices
+│   ├── redisBullMQ.js    # BullMQ-specific ioredis factory (maxRetriesPerRequest: null)
+│   └── index.js          # Worker process entry point
 └── server.js          # Express app — mounts /api/v1/* only
 ```
 
@@ -202,14 +205,14 @@ Rate-limited: `generalLimiter` (100 requests / 15 min).
 
 All routes are **public** (no auth required) except the SSE stream.
 
-| Method | Path              | Auth | Description                                                       |
-| ------ | ----------------- | ---- | ----------------------------------------------------------------- |
-| GET    | `/assets`         | —    | Full asset catalog. `?type=STOCK\|MUTUAL_FUND` to filter          |
-| GET    | `/assets/:ticker` | —    | Single asset by NSE ticker or MF scheme code                      |
-| GET    | `/search?q=`      | —    | Full-text search over catalog (name + ticker, min 2 chars)        |
-| GET    | `/quote/:ticker`  | —    | Current simulated price from Redis cache or `basePrice` fallback  |
-| GET    | `/ticker`         | —    | Top 10 NSE stocks with live prices — used by the UI ticker strip  |
-| GET    | `/stream`         | ✅   | SSE endpoint — streams `price_update` events for live price ticks |
+| Method | Path              | Auth | Description                                                                              |
+| ------ | ----------------- | ---- | ---------------------------------------------------------------------------------------- |
+| GET    | `/assets`         | —    | Full asset catalog enriched with live Redis prices. `?type=STOCK\|MUTUAL_FUND` to filter |
+| GET    | `/assets/:ticker` | —    | Single asset by NSE ticker or MF scheme code                                             |
+| GET    | `/search?q=`      | —    | Full-text search over catalog (name + ticker, min 2 chars)                               |
+| GET    | `/quote/:ticker`  | —    | Current simulated price from Redis cache or `basePrice` fallback                         |
+| GET    | `/ticker`         | —    | Top 10 NSE stocks with live prices — used by the UI ticker strip                         |
+| GET    | `/stream`         | ✅   | SSE endpoint — streams `price_update` and `volatility_alert` events                      |
 
 ### Transactions `/api/v1/transactions`
 
@@ -244,6 +247,27 @@ Values are computed on demand — nothing is stored. Source: Transaction ledger 
 | Method | Path | Auth | Description                      |
 | ------ | ---- | ---- | -------------------------------- |
 | GET    | `/`  | ✅   | Current ₹ virtual wallet balance |
+
+---
+
+## Live Price Architecture
+
+Stock prices update every second. Mutual fund NAVs are fixed for the day. Two-layer design keeps DB overhead low:
+
+| Layer      | Component                        | Interval  | What it does                                                                                                                                                                                              |
+| ---------- | -------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Persistent | `mseWorker.js` (BullMQ)          | Every 30s | Fetches all assets from MongoDB, computes new prices using `Price_t = Price_{t-1} × (1 + Sm + Ts + Va×N)`, writes `price:<ticker>` to Redis (TTL 60s), broadcasts SSE, decays MarketSentiment/SectorTrend |
+| Live UI    | `mseLiveTicker.js` (setInterval) | Every 1s  | Applies micro-noise to the in-memory price cache (no DB/Redis writes), broadcasts SSE `price_update` for STOCK assets only — skips `MUTUAL_FUND`                                                          |
+
+**Redis keys used by MSE:**
+
+| Key pattern                | TTL    | Purpose                                             |
+| -------------------------- | ------ | --------------------------------------------------- |
+| `price:<ticker>`           | 60s    | Latest authoritative price written by BullMQ worker |
+| `mse:marketSentiment`      | No TTL | Global sentiment scalar, decays 10% per tick        |
+| `mse:sectorTrend:<sector>` | No TTL | Per-sector trend scalar, decays 10% per tick        |
+
+**BullMQ requires a separate ioredis connection** (`maxRetriesPerRequest: null`). The shared `redis.js` cache client (`maxRetriesPerRequest: 3`) must not be passed to `new Worker()` or `new Queue()`. Use `makeBullMQConnection()` from `shared/redisBullMQ.js` instead.
 
 ---
 

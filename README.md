@@ -150,32 +150,33 @@ Go to **Render Dashboard → big-bull → Environment** and set:
 React SPA (Vite) — feature-module architecture mirroring backend modules
   features/auth        ──► /api/v1/auth/*        (login, register, logout, me, refresh)
   features/user        ──► /api/v1/users/*        (profile, avatar)
-  features/market      ──► /api/v1/market/*       (assets, search, quotes, ticker)
+  features/market      ──► /api/v1/market/*       (assets, search, quotes, ticker, SSE stream)
   features/portfolio   ──► /api/v1/portfolio/*    (holdings, summary)
   features/transaction ──► /api/v1/transactions/* (history, executeOrder)
   features/wallet      ──► /api/v1/wallet         (balance)
   features/chat        ──► /api/v1/chat           (AI copilot)
   shared/api           ──  RTK Query base slice + baseQueryWithReauth mutex wrapper
-  shared/layout        ──  RootLayout, Navbar, AppPageLayout, PageHeader
+  shared/layout        ──  RootLayout (mounts SSE stream), Navbar, AppPageLayout, PageHeader
   shared/ui            ──  Design-system primitives (Button, Card, Badge, Spinner …)
   shared/errors        ──  RouteErrorBoundary, NotFoundCard
         │
-        │ HTTPS
+        │ HTTPS + SSE
         ▼
 Express API (Node.js)
   /modules/auth        → register, login, logout, me, refresh (auth flow only)
   /modules/user        → User schema, profile CRUD, avatar (owns the User entity)
   /modules/asset       → asset model and validation (shared by market + seeder)
-  /modules/market      → assets, search, quote, ticker, SSE stream
+  /modules/market      → assets, search, quote, ticker, SSE stream (/market/stream)
   /modules/transaction → BUY/SELL order execution, history
   /modules/portfolio   → holdings + summary (computed, never stored)
   /modules/wallet      → virtual ₹ balance
   /modules/chat        → Google Gemini with portfolio context
         │
         ├── MongoDB Atlas   (transactions, users, assets, wallet)
-        └── Redis (Upstash) (price cache 60s TTL, BullMQ queues)
+        └── Redis (Upstash) (price cache 60s TTL, BullMQ queues, MarketSentiment/SectorTrend)
                 │
-                └── BullMQ Worker (MSE price tick job)
+                └── BullMQ Worker (MSE price tick — every 30s)
+                        + MSE Live Ticker (in-process setInterval — every 1s, stocks only)
 ```
 
 **Key design rules:**
@@ -185,6 +186,36 @@ Express API (Node.js)
 - Transactions are the only source of truth for portfolio values — nothing is pre-computed and stored.
 - All market data comes from the seeded internal asset catalog — no external market API calls.
 - JWTs live in HTTP-Only cookies only — the frontend never reads the raw token.
+- **Live prices:** Stock prices update every second via SSE (`price_update` events). Mutual fund NAVs are fixed for the day (updated once daily). The `useMarketStream` hook in `features/market/hooks/` patches the RTK Query cache in-place so all pages re-render without polling.
+
+---
+
+## Real-Time Price Architecture
+
+```
+BullMQ mseWorker (every 30s)
+  ├── Fetches all assets from MongoDB
+  ├── Reads MarketSentiment + SectorTrend from Redis
+  ├── Computes new price per STOCK asset (formula: Price_t = Price_{t-1} × (1 + Sm + Ts + Va×N))
+  ├── Writes price:<ticker> to Redis (TTL 60s)
+  ├── Broadcasts SSE price_update per asset
+  ├── Seeds in-memory price cache in mseLiveTicker
+  └── Decays Sentiment/SectorTrend by 10%
+
+mseLiveTicker (every 1s, in-process setInterval)
+  ├── Skips MUTUAL_FUND assets (NAVs are daily)
+  ├── Applies micro-noise (volatility × 0.18 × Gaussian)
+  └── Broadcasts SSE price_update for all STOCK assets
+
+Frontend useMarketStream hook (mounted in RootLayout)
+  ├── Opens EventSource to /api/v1/market/stream
+  └── On price_update → patches RTK Query cache:
+        getStockQuote / getMutualQuote  → StockDetailContent / MutualDetailContent
+        getTickerQuotes                 → TickerStrip
+        getAssets                       → MarketContent (live price column)
+        getPortfolioHoldings            → HoldingsContent (currentPrice, P&L, portfolioWeight)
+        getPortfolioSummary             → Dashboard stat cards (currentValue, totalPnL, %)
+```
 
 ---
 

@@ -17,6 +17,8 @@ const v1PortfolioRoutes = require('./modules/portfolio/portfolio.routes');
 const v1MarketRoutes = require('./modules/market/market.routes');
 const v1ChatRoutes = require('./modules/chat/chat.routes');
 const errorHandler = require('./middleware/errorHandler');
+const { scheduleMseTick } = require('./workers/mseWorker');
+const { startLiveTicker } = require('./workers/mseLiveTicker');
 
 const app = express();
 
@@ -39,7 +41,11 @@ app.use(express.json({ limit: '3mb' }));
 app.use(express.urlencoded({ extended: true, limit: '3mb' }));
 
 // Connect to database
-connectDB();
+connectDB().then(() => {
+  // Start BullMQ price-tick scheduler and 1s live ticker after DB is ready
+  scheduleMseTick().catch((err) => console.error('MSE scheduler failed to start:', err.message));
+  startLiveTicker();
+});
 
 // Serve built frontend UI
 app.use(express.static(uiDistPath));

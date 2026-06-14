@@ -30,7 +30,7 @@ const TickerItem = ({ item, isLive }) => (
 
 export const TickerStrip = () => {
   const { data: liveItems, isSuccess } = useGetTickerQuotesQuery(undefined, {
-    pollingInterval: 5 * 60_000,
+    pollingInterval: 60_000,
   });
   const isLive = isSuccess && liveItems?.length > 0;
   const items = isLive ? liveItems : TICKER_ITEMS;

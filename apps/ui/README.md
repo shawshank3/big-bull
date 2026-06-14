@@ -67,18 +67,20 @@ apps/ui/src/
 │   │   ├── api/marketApi.js       # getAssets, getAssetByTicker, searchMarket, quotes, ticker
 │   │   ├── dto/market.dto.js      # toAssetDTO, toSearchResultDTO, toQuoteDTO, toTickerDTO
 │   │   ├── constants/market.js    # asset type labels, search config, path builders
-│   │   ├── hooks/useMarketSearch.js  # debounced catalog search via RTK Query
+│   │   ├── hooks/
+│   │   │   ├── useMarketSearch.js # debounced catalog search via RTK Query
+│   │   │   └── useMarketStream.js # SSE EventSource — patches RTK Query cache on price_update
 │   │   ├── routes/
 │   │   │   ├── Market.jsx
 │   │   │   ├── StockDetail.jsx
 │   │   │   └── MutualDetail.jsx
 │   │   └── components/
-│   │       ├── MarketContent.jsx
-│   │       ├── MarketQuoteCard.jsx  # compound component for price display
+│   │       ├── MarketContent.jsx        # Asset list with live currentPrice column
+│   │       ├── MarketQuoteCard.jsx      # compound component for price display
 │   │       ├── StockDetailContent.jsx
 │   │       ├── MutualDetailContent.jsx
-│   │       ├── NavbarSearch.jsx    # live search dropdown in the navbar
-│   │       └── OrderForm.jsx       # BUY / SELL order form
+│   │       ├── NavbarSearch.jsx         # live search dropdown in the navbar
+│   │       └── OrderForm.jsx            # BUY / SELL order form
 │   │
 │   ├── portfolio/           ↔ backend portfolio module
 │   │   ├── api/portfolioApi.js    # getPortfolioHoldings, getPortfolioSummary
@@ -303,8 +305,20 @@ npm test          # Jest unit / property tests (49 tests)
 - All forms use **React Hook Form**. No `useState` for individual field values.
 - `ProfileEditForm` uses RHF's `values` option to auto-sync form state with server data — no manual reset needed.
 
-### Market data
+### Market data and live prices
 
 - All asset data comes from the seeded internal catalog on the API. No external market API is called from the frontend.
-- The ticker strip polls `GET /api/v1/market/ticker` every 5 minutes.
-- Stock/MF detail pages poll their quote endpoint every 30 seconds.
+- **`useMarketStream`** (`features/market/hooks/useMarketStream.js`) — mounted once in `RootLayout`. Opens an `EventSource` to `GET /api/v1/market/stream` when the user is authenticated. On each `price_update` SSE event it patches the RTK Query cache in-place via `apiSlice.util.updateQueryData` — no re-fetch triggered.
+- Caches patched by `useMarketStream`:
+
+  | Cache key                  | Consumer                                                       |
+  | -------------------------- | -------------------------------------------------------------- |
+  | `getStockQuote(ticker)`    | `StockDetailContent`                                           |
+  | `getMutualQuote(ticker)`   | `MutualDetailContent`                                          |
+  | `getTickerQuotes`          | `TickerStrip`                                                  |
+  | `getAssets` (all variants) | `MarketContent` price column                                   |
+  | `getPortfolioHoldings`     | `HoldingsContent` — currentPrice, P&L, portfolioWeight         |
+  | `getPortfolioSummary`      | Dashboard stat cards — currentValue, totalPnL, totalPnLPercent |
+
+- **Stock prices** update every second via SSE. **Mutual fund NAVs** are fixed for the day — no intra-day SSE ticks are emitted for `MUTUAL_FUND` assets.
+- Polling intervals are kept as a fallback (60s for quotes and ticker) in case the SSE connection drops and reconnects.

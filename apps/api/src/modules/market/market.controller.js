@@ -63,14 +63,33 @@ const stream = (req, res) => {
 
 /**
  * GET /market/assets?type=STOCK|MUTUAL_FUND
- * Returns all seeded assets from the catalog (sorted alphabetically by ticker).
+ * Returns all seeded assets from the catalog enriched with live Redis prices.
  */
 const getAssets = catchAsync(async (req, res) => {
   const filter = {};
   if (req.query.type === 'STOCK' || req.query.type === 'MUTUAL_FUND') {
     filter.assetType = req.query.type;
   }
-  const assets = await Asset.find(filter).sort({ ticker: 1 }).lean();
+  const rawAssets = await Asset.find(filter).sort({ ticker: 1 }).lean();
+
+  // Enrich each asset with the latest Redis price (same pattern as searchAssets)
+  const redis = require('../../shared/redis');
+  const assets = await Promise.all(
+    rawAssets.map(async (asset) => {
+      let currentPrice = asset.basePrice;
+      try {
+        const cached = await redis.get(`price:${asset.ticker}`);
+        if (cached !== null) {
+          const parsed = JSON.parse(cached);
+          currentPrice = parsed.price ?? parsed ?? currentPrice;
+        }
+      } catch (_) {
+        /* use basePrice */
+      }
+      return { ...asset, currentPrice };
+    })
+  );
+
   sendSuccess(res, { assets }, 'Assets retrieved');
 });
 
@@ -105,6 +124,17 @@ const broadcastPriceUpdate = (payload) => {
   }
 };
 
+/**
+ * Broadcast a volatility alert to all connected SSE clients.
+ * @param {object} payload
+ */
+const broadcastVolatilityAlert = (payload) => {
+  const data = 'event: volatility_alert\ndata: ' + JSON.stringify(payload) + '\n\n';
+  for (const res of sseClients.values()) {
+    res.write(data);
+  }
+};
+
 module.exports = {
   search,
   getQuote,
@@ -113,4 +143,5 @@ module.exports = {
   getAssetByTicker,
   stream,
   broadcastPriceUpdate,
+  broadcastVolatilityAlert,
 };
