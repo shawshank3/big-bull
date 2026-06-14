@@ -22,6 +22,10 @@ const { startLiveTicker } = require('./workers/mseLiveTicker');
 
 const app = express();
 
+// Trust the first proxy (required on Render/Railway/Heroku etc. where
+// requests arrive via a reverse-proxy that sets X-Forwarded-For)
+app.set('trust proxy', 1);
+
 const uiDistPath = path.join(__dirname, '../../ui/dist');
 
 const setNoCacheHeaders = (req, res, next) => {
