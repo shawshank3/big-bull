@@ -147,14 +147,24 @@ Go to **Render Dashboard → big-bull → Environment** and set:
 ## Architecture Overview
 
 ```
-React SPA (Vite)
-  RTK Query ──► /api/v1/* REST calls
-  SSE Client ──► /api/v1/market/stream (live price ticks)
+React SPA (Vite) — feature-module architecture mirroring backend modules
+  features/auth        ──► /api/v1/auth/*        (login, register, logout, me, refresh)
+  features/user        ──► /api/v1/users/*        (profile, avatar)
+  features/market      ──► /api/v1/market/*       (assets, search, quotes, ticker)
+  features/portfolio   ──► /api/v1/portfolio/*    (holdings, summary)
+  features/transaction ──► /api/v1/transactions/* (history, executeOrder)
+  features/wallet      ──► /api/v1/wallet         (balance)
+  features/chat        ──► /api/v1/chat           (AI copilot)
+  shared/api           ──  RTK Query base slice + baseQueryWithReauth mutex wrapper
+  shared/layout        ──  RootLayout, Navbar, AppPageLayout, PageHeader
+  shared/ui            ──  Design-system primitives (Button, Card, Badge, Spinner …)
+  shared/errors        ──  RouteErrorBoundary, NotFoundCard
         │
         │ HTTPS
         ▼
 Express API (Node.js)
-  /modules/auth        → register, login, logout, me, refresh, profile
+  /modules/auth        → register, login, logout, me, refresh (auth flow only)
+  /modules/user        → User schema, profile CRUD, avatar (owns the User entity)
   /modules/asset       → asset model and validation (shared by market + seeder)
   /modules/market      → assets, search, quote, ticker, SSE stream
   /modules/transaction → BUY/SELL order execution, history
@@ -170,6 +180,8 @@ Express API (Node.js)
 
 **Key design rules:**
 
+- Frontend and backend share the same vertical module boundaries: `auth`, `user`, `market`, `portfolio`, `transaction`, `wallet`, `chat`. Each frontend feature owns its API slice, DTOs, components, hooks, and routes.
+- The `user` module owns the User entity. The `auth` module handles authentication and calls into `user.service` — it does not own user data.
 - Transactions are the only source of truth for portfolio values — nothing is pre-computed and stored.
 - All market data comes from the seeded internal asset catalog — no external market API calls.
 - JWTs live in HTTP-Only cookies only — the frontend never reads the raw token.

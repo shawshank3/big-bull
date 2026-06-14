@@ -8,26 +8,14 @@
  *   POST /refresh   → refresh  (reads refresh_token cookie)
  *
  * Protected routes (require authMiddleware):
- *   POST /logout           → logout
- *   GET  /me               → me
- *   GET  /profile          → getProfile
- *   PATCH /profile         → updateProfile
- *   POST  /profile/avatar  → uploadProfileAvatar
- *   DELETE /profile/avatar → removeProfileAvatar
+ *   POST /logout    → logout
+ *   GET  /me        → me
+ *
+ * Profile operations live at /api/v1/users (see user.routes.js)
  */
 const { Router } = require('express');
 const authMiddleware = require('../../middleware/authMiddleware');
-const {
-  register,
-  login,
-  logout,
-  me,
-  refresh,
-  getProfile,
-  updateProfile,
-  uploadProfileAvatar,
-  removeProfileAvatar,
-} = require('./auth.controller');
+const { register, login, logout, me, refresh } = require('./auth.controller');
 
 const router = Router();
 
@@ -39,11 +27,9 @@ router.post('/refresh', refresh);
 
 // ─── Protected routes ─────────────────────────────────────────────────────────
 
-router.post('/logout', authMiddleware, logout);
-router.get('/me', authMiddleware, me);
-router.get('/profile', authMiddleware, getProfile);
-router.patch('/profile', authMiddleware, updateProfile);
-router.post('/profile/avatar', authMiddleware, uploadProfileAvatar);
-router.delete('/profile/avatar', authMiddleware, removeProfileAvatar);
+router.use(authMiddleware);
+
+router.post('/logout', logout);
+router.get('/me', me);
 
 module.exports = router;

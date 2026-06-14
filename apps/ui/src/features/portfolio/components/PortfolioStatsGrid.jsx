@@ -1,0 +1,32 @@
+import { Card, CardContent } from '@/shared/ui/card';
+import { MutedText, StatValue } from '@/shared/ui/typography';
+import { formatCurrency, formatPercentage } from '@/shared/utils';
+
+export const PortfolioStatsGrid = ({ summary = {} }) => {
+  const stats = [
+    { label: 'Total invested', value: formatCurrency(summary.totalInvested ?? 0) },
+    {
+      label: 'Current value',
+      value: formatCurrency(summary.currentValue ?? summary.totalValue ?? 0),
+    },
+    { label: 'Total return', value: formatCurrency(summary.totalPnL ?? summary.totalReturn ?? 0) },
+    {
+      label: 'Return %',
+      value: formatPercentage(summary.totalPnLPercent ?? summary.returnPercentage ?? 0),
+    },
+  ];
+  return (
+    <div className="stat-grid">
+      {stats.map((item) => (
+        <Card key={item.label}>
+          <CardContent className="space-y-1 pt-6">
+            <MutedText>{item.label}</MutedText>
+            <StatValue>{item.value}</StatValue>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+};
+
+export default PortfolioStatsGrid;
