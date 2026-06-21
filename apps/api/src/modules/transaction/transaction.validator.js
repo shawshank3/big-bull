@@ -12,7 +12,7 @@ const { z } = require('zod');
  *  - assetId        : MongoDB ObjectId string for the asset being traded
  *  - transactionType: 'BUY' or 'SELL'
  *  - quantity       : Positive number (supports fractional shares)
- *  - pricePerUnit   : Positive number — price in ₹ at execution time
+ *  - pricePerUnit   : Ignored by the server — execution price is resolved from Redis
  *  - fees           : Non-negative number (brokerage fees in ₹); defaults to 0
  *  - notes          : Optional free-text note, max 500 chars
  */
@@ -28,9 +28,12 @@ const orderSchema = z
       .number({ invalid_type_error: 'quantity must be a number' })
       .positive('Quantity must be positive'),
 
+    // pricePerUnit is accepted for backward compatibility but ignored —
+    // the server resolves the execution price from Redis.
     pricePerUnit: z
       .number({ invalid_type_error: 'pricePerUnit must be a number' })
-      .positive('Price per unit must be positive'),
+      .positive('Price per unit must be positive')
+      .optional(),
 
     fees: z
       .number({ invalid_type_error: 'fees must be a number' })

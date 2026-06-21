@@ -1,15 +1,17 @@
 /**
  * useMarketStream
  *
- * Connects to the SSE endpoint at /api/v1/market/stream and patches the RTK
- * Query cache in-place whenever a `price_update` event arrives.
+ * Opens a single SSE connection to /api/v1/market/stream (public endpoint)
+ * and patches RTK Query caches on every price_update event.
  *
- * Patched caches:
+ * Public patches (always run):
  *   - getStockQuote / getMutualQuote  → StockDetailContent / MutualDetailContent
  *   - getTickerQuotes                 → TickerStrip
- *   - getAssets                       → MarketContent (asset list with live prices)
- *   - getPortfolioHoldings            → HoldingsContent (currentPrice, P&L, value)
- *   - getPortfolioSummary             → Dashboard stat cards (currentValue, totalPnL, %)
+ *   - getAssets                       → MarketContent
+ *
+ * Authenticated-only patches (skipped when logged out):
+ *   - getPortfolioHoldings            → HoldingsContent
+ *   - getPortfolioSummary             → Dashboard stat cards
  *
  * Mounted once at RootLayout level. Cleans up on unmount.
  */
@@ -21,13 +23,17 @@ import { API_URLS } from '@/shared/constants/apiUrls';
 export const useMarketStream = () => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((s) => s.auth);
+  const isAuthenticatedRef = useRef(isAuthenticated);
+
+  // Keep the ref in sync so the event handler always reads the current value
+  // without needing to re-create the EventSource on auth state changes.
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
+
   const esRef = useRef(null);
 
   useEffect(() => {
-    // Only open the stream when the user is logged in
-    if (!isAuthenticated) return;
-
-    // Avoid duplicate connections (React StrictMode double-invocation)
     if (esRef.current) return;
 
     const es = new EventSource(API_URLS.MARKET.STREAM, { withCredentials: true });
@@ -48,7 +54,8 @@ export const useMarketStream = () => {
       const { ticker, price, change, changePercent, up } = payload;
       if (!ticker || price == null) return;
 
-      // ── Patch getStockQuote / getMutualQuote cache ─────────────────────────
+      // ── Public cache patches ───────────────────────────────────────────────
+
       dispatch(
         apiSlice.util.updateQueryData('getStockQuote', ticker, (draft) => {
           draft.price = price;
@@ -64,7 +71,6 @@ export const useMarketStream = () => {
         })
       );
 
-      // ── Patch getTickerQuotes cache ────────────────────────────────────────
       dispatch(
         apiSlice.util.updateQueryData('getTickerQuotes', undefined, (draft) => {
           const item = draft.find((q) => q.symbol === ticker);
@@ -77,26 +83,22 @@ export const useMarketStream = () => {
         })
       );
 
-      // ── Patch getAssets cache (market page asset list) ─────────────────────
-      // getAssets can be called with or without a type filter — patch all variants.
       for (const queryArg of [undefined, { type: 'STOCK' }, { type: 'MUTUAL_FUND' }]) {
         dispatch(
           apiSlice.util.updateQueryData('getAssets', queryArg, (draft) => {
             const asset = draft.find((a) => a.ticker === ticker);
-            if (asset) {
-              asset.currentPrice = price;
-            }
+            if (asset) asset.currentPrice = price;
           })
         );
       }
 
-      // ── Patch getPortfolioHoldings + getPortfolioSummary ──────────────────
-      // Step 1: patch per-holding fields in getPortfolioHoldings.
-      // Step 2: read the now-updated holdings from the store via a thunk and
-      //         recompute the summary totals — same formulas as portfolio.service.js.
+      // ── Authenticated-only cache patches ──────────────────────────────────
+      if (!isAuthenticatedRef.current) return;
+
+      let summaryTotals = null;
+
       dispatch(
         apiSlice.util.updateQueryData('getPortfolioHoldings', undefined, (draft) => {
-          // First pass: update the holding that matches this ticker
           for (const holding of draft) {
             if (holding.ticker !== ticker) continue;
 
@@ -113,47 +115,40 @@ export const useMarketStream = () => {
             holding.unrealisedPnLPercent = unrealisedPnLPercent;
           }
 
-          // Second pass: recalculate portfolioWeight across all holdings
           const totalPortfolioValue = draft.reduce((sum, h) => sum + (h.currentValue ?? 0), 0);
           for (const holding of draft) {
             holding.portfolioWeight =
               totalPortfolioValue > 0 ? (holding.currentValue / totalPortfolioValue) * 100 : 0;
           }
+
+          const totalInvested = draft.reduce((sum, h) => sum + (h.totalInvested ?? 0), 0);
+          const currentValue = draft.reduce((sum, h) => sum + (h.currentValue ?? 0), 0);
+          const totalPnL = currentValue - totalInvested;
+          const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
+          summaryTotals = { currentValue, totalPnL, totalPnLPercent };
         })
       );
 
-      // Step 2: recompute summary from the freshly patched holdings via a thunk.
-      // Using a thunk gives us getState so we can read the updated holdings cache.
-      dispatch((_dispatch, getState) => {
-        const state = getState();
-        const holdingsResult = apiSlice.endpoints.getPortfolioHoldings.select(undefined)(state);
-        const holdings = holdingsResult?.data;
-        if (!holdings?.length) return;
-
-        const totalInvested = holdings.reduce((sum, h) => sum + (h.totalInvested ?? 0), 0);
-        const currentValue = holdings.reduce((sum, h) => sum + (h.currentValue ?? 0), 0);
-        const totalPnL = currentValue - totalInvested;
-        const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
-
-        _dispatch(
+      if (summaryTotals) {
+        dispatch(
           apiSlice.util.updateQueryData('getPortfolioSummary', undefined, (draft) => {
-            draft.currentValue = currentValue;
-            draft.totalPnL = totalPnL;
-            draft.totalPnLPercent = totalPnLPercent;
+            draft.currentValue = summaryTotals.currentValue;
+            draft.totalPnL = summaryTotals.totalPnL;
+            draft.totalPnLPercent = summaryTotals.totalPnLPercent;
           })
         );
-      });
+      }
     });
 
-    es.onerror = (err) => {
-      console.warn('[MSE] SSE stream error — will reconnect automatically', err);
+    es.onerror = () => {
+      console.warn('[MSE] SSE stream error — will reconnect automatically');
     };
 
     return () => {
       es.close();
       esRef.current = null;
     };
-  }, [isAuthenticated, dispatch]);
+  }, [dispatch]);
 };
 
 export default useMarketStream;

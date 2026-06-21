@@ -33,10 +33,10 @@ const Empty = ({ children = 'Price data is not available.' }) => {
   if (isLoading || isError || quote?.price || quote?.price === 0) return null;
   return <Alert variant="warning">{children}</Alert>;
 };
-const Data = ({ children }) => {
+const Data = ({ children, className }) => {
   const { quote, isLoading, isError } = useMarketQuote();
   if (isLoading || isError || (!quote?.price && quote?.price !== 0)) return null;
-  return <Card>{children}</Card>;
+  return <Card className={className}>{children}</Card>;
 };
 const Header = ({ title, subtitle }) => (
   <CardHeader>

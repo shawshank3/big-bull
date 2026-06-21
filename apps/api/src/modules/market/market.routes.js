@@ -7,15 +7,16 @@ const {
   getAssetByTicker,
   stream,
 } = require('./market.controller');
-const authMiddleware = require('../../middleware/authMiddleware');
+const { getChart } = require('./chart.controller');
 
 const router = Router();
 
-router.get('/ticker', getTicker); // ticker strip — public
-router.get('/assets', getAssets); // catalog list — public
-router.get('/assets/:ticker', getAssetByTicker); // single asset — public
-router.get('/search', search); // catalog search — public
-router.get('/quote/:ticker', getQuote); // live price — public
-router.get('/stream', authMiddleware, stream); // SSE — auth required
+router.get('/ticker', getTicker); // public
+router.get('/assets', getAssets); // public
+router.get('/assets/:ticker', getAssetByTicker); // public
+router.get('/search', search); // public
+router.get('/quote/:ticker', getQuote); // public
+router.get('/stream', stream); // public — SSE price broadcast
+router.get('/chart/:ticker', getChart); // public — historical chart data
 
 module.exports = router;

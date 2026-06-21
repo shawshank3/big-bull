@@ -19,6 +19,7 @@ const v1ChatRoutes = require('./modules/chat/chat.routes');
 const errorHandler = require('./middleware/errorHandler');
 const { scheduleMseTick } = require('./workers/mseWorker');
 const { startLiveTicker } = require('./workers/mseLiveTicker');
+const { backfillMissingDays } = require('./workers/dailyPriceService');
 
 const app = express();
 
@@ -46,6 +47,8 @@ app.use(express.urlencoded({ extended: true, limit: '3mb' }));
 
 // Connect to database
 connectDB().then(() => {
+  // Backfill any missing DailyPrice records from previous downtime days
+  backfillMissingDays().catch((err) => console.error('DailyPrice backfill failed:', err.message));
   // Start BullMQ price-tick scheduler and 1s live ticker after DB is ready
   scheduleMseTick().catch((err) => console.error('MSE scheduler failed to start:', err.message));
   startLiveTicker();

@@ -1,8 +1,9 @@
+import { useMemo, memo } from 'react';
 import { useGetTickerQuotesQuery } from '@/features/market/api/marketApi';
 import { TICKER_ITEMS } from './constants';
 import { cn } from '@/lib/utils';
 
-const TickerItem = ({ item, isLive }) => (
+const TickerItem = memo(({ item, isLive }) => (
   <>
     <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium">
       <span className="font-semibold text-foreground tracking-wide">{item.label}</span>
@@ -26,7 +27,7 @@ const TickerItem = ({ item, isLive }) => (
       •
     </span>
   </>
-);
+));
 
 export const TickerStrip = () => {
   const { data: liveItems, isSuccess } = useGetTickerQuotesQuery(undefined, {
@@ -34,7 +35,10 @@ export const TickerStrip = () => {
   });
   const isLive = isSuccess && liveItems?.length > 0;
   const items = isLive ? liveItems : TICKER_ITEMS;
-  const repeated = [...items, ...items, ...items, ...items];
+
+  // Memoised so the animation container's children don't change identity on
+  // every 1s price tick — only rebuilds when the items array reference changes.
+  const repeated = useMemo(() => [...items, ...items, ...items, ...items], [items]);
 
   return (
     <div

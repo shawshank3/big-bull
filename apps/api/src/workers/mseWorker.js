@@ -1,13 +1,38 @@
+/**
+ * MSE Worker  (Market Simulation Engine — 30-second authoritative tick)
+ *
+ * Responsibilities per tick:
+ *   1. Read all assets from MongoDB.
+ *   2. Resolve previous price via three-tier chain:
+ *        Redis `price:<ticker>`  →  MarketState.lastPrice  →  Asset.basePrice
+ *   3. Compute new price using the MSE formula.
+ *   4. Write updated price to Redis (TTL 60s).
+ *   5. Broadcast SSE price_update / volatility_alert events.
+ *   6. Seed the 1s live-ticker in-memory cache (mseLiveTicker.seedPriceCache).
+ *   7. Persist the new price to MarketState (upsert) — Phase 2 recovery.
+ *   8. Append a StockPriceHistory document for STOCK assets — Phase 1 charting.
+ *   9. Decay MarketSentiment and SectorTrends toward 0.
+ *
+ * Architectural constraints (do not break):
+ *   - Mutual fund NAVs are NOT simulated intraday; only written to Redis/MarketState
+ *     once per tick if the key is absent.
+ *   - No writes to Asset.basePrice — it is pure reference/seed data.
+ *   - StockPriceHistory is written here and nowhere else.
+ *   - MarketState is written here and nowhere else.
+ *   - SSE behaviour is unchanged.
+ */
+
 const { Worker } = require('bullmq');
 const redis = require('../shared/redis');
 const Asset = require('../modules/asset/asset.model');
+const MarketState = require('../modules/market/marketState.model');
+const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
 const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
 
 // Lazy-require to avoid circular dependency issues at startup
 const getBroadcast = () => require('../modules/market/market.controller').broadcastPriceUpdate;
 const getSeedCache = () => require('./mseLiveTicker').seedPriceCache;
 
-// Cache redis still used for price reads/writes (maxRetriesPerRequest: 3 is fine there)
 const isRedisAvailable = isRedisConfigured;
 
 // ─── Redis keys ───────────────────────────────────────────────────────────────
@@ -55,6 +80,83 @@ const formatChangePercent = (change, prevPrice) => {
   return `${sign}${pct.toFixed(2)}%`;
 };
 
+/**
+ * Resolve the previous price for an asset using the three-tier chain:
+ *   1. Redis `price:<ticker>` (TTL 60s — most recent authoritative tick)
+ *   2. MarketState.lastPrice  (survived across restarts and Redis flushes)
+ *   3. Asset.basePrice        (seed/reference value — last resort only)
+ *
+ * @param {string} ticker
+ * @param {number} basePrice  - the asset's seed price (Asset.basePrice)
+ * @returns {Promise<number>}
+ */
+const resolvePrevPrice = async (ticker, basePrice) => {
+  // Tier 1 — Redis
+  try {
+    const cached = await redis.get(`price:${ticker}`);
+    if (cached !== null) {
+      const parsed = JSON.parse(cached);
+      const p = parsed.price ?? parsed;
+      if (typeof p === 'number' && p > 0) return p;
+    }
+  } catch (_) {
+    /* fall through */
+  }
+
+  // Tier 2 — MarketState (durable MongoDB record)
+  try {
+    const state = await MarketState.findOne({ ticker }).lean();
+    if (state && typeof state.lastPrice === 'number' && state.lastPrice > 0) {
+      return state.lastPrice;
+    }
+  } catch (_) {
+    /* fall through */
+  }
+
+  // Tier 3 — seed price
+  return basePrice;
+};
+
+/**
+ * Bulk-upsert MarketState records for all assets processed in this tick.
+ * Uses bulkWrite for efficiency — one round-trip for all assets.
+ *
+ * @param {Array<{ ticker: string, price: number, updatedAt: Date }>} updates
+ */
+const persistMarketState = async (updates) => {
+  if (!updates.length) return;
+  try {
+    const ops = updates.map(({ ticker, price, updatedAt }) => ({
+      updateOne: {
+        filter: { ticker },
+        update: { $set: { lastPrice: price, lastUpdatedAt: updatedAt } },
+        upsert: true,
+      },
+    }));
+    await MarketState.bulkWrite(ops, { ordered: false });
+  } catch (err) {
+    // Non-fatal: MarketState write failure degrades Phase 2 recovery but does
+    // not affect the live simulation.
+    console.error('[MSE] MarketState persist error:', err.message);
+  }
+};
+
+/**
+ * Bulk-insert StockPriceHistory records for all STOCK assets in this tick.
+ * ordered:false lets Mongo insert as many as possible even if one fails.
+ *
+ * @param {Array<{ ticker: string, price: number, change: number, changePercent: string, timestamp: Date }>} points
+ */
+const persistStockHistory = async (points) => {
+  if (!points.length) return;
+  try {
+    await StockPriceHistory.insertMany(points, { ordered: false });
+  } catch (err) {
+    // Non-fatal: chart history write failure must not disrupt the live simulation.
+    console.error('[MSE] StockPriceHistory insert error:', err.message);
+  }
+};
+
 // ─── Worker ──────────────────────────────────────────────────────────────────
 
 let mseWorker = null;
@@ -83,32 +185,25 @@ if (isRedisAvailable) {
       }
 
       const broadcast = getBroadcast();
-      const timestamp = new Date().toISOString();
+      const tickTime = new Date();
+      const timestamp = tickTime.toISOString();
 
-      // 4. Process each asset — collect results for seeding the live ticker
-      const tickResults = [];
+      // Accumulators for bulk writes
+      const tickResults = []; // for seedPriceCache
+      const marketStateUpdates = []; // Phase 2 — MarketState upserts
+      const stockHistoryPoints = []; // Phase 1 — intraday chart inserts
 
+      // 4. Process each asset
       for (const asset of assets) {
         const priceKey = `price:${asset.ticker}`;
 
-        // Read previous price from Redis, fall back to basePrice
-        let prevPrice = asset.basePrice;
-        try {
-          const cached = await redis.get(priceKey);
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            prevPrice = parsed.price ?? parsed ?? prevPrice;
-          }
-        } catch (_) {
-          /* use basePrice */
-        }
+        // ── Resolve previous price (three-tier chain) ──────────────────────
+        const prevPrice = await resolvePrevPrice(asset.ticker, asset.basePrice);
 
-        // ── Mutual funds: NAV is fixed for the day — no intra-day simulation ──
-        // Only write to Redis on first encounter (price key missing / TTL expired).
-        // The live ticker also skips MUTUAL_FUND entries, so the NAV stays stable
-        // until the daily net-worth snapshot job updates it.
+        // ── Mutual funds: NAV is fixed for the day ─────────────────────────
+        // Only write to Redis if the key is absent. MarketState is always updated
+        // so a Redis flush does not revert the MF NAV to the original seed price.
         if (asset.assetType === 'MUTUAL_FUND') {
-          // Ensure the stable NAV is in Redis so quote lookups return a value
           try {
             const existing = await redis.get(priceKey);
             if (!existing) {
@@ -128,6 +223,9 @@ if (isRedisAvailable) {
             /* non-fatal */
           }
 
+          // Phase 2: keep MarketState current for MF NAV even without simulation
+          marketStateUpdates.push({ ticker: asset.ticker, price: prevPrice, updatedAt: tickTime });
+
           tickResults.push({
             ticker: asset.ticker,
             price: prevPrice,
@@ -137,6 +235,7 @@ if (isRedisAvailable) {
           continue; // skip price simulation for mutual funds
         }
 
+        // ── Stock: compute new price ───────────────────────────────────────
         const sectorTrend = asset.sector ? (sectorTrends[asset.sector] ?? 0) : 0;
         const newPrice = computeNewPrice(prevPrice, sentiment, sectorTrend, asset.volatility);
         const change = parseFloat((newPrice - prevPrice).toFixed(2));
@@ -156,17 +255,17 @@ if (isRedisAvailable) {
         try {
           await redis.setex(priceKey, 60, JSON.stringify(pricePayload));
         } catch (_) {
-          /* non-fatal — price will fall back to basePrice on next read */
+          /* non-fatal */
         }
 
-        // 6. Broadcast SSE price_update to all connected clients
+        // 6. Broadcast SSE price_update to all connected clients (unchanged)
         try {
           broadcast(pricePayload);
         } catch (_) {
           /* SSE map may be empty */
         }
 
-        // 7. Emit volatility_alert if single-tick swing > 3%
+        // 7. Emit volatility_alert if single-tick swing > 3% (unchanged)
         const swingPct = prevPrice > 0 ? Math.abs(change / prevPrice) : 0;
         if (swingPct > 0.03) {
           try {
@@ -191,6 +290,18 @@ if (isRedisAvailable) {
           volatility: asset.volatility,
           assetType: asset.assetType,
         });
+
+        // Phase 2: queue MarketState upsert
+        marketStateUpdates.push({ ticker: asset.ticker, price: newPrice, updatedAt: tickTime });
+
+        // Phase 1: queue StockPriceHistory insert (stocks only)
+        stockHistoryPoints.push({
+          ticker: asset.ticker,
+          price: newPrice,
+          change,
+          changePercent,
+          timestamp: tickTime,
+        });
       }
 
       // 8. Seed the live ticker cache with authoritative post-tick prices
@@ -213,7 +324,16 @@ if (isRedisAvailable) {
         /* non-fatal */
       }
 
-      console.log(`[MSE] Tick complete — ${assets.length} assets updated`);
+      // 10. Persist MarketState (Phase 2) — non-blocking, non-fatal
+      await persistMarketState(marketStateUpdates);
+
+      // 11. Persist StockPriceHistory (Phase 1) — non-blocking, non-fatal
+      await persistStockHistory(stockHistoryPoints);
+
+      console.log(
+        `[MSE] Tick complete — ${assets.length} assets updated` +
+          ` (${stockHistoryPoints.length} history points written)`
+      );
     },
     { connection: makeBullMQConnection() }
   );

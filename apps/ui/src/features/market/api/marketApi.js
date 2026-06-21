@@ -8,6 +8,7 @@
  *   getStockQuote    — GET /api/v1/market/quote/:symbol
  *   getMutualQuote   — GET /api/v1/market/quote/:schemeCode
  *   getTickerQuotes  — GET /api/v1/market/ticker
+ *   getChart         — GET /api/v1/market/chart/:ticker?range=1D|1W|1M|3M|1Y
  */
 import { apiSlice } from '@/shared/api/apiSlice';
 import {
@@ -16,6 +17,7 @@ import {
   toSearchResultDTO,
   toQuoteDTO,
   toTickerDTO,
+  toChartDTO,
 } from '../dto/market.dto';
 
 export const marketApi = apiSlice.injectEndpoints({
@@ -47,6 +49,11 @@ export const marketApi = apiSlice.injectEndpoints({
       query: () => '/api/v1/market/ticker',
       transformResponse: (res) => toTickerDTO(res?.data),
     }),
+    getChart: builder.query({
+      query: ({ ticker, range = '1D' }) =>
+        `/api/v1/market/chart/${encodeURIComponent(ticker)}?range=${range}`,
+      transformResponse: (res) => toChartDTO(res?.data),
+    }),
   }),
   overrideExisting: false,
 });
@@ -58,4 +65,5 @@ export const {
   useGetStockQuoteQuery,
   useGetMutualQuoteQuery,
   useGetTickerQuotesQuery,
+  useGetChartQuery,
 } = marketApi;

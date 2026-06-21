@@ -36,7 +36,7 @@ const getQuote = catchAsync(async (req, res) => {
 });
 
 /**
- * GET /market/stream  (SSE — auth required)
+ * GET /market/stream  (SSE — public)
  * Not wrapped in catchAsync; SSE setup is synchronous.
  */
 const stream = (req, res) => {
@@ -72,20 +72,13 @@ const getAssets = catchAsync(async (req, res) => {
   }
   const rawAssets = await Asset.find(filter).sort({ ticker: 1 }).lean();
 
-  // Enrich each asset with the latest Redis price (same pattern as searchAssets)
-  const redis = require('../../shared/redis');
+  // Enrich each asset with the latest price via the three-tier resolution chain
+  const { resolvePrice } = require('./market.service');
   const assets = await Promise.all(
     rawAssets.map(async (asset) => {
-      let currentPrice = asset.basePrice;
-      try {
-        const cached = await redis.get(`price:${asset.ticker}`);
-        if (cached !== null) {
-          const parsed = JSON.parse(cached);
-          currentPrice = parsed.price ?? parsed ?? currentPrice;
-        }
-      } catch (_) {
-        /* use basePrice */
-      }
+      const currentPrice = await resolvePrice(asset.ticker, asset.basePrice).catch(
+        () => asset.basePrice
+      );
       return { ...asset, currentPrice };
     })
   );

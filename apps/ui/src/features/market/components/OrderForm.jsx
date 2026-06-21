@@ -37,7 +37,8 @@ export const OrderForm = ({ asset, currentPrice }) => {
       assetId: asset.id ?? asset._id,
       transactionType,
       quantity: parseFloat(quantity),
-      pricePerUnit: price,
+      // pricePerUnit is intentionally omitted — the server resolves the
+      // authoritative price from Redis so the client cannot influence it.
     });
   };
 
@@ -111,7 +112,7 @@ export const OrderForm = ({ asset, currentPrice }) => {
       {quantity > 0 && (
         <div className="flex items-center justify-between rounded-lg bg-muted/10 px-4 py-3 text-sm">
           <span className="text-muted">
-            Estimated {transactionType === 'BUY' ? 'cost' : 'proceeds'}
+            Est. {transactionType === 'BUY' ? 'cost' : 'proceeds'} (indicative)
           </span>
           <span className="font-bold tabular-nums">{fmt(estimatedTotal)}</span>
         </div>
