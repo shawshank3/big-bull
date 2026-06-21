@@ -19,6 +19,7 @@ export {
 export { FormInput } from './FormInput';
 export { FormTextarea } from './FormTextarea';
 export { GrowingMarketIcon } from './GrowingMarketIcon';
+export { GlobalLoader } from './GlobalLoader';
 export { Input } from './input';
 export { Label } from './label';
 export { Progress } from './progress';

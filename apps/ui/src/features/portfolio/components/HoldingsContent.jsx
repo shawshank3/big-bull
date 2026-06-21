@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Spinner } from '@/shared/ui/spinner';
@@ -6,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../api/portfolioApi';
+import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
 
 const fmt = (n) =>
   new Intl.NumberFormat('en-IN', {
@@ -38,9 +40,26 @@ const SummaryBar = ({ summary }) => (
 );
 
 const HoldingRow = ({ holding }) => {
+  const navigate = useNavigate();
   const pnlUp = holding.unrealisedPnL >= 0;
+
+  const getDetailPath = () => {
+    if (holding.asset?.assetType === 'MUTUAL_FUND') {
+      return buildMutualDetailPath(holding.asset.ticker);
+    }
+    return buildStockDetailPath(holding.asset.ticker);
+  };
+
   return (
-    <TableRow>
+    <TableRow
+      className="cursor-pointer"
+      onClick={() => navigate(getDetailPath(), { state: { name: holding.asset?.name } })}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) =>
+        e.key === 'Enter' && navigate(getDetailPath(), { state: { name: holding.asset?.name } })
+      }
+    >
       <TableCell>
         <p className="font-semibold">{holding.asset?.ticker}</p>
         <MutedText className="text-xs truncate max-w-[160px]">{holding.asset?.name}</MutedText>

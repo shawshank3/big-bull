@@ -164,12 +164,12 @@ React SPA (Vite) — feature-module architecture mirroring backend modules
   features/user        ──► /api/v1/users/*        (profile, avatar)
   features/market      ──► /api/v1/market/*       (assets, search, quotes, ticker, chart, SSE stream)
   features/portfolio   ──► /api/v1/portfolio/*    (holdings, summary)
-  features/transaction ──► /api/v1/transactions/* (history, executeOrder)
+  features/transaction ──► /api/v1/transactions/* (history with optional assetId filter, executeOrder)
   features/wallet      ──► /api/v1/wallet         (balance)
   features/chat        ──► /api/v1/chat           (AI copilot)
   shared/api           ──  RTK Query base slice + baseQueryWithReauth mutex wrapper
-  shared/layout        ──  RootLayout (mounts SSE stream), Navbar, AppPageLayout, PageHeader
-  shared/ui            ──  Design-system primitives (Button, Card, Badge, LineChart, Spinner …)
+  shared/layout        ──  RootLayout (mounts SSE stream + GlobalLoader), Navbar, AppPageLayout, PageHeader
+  shared/ui            ──  Design-system primitives (Button, Card, Badge, LineChart, Spinner, GlobalLoader …)
   shared/errors        ──  RouteErrorBoundary, NotFoundCard
         │
         │ HTTPS + SSE

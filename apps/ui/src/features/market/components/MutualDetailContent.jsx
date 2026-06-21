@@ -8,6 +8,7 @@ import { useGetMutualQuoteQuery, useGetAssetByTickerQuery } from '../api/marketA
 import { MARKET_ASSET_LABELS } from '../constants/market';
 import { OrderForm } from './OrderForm';
 import { PriceChart } from './PriceChart';
+import { AssetTransactionsTable } from '@/features/transaction/components/AssetTransactionsTable';
 
 // ─── Chart header slot ────────────────────────────────────────────────────────
 
@@ -58,44 +59,51 @@ export const MutualDetailContent = () => {
   );
 
   return (
-    <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-      {/* ── Left: chart (expands to fill) ── */}
-      <div className="flex-1 min-w-0">
-        {schemeCode && (
-          <PriceChart
-            ticker={schemeCode}
-            assetType="MUTUAL_FUND"
-            currentPrice={quote?.price ?? asset?.basePrice}
-            header={chartHeader}
-          />
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        {/* ── Left: chart (expands to fill) ── */}
+        <div className="flex-1 min-w-0">
+          {schemeCode && (
+            <PriceChart
+              ticker={schemeCode}
+              assetType="MUTUAL_FUND"
+              currentPrice={quote?.price ?? asset?.basePrice}
+              header={chartHeader}
+            />
+          )}
+        </div>
+
+        {/* ── Right: order form card (fixed width, auth-gated) ── */}
+        {isAuthenticated && (
+          <aside className="w-full lg:w-80 shrink-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Place Order</CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4">
+                {quoteLoading && <Spinner label="Loading NAV…" />}
+                {quoteError && (
+                  <Alert variant="danger">NAV unavailable — cannot place order.</Alert>
+                )}
+                {!quoteLoading && !quoteError && !asset && (
+                  <Alert variant="warning">
+                    Scheme {schemeCode} is not in the simulation catalog.
+                  </Alert>
+                )}
+                {!quoteLoading && !quoteError && asset && (
+                  <OrderForm
+                    asset={{ ...asset, ticker: schemeCode }}
+                    currentPrice={quote?.price ?? asset?.basePrice}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </aside>
         )}
       </div>
 
-      {/* ── Right: order form card (fixed width, auth-gated) ── */}
-      {isAuthenticated && (
-        <aside className="w-full lg:w-80 shrink-0">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Place Order</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4">
-              {quoteLoading && <Spinner label="Loading NAV…" />}
-              {quoteError && <Alert variant="danger">NAV unavailable — cannot place order.</Alert>}
-              {!quoteLoading && !quoteError && !asset && (
-                <Alert variant="warning">
-                  Scheme {schemeCode} is not in the simulation catalog.
-                </Alert>
-              )}
-              {!quoteLoading && !quoteError && asset && (
-                <OrderForm
-                  asset={{ ...asset, ticker: schemeCode }}
-                  currentPrice={quote?.price ?? asset?.basePrice}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </aside>
-      )}
+      {/* ── Transactions table (full width, auth-gated) ── */}
+      {isAuthenticated && asset && <AssetTransactionsTable assetId={asset.id ?? asset._id} />}
     </div>
   );
 };

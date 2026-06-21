@@ -11,6 +11,7 @@ const authSlice = createSlice({
     user: null,
     isAuthenticated: false,
     isLoading: true, // true until getMe hydration completes on app load
+    isLoggingOut: false,
     error: null,
   },
   reducers: {
@@ -18,16 +19,21 @@ const authSlice = createSlice({
       state.user = action.payload;
       state.isAuthenticated = true;
       state.isLoading = false;
+      state.isLoggingOut = false;
       state.error = null;
     },
     clearUser: (state) => {
       state.user = null;
       state.isAuthenticated = false;
       state.isLoading = false;
+      state.isLoggingOut = false;
       state.error = null;
     },
     setLoading: (state, action) => {
       state.isLoading = action.payload;
+    },
+    setLoggingOut: (state, action) => {
+      state.isLoggingOut = action.payload;
     },
     clearError: (state) => {
       state.error = null;
@@ -37,18 +43,21 @@ const authSlice = createSlice({
       state.user = action.payload?.user ?? action.payload;
       state.isAuthenticated = true;
       state.isLoading = false;
+      state.isLoggingOut = false;
       state.error = null;
     },
     registerSuccess: (state, action) => {
       state.user = action.payload?.user ?? action.payload;
       state.isAuthenticated = true;
       state.isLoading = false;
+      state.isLoggingOut = false;
       state.error = null;
     },
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
       state.isLoading = false;
+      state.isLoggingOut = false;
       state.error = null;
     },
     loginStart: (state) => {
@@ -75,6 +84,7 @@ export const {
   setUser,
   clearUser,
   setLoading,
+  setLoggingOut,
   clearError,
   loginStart,
   loginSuccess,

@@ -141,7 +141,7 @@ apps/ui/src/
 | `features/user/api/userApi.js`               | `getProfile`, `updateProfile`, avatar     | `toUserProfileDTO`                                                           |
 | `features/market/api/marketApi.js`           | assets, search, quotes, ticker, **chart** | `toAssetDTO`, `toQuoteDTO`, `toTickerDTO`, `toSearchResultDTO`, `toChartDTO` |
 | `features/portfolio/api/portfolioApi.js`     | holdings, summary                         | `toHoldingListDTO`, `toSummaryDTO`                                           |
-| `features/transaction/api/transactionApi.js` | history, executeOrder                     | `toTransactionHistoryDTO`, `toOrderResultDTO`                                |
+| `features/transaction/api/transactionApi.js` | history (`?assetId` filter), executeOrder | `toTransactionHistoryDTO`, `toOrderResultDTO`                                |
 | `features/wallet/api/walletApi.js`           | getWallet                                 | `toWalletDTO`                                                                |
 | `features/chat/api/chatApi.js`               | sendChatMessage                           | `toChatReplyDTO`                                                             |
 
@@ -149,18 +149,18 @@ apps/ui/src/
 
 ## Pages
 
-| Route                         | Feature / Page                                          | Auth       |
-| ----------------------------- | ------------------------------------------------------- | ---------- |
-| `/`                           | `auth/routes/RootRedirect` → `/dashboard` or `/explore` | —          |
-| `/explore`                    | `explore/Explore` — public landing, live ticker strip   | —          |
-| `/login`                      | `auth/routes/Login`                                     | Guest only |
-| `/register`                   | `auth/routes/Register`                                  | Guest only |
-| `/dashboard`                  | `portfolio/routes/Dashboard` — stats + allocation + AI  | ✅         |
-| `/market`                     | `market/routes/Market` — browsable asset catalog        | ✅         |
-| `/market/stocks/:symbol`      | `market/routes/StockDetail` — quote + **chart** + order | ✅         |
-| `/market/mutuals/:schemeCode` | `market/routes/MutualDetail` — NAV + **chart** + order  | ✅         |
-| `/holdings`                   | `portfolio/routes/Holdings` — full P&L table            | ✅         |
-| `/profile`                    | `user/routes/Profile` — view/edit profile + avatar      | ✅         |
+| Route                         | Feature / Page                                                                    | Auth       |
+| ----------------------------- | --------------------------------------------------------------------------------- | ---------- |
+| `/`                           | `auth/routes/RootRedirect` → `/dashboard` or `/explore`                           | —          |
+| `/explore`                    | `explore/Explore` — public landing, live ticker strip                             | —          |
+| `/login`                      | `auth/routes/Login`                                                               | Guest only |
+| `/register`                   | `auth/routes/Register`                                                            | Guest only |
+| `/dashboard`                  | `portfolio/routes/Dashboard` — stats + allocation + AI                            | ✅         |
+| `/market`                     | `market/routes/Market` — browsable asset catalog                                  | ✅         |
+| `/market/stocks/:symbol`      | `market/routes/StockDetail` — quote + **chart** + order + **transaction history** | ✅         |
+| `/market/mutuals/:schemeCode` | `market/routes/MutualDetail` — NAV + **chart** + order + **transaction history**  | ✅         |
+| `/holdings`                   | `portfolio/routes/Holdings` — full P&L table                                      | ✅         |
+| `/profile`                    | `user/routes/Profile` — view/edit profile + avatar                                | ✅         |
 
 ---
 
@@ -232,6 +232,7 @@ npm test          # Jest unit / property tests
 - JWTs live in **HTTP-Only cookies** set by the server. The frontend never reads the raw token.
 - `AuthProvider` calls `useGetMeQuery` on mount to hydrate Redux auth state.
 - On 401, `baseQueryWithReauth` calls `POST /api/v1/auth/refresh` transparently using a mutex so only one refresh is ever in flight.
+- **Logout flow:** `useAuth.logout()` dispatches `setLoggingOut(true)` before the API call. `RootLayout` renders `<GlobalLoader />` which reads `isLoggingOut` from Redux and shows a full-screen branded overlay. `clearUser()` resets the flag and the overlay disappears as the route transitions to `/login`.
 
 ### RTK Query (server state)
 
@@ -265,3 +266,8 @@ npm test          # Jest unit / property tests
 
 - **Stock prices** update every second via SSE. **Mutual fund NAVs** are fixed for the day.
 - Polling intervals (60s for quotes/ticker) act as a fallback if the SSE connection drops.
+
+### Order Form & Detail Pages
+
+- **OrderForm** shows "In holdings" (live held quantity from `useGetPortfolioHoldingsQuery`) instead of current price. On successful BUY or SELL it navigates to `/holdings`.
+- **AssetTransactionsTable** (`features/transaction/components/`) is rendered below the chart+order layout on both `StockDetailContent` and `MutualDetailContent`. It calls `GET /api/v1/transactions?assetId=<id>` — server-side filtered, full-width, shows "No transactions" when empty.

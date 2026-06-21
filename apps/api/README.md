@@ -244,7 +244,7 @@ Response shape:
 
 | Method | Path     | Auth | Description                                                       |
 | ------ | -------- | ---- | ----------------------------------------------------------------- |
-| GET    | `/`      | ✅   | Paginated transaction history (`?page=1&limit=20`)                |
+| GET    | `/`      | ✅   | Paginated transaction history (`?page=1&limit=20&assetId=<opt>`)  |
 | POST   | `/order` | ✅   | Execute BUY or SELL — atomically updates wallet and writes ledger |
 
 ### Portfolio `/api/v1/portfolio`

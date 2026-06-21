@@ -1,10 +1,13 @@
 import { useForm } from 'react-hook-form';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { Alert } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
 import { FormInput } from '@/shared/ui/FormInput';
 import { useExecuteOrderMutation } from '@/features/transaction/api/transactionApi';
 import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
+import { useGetPortfolioHoldingsQuery } from '@/features/portfolio/api/portfolioApi';
+import { ROUTES } from '@/shared/constants/routes';
 
 const fmt = (n) =>
   new Intl.NumberFormat('en-IN', {
@@ -15,9 +18,10 @@ const fmt = (n) =>
 
 export const OrderForm = ({ asset, currentPrice }) => {
   const { isAuthenticated } = useSelector((s) => s.auth);
+  const navigate = useNavigate();
   const { data: wallet } = useGetWalletQuery(undefined, { skip: !isAuthenticated });
-  const [executeOrder, { isLoading, error: orderError, isSuccess, reset }] =
-    useExecuteOrderMutation();
+  const { data: holdings } = useGetPortfolioHoldingsQuery(undefined, { skip: !isAuthenticated });
+  const [executeOrder, { isLoading, error: orderError, isSuccess }] = useExecuteOrderMutation();
   const {
     register,
     handleSubmit,
@@ -32,14 +36,21 @@ export const OrderForm = ({ asset, currentPrice }) => {
   const estimatedTotal = quantity * price;
   const canAfford = !wallet || wallet.balance >= estimatedTotal;
 
+  // Find how many units the user currently holds for this asset
+  const assetHolding = holdings?.find(
+    (h) => h.assetId === (asset?.id ?? asset?._id) || h.ticker === asset?.ticker
+  );
+  const heldQty = assetHolding?.netQuantity ?? assetHolding?.qty ?? 0;
+
   const onSubmit = async ({ transactionType, quantity }) => {
-    await executeOrder({
+    const result = await executeOrder({
       assetId: asset.id ?? asset._id,
       transactionType,
       quantity: parseFloat(quantity),
-      // pricePerUnit is intentionally omitted — the server resolves the
-      // authoritative price from Redis so the client cannot influence it.
     });
+    if (!result.error) {
+      navigate(ROUTES.HOLDINGS);
+    }
   };
 
   const displayLabel =
@@ -51,9 +62,6 @@ export const OrderForm = ({ asset, currentPrice }) => {
     return (
       <div className="space-y-3">
         <Alert variant="success">Order placed! Your portfolio and wallet have been updated.</Alert>
-        <Button variant="outline" size="sm" onClick={reset}>
-          Place another order
-        </Button>
       </div>
     );
   }
@@ -80,8 +88,8 @@ export const OrderForm = ({ asset, currentPrice }) => {
         ))}
       </div>
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted">Current price</span>
-        <span className="font-semibold tabular-nums">{fmt(price)}</span>
+        <span className="text-muted">In holdings</span>
+        <span className="font-semibold tabular-nums">{heldQty > 0 ? heldQty : '—'}</span>
       </div>
       {wallet && (
         <div className="flex items-center justify-between text-sm">

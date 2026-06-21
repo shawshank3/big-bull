@@ -268,20 +268,26 @@ const executeOrder = async (userId, orderData) => {
 };
 
 /**
- * getTransactionHistory(userId, { page, limit })
+ * getTransactionHistory(userId, { page, limit, assetId })
  *
  * Returns a paginated, reverse-chronological list of a user's transactions.
+ * Optionally filtered to a specific asset via assetId.
  *
  * @param {string} userId
- * @param {{ page?: number, limit?: number }} options
+ * @param {{ page?: number, limit?: number, assetId?: string }} options
  * @returns {Promise<{ transactions: Array, pagination: object }>}
  */
-const getTransactionHistory = async (userId, { page = 1, limit = 20 } = {}) => {
+const getTransactionHistory = async (userId, { page = 1, limit = 20, assetId } = {}) => {
   const skip = (page - 1) * limit;
 
+  const filter = { userId };
+  if (assetId && mongoose.Types.ObjectId.isValid(assetId)) {
+    filter.assetId = new mongoose.Types.ObjectId(assetId);
+  }
+
   const [transactions, total] = await Promise.all([
-    Transaction.find({ userId }).sort({ executedAt: -1 }).skip(skip).limit(limit).lean(),
-    Transaction.countDocuments({ userId }),
+    Transaction.find(filter).sort({ executedAt: -1 }).skip(skip).limit(limit).lean(),
+    Transaction.countDocuments(filter),
   ]);
 
   return {
