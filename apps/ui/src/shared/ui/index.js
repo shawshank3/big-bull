@@ -1,4 +1,5 @@
 export { Alert, AlertTitle, AlertDescription, alertVariants } from './alert';
+export { LineChart } from './line-chart';
 export { Avatar, AvatarImage, AvatarFallback } from './avatar';
 export { Badge, badgeVariants } from './badge';
 export { Button, buttonVariants } from './button';
@@ -18,6 +19,7 @@ export {
 export { FormInput } from './FormInput';
 export { FormTextarea } from './FormTextarea';
 export { GrowingMarketIcon } from './GrowingMarketIcon';
+export { GlobalLoader } from './GlobalLoader';
 export { Input } from './input';
 export { Label } from './label';
 export { Progress } from './progress';

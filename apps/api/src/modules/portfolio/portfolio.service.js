@@ -11,6 +11,7 @@
 const transactionService = require('../transaction/transaction.service');
 const walletService = require('../wallet/wallet.service');
 const redis = require('../../shared/redis');
+const MarketState = require('../market/marketState.model');
 
 /**
  * computeHoldings(userId)
@@ -30,21 +31,39 @@ const redis = require('../../shared/redis');
 const computeHoldings = async (userId) => {
   const rawHoldings = await transactionService.aggregateHoldings(userId);
 
-  // Fetch live prices from Redis in parallel
+  // Fetch live prices from Redis in parallel, with three-tier fallback
   const enriched = await Promise.all(
     rawHoldings.map(async (holding) => {
       const ticker = holding.asset.ticker;
 
-      // Attempt Redis cache lookup — falls back to basePrice on miss
-      let currentPrice = holding.asset.basePrice;
+      // Tier 1 — Redis (most current, TTL 60s)
+      let currentPrice = null;
       try {
         const cached = await redis.get('price:' + ticker);
         if (cached !== null) {
           const parsed = JSON.parse(cached);
-          currentPrice = parsed.price;
+          const p = parsed.price ?? parsed;
+          if (typeof p === 'number' && p > 0) currentPrice = p;
         }
-      } catch (_err) {
-        // Redis unavailable or JSON parse error — use basePrice silently
+      } catch (_) {
+        /* Redis unavailable */
+      }
+
+      // Tier 2 — MarketState (durable MongoDB record)
+      if (currentPrice === null) {
+        try {
+          const state = await MarketState.findOne({ ticker }).lean();
+          if (state && typeof state.lastPrice === 'number' && state.lastPrice > 0) {
+            currentPrice = state.lastPrice;
+          }
+        } catch (_) {
+          /* MongoDB issue */
+        }
+      }
+
+      // Tier 3 — seed price
+      if (currentPrice === null) {
+        currentPrice = holding.asset.basePrice;
       }
 
       const currentValue = holding.netQuantity * currentPrice;

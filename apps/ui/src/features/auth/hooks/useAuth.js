@@ -12,6 +12,7 @@ import {
   loginFailure,
   registerStart,
   registerFailure,
+  setLoggingOut,
 } from '../store/authSlice';
 import { useLoginMutation, useRegisterMutation, useLogoutMutation } from '../api/authApi';
 
@@ -55,6 +56,7 @@ export const useAuth = () => {
 
   const logout = async () => {
     try {
+      dispatch(setLoggingOut(true));
       await logoutMutation().unwrap();
     } catch {
       // Server error is non-fatal — clear client state regardless

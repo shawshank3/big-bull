@@ -1,74 +1,110 @@
 import { useLocation, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { PageHeader } from '@/shared/layout/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Alert } from '@/shared/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Spinner } from '@/shared/ui/spinner';
+import { formatCurrency } from '@/shared/utils';
 import { useGetMutualQuoteQuery, useGetAssetByTickerQuery } from '../api/marketApi';
 import { MARKET_ASSET_LABELS } from '../constants/market';
-import { MarketQuoteCard } from './MarketQuoteCard';
 import { OrderForm } from './OrderForm';
+import { PriceChart } from './PriceChart';
+import { AssetTransactionsTable } from '@/features/transaction/components/AssetTransactionsTable';
+
+// ─── Chart header slot ────────────────────────────────────────────────────────
+
+const ChartHeader = ({ name, schemeCode, subtitle, price, currency, asOf }) => (
+  <div className="flex flex-col gap-0.5 min-w-0">
+    <p className="text-xs text-muted truncate">{subtitle}</p>
+    <h1 className="text-lg font-bold leading-tight truncate">{name}</h1>
+    {price != null && (
+      <div className="flex flex-wrap items-baseline gap-2 mt-0.5">
+        <span className="text-2xl font-black tabular-nums tracking-tight">
+          {formatCurrency(price, currency ?? 'INR')}
+        </span>
+        {asOf && <span className="text-xs text-muted">{asOf}</span>}
+      </div>
+    )}
+  </div>
+);
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export const MutualDetailContent = () => {
   const { schemeCode } = useParams();
   const location = useLocation();
   const { isAuthenticated } = useSelector((s) => s.auth);
   const displayName = location.state?.name;
+
   const {
     data: quote,
-    isLoading,
-    isError,
-  } = useGetMutualQuoteQuery(schemeCode, { skip: !schemeCode, pollingInterval: 30000 });
+    isLoading: quoteLoading,
+    isError: quoteError,
+  } = useGetMutualQuoteQuery(schemeCode, { skip: !schemeCode, pollingInterval: 60000 });
   const { data: asset } = useGetAssetByTickerQuery(schemeCode, { skip: !schemeCode });
+
   const title = displayName || quote?.name || `Scheme ${schemeCode}`;
   const subtitle = [MARKET_ASSET_LABELS.mutual, quote?.fundHouse, quote?.schemeCategory]
     .filter(Boolean)
     .join(' · ');
 
+  const chartHeader = (
+    <ChartHeader
+      name={title}
+      schemeCode={schemeCode}
+      subtitle={subtitle || MARKET_ASSET_LABELS.mutual}
+      price={quote?.price ?? asset?.basePrice}
+      currency={quote?.currency}
+      asOf={quote?.asOf}
+    />
+  );
+
   return (
-    <>
-      <PageHeader title={title} description={subtitle || `Scheme ${schemeCode}`} />
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <MarketQuoteCard quote={quote} isLoading={isLoading} isError={isError}>
-          <MarketQuoteCard.Loading />
-          <MarketQuoteCard.Error />
-          <MarketQuoteCard.Empty>NAV data is not available for this scheme.</MarketQuoteCard.Empty>
-          <MarketQuoteCard.Data>
-            <MarketQuoteCard.Header title={title} subtitle={subtitle} />
-            <MarketQuoteCard.Content>
-              <MarketQuoteCard.Price
-                value={quote?.price}
-                currency={quote?.currency}
-                label={quote?.priceLabel}
-              />
-              <MarketQuoteCard.AsOf date={quote?.asOf} />
-            </MarketQuoteCard.Content>
-          </MarketQuoteCard.Data>
-        </MarketQuoteCard>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        {/* ── Left: chart (expands to fill) ── */}
+        <div className="flex-1 min-w-0">
+          {schemeCode && (
+            <PriceChart
+              ticker={schemeCode}
+              assetType="MUTUAL_FUND"
+              currentPrice={quote?.price ?? asset?.basePrice}
+              header={chartHeader}
+            />
+          )}
+        </div>
+
+        {/* ── Right: order form card (fixed width, auth-gated) ── */}
         {isAuthenticated && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Place Order</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading && <Spinner label="Loading NAV…" />}
-              {isError && <Alert variant="danger">NAV unavailable — cannot place order.</Alert>}
-              {!isLoading && !isError && !asset && (
-                <Alert variant="warning">
-                  Scheme {schemeCode} is not in the simulation catalog.
-                </Alert>
-              )}
-              {!isLoading && !isError && asset && (
-                <OrderForm
-                  asset={{ ...asset, ticker: schemeCode }}
-                  currentPrice={quote?.price ?? asset?.basePrice}
-                />
-              )}
-            </CardContent>
-          </Card>
+          <aside className="w-full lg:w-80 shrink-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Place Order</CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4">
+                {quoteLoading && <Spinner label="Loading NAV…" />}
+                {quoteError && (
+                  <Alert variant="danger">NAV unavailable — cannot place order.</Alert>
+                )}
+                {!quoteLoading && !quoteError && !asset && (
+                  <Alert variant="warning">
+                    Scheme {schemeCode} is not in the simulation catalog.
+                  </Alert>
+                )}
+                {!quoteLoading && !quoteError && asset && (
+                  <OrderForm
+                    asset={{ ...asset, ticker: schemeCode }}
+                    currentPrice={quote?.price ?? asset?.basePrice}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </aside>
         )}
       </div>
-    </>
+
+      {/* ── Transactions table (full width, auth-gated) ── */}
+      {isAuthenticated && asset && <AssetTransactionsTable assetId={asset.id ?? asset._id} />}
+    </div>
   );
 };
 

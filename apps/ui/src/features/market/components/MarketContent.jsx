@@ -14,6 +14,7 @@ const fmt = (n) =>
     currency: 'INR',
     maximumFractionDigits: 2,
   }).format(n ?? 0);
+
 const TABS = [
   { label: 'All', value: '' },
   { label: 'Stocks', value: 'STOCK' },
@@ -39,7 +40,7 @@ const AssetRow = ({ asset, onClick }) => (
     </td>
     <td className="py-3 pr-4 text-sm text-muted">{asset.sector?.replace(/_/g, ' ')}</td>
     <td className="py-3 pr-6 tabular-nums text-right text-sm font-semibold">
-      {fmt(asset.basePrice)}
+      {fmt(asset.currentPrice)}
     </td>
   </tr>
 );
@@ -105,7 +106,7 @@ export const MarketContent = () => {
                   <th className="py-3 pl-6 pr-4 text-left font-medium">Asset</th>
                   <th className="py-3 pr-4 text-left font-medium">Type</th>
                   <th className="py-3 pr-4 text-left font-medium">Sector</th>
-                  <th className="py-3 pr-6 text-right font-medium">Base Price</th>
+                  <th className="py-3 pr-6 text-right font-medium">Price</th>
                 </tr>
               </thead>
               <tbody>

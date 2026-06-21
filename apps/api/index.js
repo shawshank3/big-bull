@@ -1,5 +1,6 @@
 require('dotenv').config();
 const app = require('./src/server');
+const { writeTodayClose } = require('./src/workers/dailyPriceService');
 
 function validateEnv() {
   const required = ['MONGODB_URI', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
@@ -23,19 +24,22 @@ const server = app.listen(PORT, () => {
   console.log('\n');
 });
 
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
+/**
+ * Graceful shutdown helper.
+ * 1. Stop accepting new HTTP connections.
+ * 2. Snapshot today's closing prices into DailyPrice before the process exits.
+ *    This ensures every day the server ran has at least one DailyPrice record
+ *    regardless of whether the server reaches end-of-day.
+ */
+const gracefulShutdown = (signal) => {
+  console.log(`${signal} received — shutting down gracefully`);
+  server.close(async () => {
     console.log('HTTP server closed');
+    await writeTodayClose();
+    console.log('Goodbye 👋');
     process.exit(0);
   });
-});
+};
 
-process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

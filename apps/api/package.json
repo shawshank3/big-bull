@@ -6,6 +6,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node scripts/seed.js",
+    "seed:history": "node scripts/seedHistoricalData.js",
     "test": "jest --runInBand"
   },
   "dependencies": {

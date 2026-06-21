@@ -1,5 +1,20 @@
 import { str, num, bool, arr } from '@/shared/dto/helpers';
 
+export function toChartDTO(raw) {
+  return {
+    ticker: str(raw?.ticker),
+    assetType: str(raw?.assetType),
+    range: str(raw?.range, '1D'),
+    granularity: str(raw?.granularity, '30s'),
+    points: arr(raw?.points).map((p) => ({
+      timestamp: str(p?.timestamp),
+      price: num(p?.price),
+      change: num(p?.change),
+      changePercent: str(p?.changePercent),
+    })),
+  };
+}
+
 export function toAssetDTO(raw) {
   return {
     id: str(raw?._id ?? raw?.id),
@@ -66,11 +81,12 @@ export function toQuoteDTO(raw) {
 export function toTickerDTO(raw) {
   return arr(raw).map((item) => ({
     symbol: str(item?.symbol),
+    label: str(item?.label ?? item?.symbol),
     name: str(item?.name),
     price: num(item?.price),
     currency: str(item?.currency, 'INR'),
     change: num(item?.change),
-    changePercent: str(item?.changePercent, '0.00%'),
-    up: bool(item?.up),
+    changePercent: str(item?.changePercent, '+0.00%'),
+    up: bool(item?.up, true),
   }));
 }

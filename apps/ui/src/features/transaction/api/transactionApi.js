@@ -11,9 +11,9 @@ import { toTransactionHistoryDTO, toOrderResultDTO } from '../dto/transaction.dt
 export const transactionApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getTransactions: builder.query({
-      query: ({ page = 1, limit = 20 } = {}) => ({
+      query: ({ page = 1, limit = 20, assetId } = {}) => ({
         url: '/api/v1/transactions',
-        params: { page, limit },
+        params: { page, limit, ...(assetId ? { assetId } : {}) },
       }),
       transformResponse: (res) => toTransactionHistoryDTO(res?.data),
       providesTags: ['Transactions'],

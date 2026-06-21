@@ -10,8 +10,61 @@
  */
 const mongoose = require('mongoose');
 const Transaction = require('./transaction.model');
+const Asset = require('../asset/asset.model');
+const MarketState = require('../market/marketState.model');
 const AppError = require('../../shared/AppError');
 const walletService = require('../wallet/wallet.service');
+const redis = require('../../shared/redis');
+
+/**
+ * resolveExecutionPrice(assetId)
+ *
+ * Resolves the server-side execution price for an asset.
+ *
+ * Priority (three-tier chain — Phase 2):
+ *   1. Redis `price:<ticker>` — written by the MSE BullMQ worker every 30s (TTL 60s)
+ *   2. MarketState.lastPrice  — durable MongoDB record; survives restarts / Redis flushes
+ *   3. Asset.basePrice        — seed value used only when no runtime price exists yet
+ *
+ * @param {string|import('mongoose').Types.ObjectId} assetId
+ * @returns {Promise<{ asset: object, pricePerUnit: number }>}
+ * @throws {AppError} 404 if the asset does not exist in the catalog
+ */
+const resolveExecutionPrice = async (assetId) => {
+  const asset = await Asset.findById(assetId).lean();
+  if (!asset) {
+    throw new AppError(`Asset not found: ${assetId}`, 404);
+  }
+
+  // Start with seed price as last-resort fallback
+  let pricePerUnit = asset.basePrice;
+
+  // Tier 1 — Redis (fastest, most current)
+  try {
+    const cached = await redis.get(`price:${asset.ticker}`);
+    if (cached !== null) {
+      const parsed = JSON.parse(cached);
+      const redisPrice = parsed.price ?? parsed;
+      if (typeof redisPrice === 'number' && redisPrice > 0) {
+        return { asset, pricePerUnit: redisPrice };
+      }
+    }
+  } catch (_) {
+    /* Redis unavailable — continue to next tier */
+  }
+
+  // Tier 2 — MarketState (durable, survives Redis flush / server restart)
+  try {
+    const state = await MarketState.findOne({ ticker: asset.ticker }).lean();
+    if (state && typeof state.lastPrice === 'number' && state.lastPrice > 0) {
+      pricePerUnit = state.lastPrice;
+    }
+  } catch (_) {
+    /* MongoDB unavailable — basePrice fallback already set */
+  }
+
+  return { asset, pricePerUnit };
+};
 
 /**
  * aggregateHoldings(userId)
@@ -128,6 +181,11 @@ const aggregateHoldings = async (userId) => {
  *  - BUY : checks wallet balance, debits total cost (quantity × price + fees)
  *  - SELL: checks sufficient holdings, credits proceeds (quantity × price − fees)
  *
+ * The execution price is ALWAYS resolved server-side from Redis (authoritative
+ * 30 s MSE tick price) with a fallback to asset.basePrice. Any pricePerUnit
+ * value supplied by the client is intentionally discarded — the client has no
+ * authority over the price at which an order executes.
+ *
  * All writes (Transaction insert + wallet update) happen inside a single
  * MongoDB session/transaction so they are all-or-nothing.
  *
@@ -135,14 +193,18 @@ const aggregateHoldings = async (userId) => {
  * @param {object} orderData - Validated order payload from orderSchema
  * @returns {Promise<import('mongoose').Document>} the created Transaction document
  * @throws {AppError} 400 for invalid assetId, insufficient holdings, or insufficient funds
+ * @throws {AppError} 404 if the asset does not exist
  */
 const executeOrder = async (userId, orderData) => {
-  const { assetId, transactionType, quantity, pricePerUnit, fees = 0 } = orderData;
+  const { assetId, transactionType, quantity, fees = 0 } = orderData;
 
   // ── Validate assetId is a proper ObjectId ──────────────────────────────
   if (!mongoose.Types.ObjectId.isValid(assetId)) {
     throw new AppError('Invalid assetId', 400);
   }
+
+  // ── Resolve execution price from Redis / asset catalog ────────────────
+  const { pricePerUnit } = await resolveExecutionPrice(assetId);
 
   // ── Pre-flight checks ──────────────────────────────────────────────────
   if (transactionType === 'SELL') {
@@ -172,9 +234,19 @@ const executeOrder = async (userId, orderData) => {
   session.startTransaction();
 
   try {
-    const [tx] = await Transaction.create([{ userId, ...orderData, executedAt: new Date() }], {
-      session,
-    });
+    // Store the server-resolved pricePerUnit
+    const txData = {
+      userId,
+      assetId,
+      transactionType,
+      quantity,
+      pricePerUnit,
+      fees,
+      executedAt: new Date(),
+    };
+    if (orderData.notes) txData.notes = orderData.notes;
+
+    const [tx] = await Transaction.create([txData], { session });
 
     if (transactionType === 'BUY') {
       const totalCost = quantity * pricePerUnit + fees;
@@ -196,20 +268,26 @@ const executeOrder = async (userId, orderData) => {
 };
 
 /**
- * getTransactionHistory(userId, { page, limit })
+ * getTransactionHistory(userId, { page, limit, assetId })
  *
  * Returns a paginated, reverse-chronological list of a user's transactions.
+ * Optionally filtered to a specific asset via assetId.
  *
  * @param {string} userId
- * @param {{ page?: number, limit?: number }} options
+ * @param {{ page?: number, limit?: number, assetId?: string }} options
  * @returns {Promise<{ transactions: Array, pagination: object }>}
  */
-const getTransactionHistory = async (userId, { page = 1, limit = 20 } = {}) => {
+const getTransactionHistory = async (userId, { page = 1, limit = 20, assetId } = {}) => {
   const skip = (page - 1) * limit;
 
+  const filter = { userId };
+  if (assetId && mongoose.Types.ObjectId.isValid(assetId)) {
+    filter.assetId = new mongoose.Types.ObjectId(assetId);
+  }
+
   const [transactions, total] = await Promise.all([
-    Transaction.find({ userId }).sort({ executedAt: -1 }).skip(skip).limit(limit).lean(),
-    Transaction.countDocuments({ userId }),
+    Transaction.find(filter).sort({ executedAt: -1 }).skip(skip).limit(limit).lean(),
+    Transaction.countDocuments(filter),
   ]);
 
   return {
