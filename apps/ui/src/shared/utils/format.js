@@ -20,11 +20,19 @@ export const formatNumber = (value, decimals = 2) => {
 };
 
 export const formatDate = (date) => {
+  if (!date) return '—';
   return new Date(date).toLocaleDateString('en-IN');
 };
 
 export const formatDateTime = (date) => {
-  return new Date(date).toLocaleString('en-IN');
+  if (!date) return '—';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(date));
 };
 
 export const calculateReturn = (investedAmount, currentValue) => {

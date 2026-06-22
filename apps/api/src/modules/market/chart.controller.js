@@ -13,6 +13,7 @@ const AppError = require('../../shared/AppError');
 const { sendSuccess } = require('../../utils/response');
 const { chartQuerySchema } = require('./chart.validator');
 const chartService = require('./chart.service');
+const { HTTP_STATUS } = require('../../shared/constants');
 
 /**
  * GET /market/chart/:ticker?range=1D|1W|1M|3M|1Y
@@ -37,13 +38,13 @@ const chartService = require('./chart.service');
 const getChart = catchAsync(async (req, res) => {
   const ticker = req.params.ticker?.trim().toUpperCase();
   if (!ticker) {
-    throw new AppError('ticker param is required', 400);
+    throw new AppError('ticker param is required', HTTP_STATUS.BAD_REQUEST);
   }
 
   const result = chartQuerySchema.safeParse(req.query);
   if (!result.success) {
     const message = result.error.errors?.[0]?.message ?? 'Invalid query parameters';
-    throw new AppError(message, 400);
+    throw new AppError(message, HTTP_STATUS.BAD_REQUEST);
   }
 
   const { range } = result.data;

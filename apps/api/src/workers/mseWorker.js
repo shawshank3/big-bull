@@ -28,6 +28,7 @@ const Asset = require('../modules/asset/asset.model');
 const MarketState = require('../modules/market/marketState.model');
 const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
 const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
+const { ASSET_TYPES } = require('../shared/constants');
 
 // Lazy-require to avoid circular dependency issues at startup
 const getBroadcast = () => require('../modules/market/market.controller').broadcastPriceUpdate;
@@ -203,7 +204,7 @@ if (isRedisAvailable) {
         // ── Mutual funds: NAV is fixed for the day ─────────────────────────
         // Only write to Redis if the key is absent. MarketState is always updated
         // so a Redis flush does not revert the MF NAV to the original seed price.
-        if (asset.assetType === 'MUTUAL_FUND') {
+        if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
           try {
             const existing = await redis.get(priceKey);
             if (!existing) {

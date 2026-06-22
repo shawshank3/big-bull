@@ -2,7 +2,7 @@
 
 A pnpm-workspace monorepo containing the full BigBull stack: a React 19 + Vite 5 frontend (`apps/ui`) and a Node.js + Express 4 backend (`apps/api`).
 
-BigBull is a **simulated Indian stock market platform** — users get a virtual ₹10L wallet and can trade NSE stocks and mutual funds against internally simulated prices, track their portfolio P&L, view historical price charts, and chat with an AI copilot powered by Google Gemini.
+BigBull is a **simulated Indian stock market platform** — users get a virtual ₹10L wallet and can trade NSE stocks and mutual funds against internally simulated prices, track their portfolio P&L, view historical price charts, manage wallet transactions, and chat with an AI copilot powered by Google Gemini.
 
 ---
 
@@ -162,14 +162,15 @@ Go to **Render Dashboard → big-bull → Environment** and set:
 React SPA (Vite) — feature-module architecture mirroring backend modules
   features/auth        ──► /api/v1/auth/*        (login, register, logout, me, refresh)
   features/user        ──► /api/v1/users/*        (profile, avatar)
-  features/market      ──► /api/v1/market/*       (assets, search, quotes, ticker, chart, SSE stream)
+  features/market      ──► /api/v1/market/*       (assets, assets/list, search, quotes, ticker, chart, SSE stream)
   features/portfolio   ──► /api/v1/portfolio/*    (holdings, summary)
-  features/transaction ──► /api/v1/transactions/* (history with optional assetId filter, executeOrder)
-  features/wallet      ──► /api/v1/wallet         (balance)
+  features/transaction ──► /api/v1/transactions/* (list, order, legacy history)
+  features/wallet      ──► /api/v1/wallet/*       (balance, transactions/list, legacy transactions)
   features/chat        ──► /api/v1/chat           (AI copilot)
   shared/api           ──  RTK Query base slice + baseQueryWithReauth mutex wrapper
+  shared/constants     ──  assetTypes, transactionTypes, chartRanges, httpStatus, routes, apiUrls …
   shared/layout        ──  RootLayout (mounts SSE stream + GlobalLoader), Navbar, AppPageLayout, PageHeader
-  shared/ui            ──  Design-system primitives (Button, Card, Badge, LineChart, Spinner, GlobalLoader …)
+  shared/ui            ──  Design-system primitives (Button, Card, Badge, LineChart, DataTable, ServerDataTable, Spinner, GlobalLoader …)
   shared/errors        ──  RouteErrorBoundary, NotFoundCard
         │
         │ HTTPS + SSE
@@ -178,12 +179,15 @@ Express API (Node.js)
   /modules/auth        → register, login, logout, me, refresh (auth flow only)
   /modules/user        → User schema, profile CRUD, avatar (owns the User entity)
   /modules/asset       → asset model and validation (shared by market + seeder)
-  /modules/market      → assets, search, quote, ticker, chart, SSE stream (/market/stream)
+  /modules/market      → assets, assets/list, search, quote, ticker, chart, SSE stream (/market/stream)
                          models: StockPriceHistory, DailyPrice, MarketState
-  /modules/transaction → BUY/SELL order execution, history
+  /modules/transaction → BUY/SELL order execution, list (paginated/filtered), legacy history
   /modules/portfolio   → holdings + summary (computed, never stored)
-  /modules/wallet      → virtual ₹ balance
+  /modules/wallet      → virtual ₹ balance, transactions/list (paginated/filtered), legacy transactions
   /modules/chat        → Google Gemini with portfolio context
+  /shared/constants    → assetTypes, transactionTypes, exchangeTypes, chartRanges, httpStatus,
+                         timeConstants, defaultValues, eventTypes, validationRules, userRoles
+  /shared/pagination   → baseListQuerySchema (Zod), sendPaginatedSuccess()
         │
         ├── MongoDB Atlas   (transactions, users, assets, wallet,
         │                    stockpricehistories, dailyprices, marketstates)
@@ -203,8 +207,10 @@ Express API (Node.js)
 - All market data comes from the seeded internal asset catalog — no external market API calls.
 - JWTs live in HTTP-Only cookies only — the frontend never reads the raw token.
 - **Live prices:** Stock prices update every second via SSE (`price_update` events). Mutual fund NAVs are fixed for the day. The `useMarketStream` hook patches the RTK Query cache in-place so all pages re-render without polling.
-- **Price recovery:** On Redis miss or server restart, prices fall back through a three-tier chain: Redis → `MarketState.lastPrice` → `Asset.basePrice`. `Asset.basePrice` is strictly reference/seed data — `currentPrice` (resolved via the three-tier chain) is the live price reference everywhere. _(Phase 2)_
+- **Price recovery:** On Redis miss or server restart, prices fall back through a three-tier chain: Redis → `MarketState.lastPrice` → `Asset.basePrice`. `Asset.basePrice` is strictly reference/seed data — `currentPrice` (resolved via the three-tier chain) is the live price reference everywhere.
 - **DailyPrice persistence:** On graceful shutdown (`SIGTERM`/`SIGINT`), `dailyPriceService.writeTodayClose()` upserts today's closing price for every asset before the process exits. On startup, `backfillMissingDays()` fills any gap days (server was offline) by chaining the random-walk simulation from the last known `MarketState` price.
+- **Shared constants:** All magic strings (asset types, transaction types, HTTP codes, chart ranges, user roles) live in `shared/constants/` on both backend and frontend — never hardcoded.
+- **Standardised pagination:** All new list endpoints use `POST` with `{ pagination, filters, search, sort }` body and respond via `sendPaginatedSuccess()`. Legacy GET endpoints retained for backward compatibility.
 
 ---
 
@@ -243,16 +249,17 @@ Frontend useMarketStream hook (mounted in RootLayout)
   └── On price_update → patches RTK Query cache:
         getStockQuote / getMutualQuote  → StockDetailContent / MutualDetailContent
         getTickerQuotes                 → TickerStrip
-        getAssets                       → MarketContent (live price column)
+        getAssets                       → MarketContent (legacy)
+        listAssets (all cache entries)  → MarketContent ServerDataTable (live price column)
         getPortfolioHoldings            → HoldingsContent (currentPrice, P&L, portfolioWeight)
         getPortfolioSummary             → Dashboard stat cards (currentValue, totalPnL, %)
 ```
 
 ---
 
-## Historical Charts _(Phase 2)_
+## Historical Charts
 
-Stock and mutual fund detail pages include a price history chart backed by MongoDB. This work is part of Phase 2 alongside the AI Copilot v2 upgrade.
+Stock and mutual fund detail pages include a price history chart backed by MongoDB.
 
 | Range             | Data source                                                        | Granularity |
 | ----------------- | ------------------------------------------------------------------ | ----------- |

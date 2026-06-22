@@ -1,93 +1,139 @@
+import { useState, useMemo, useCallback } from 'react';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 import { MutedText } from '@/shared/ui/typography';
-import { formatCurrency } from '@/shared/utils';
-import { useGetTransactionsQuery } from '../api/transactionApi';
+import { ServerDataTable } from '@/shared/ui/server-data-table';
+import { formatCurrency, formatDateTime } from '@/shared/utils/format';
+import { useListTransactionsQuery } from '../api/transactionApi';
 
-const fmt = (n) => formatCurrency(n, 'INR');
-
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  return new Intl.DateTimeFormat('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
-};
+const columns = [
+  {
+    accessorKey: 'transactionType',
+    header: 'Type',
+    cell: ({ getValue }) => (
+      <Badge variant={getValue() === 'BUY' ? 'success' : 'danger'}>{getValue()}</Badge>
+    ),
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'quantity',
+    header: 'Qty',
+    meta: { className: 'text-right tabular-nums' },
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'pricePerUnit',
+    header: 'Price / unit',
+    cell: ({ getValue }) => formatCurrency(getValue()),
+    meta: { className: 'text-right tabular-nums' },
+    enableSorting: true,
+  },
+  {
+    id: 'total',
+    header: 'Total',
+    accessorFn: (row) => row.quantity * row.pricePerUnit,
+    cell: ({ getValue }) => <span className="font-semibold">{formatCurrency(getValue())}</span>,
+    meta: { className: 'text-right tabular-nums' },
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'fees',
+    header: 'Fees',
+    cell: ({ getValue }) => (getValue() > 0 ? formatCurrency(getValue()) : '—'),
+    meta: { className: 'text-right tabular-nums' },
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'executedAt',
+    header: 'Date & time',
+    cell: ({ getValue }) => <MutedText className="text-xs">{formatDateTime(getValue())}</MutedText>,
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+];
 
 /**
  * AssetTransactionsTable
  *
- * Renders a full-width transaction history table for a specific asset.
- * Shows "No transactions" when the list is empty.
+ * Renders a server-paginated data table for a specific asset's transactions.
  *
  * @param {string} assetId - MongoDB ObjectId of the asset
  */
 export const AssetTransactionsTable = ({ assetId }) => {
-  const { data, isLoading, isError } = useGetTransactionsQuery(
-    { assetId, limit: 50 },
+  const [paginationParams, setPaginationParams] = useState({ page: 1, limit: 5 });
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState(undefined);
+
+  const {
+    data: listData,
+    isLoading,
+    isFetching,
+    isError,
+  } = useListTransactionsQuery(
+    {
+      pagination: paginationParams,
+      filters: { assetId },
+      search,
+      sort,
+    },
     { skip: !assetId }
   );
 
-  const transactions = data?.transactions ?? [];
+  const transactions = listData?.items ?? [];
+  const pagination = listData?.pagination ?? {
+    page: 1,
+    limit: 5,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
+  const tableColumns = useMemo(() => columns, []);
+
+  const handlePaginationChange = useCallback(({ page, limit }) => {
+    setPaginationParams({ page, limit });
+  }, []);
+
+  const handleSearchChange = useCallback((term) => {
+    setSearch(term);
+    setPaginationParams((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const handleSortChange = useCallback((newSort) => {
+    setSort(newSort);
+  }, []);
 
   return (
     <Card className="w-full">
       <CardHeader className="py-3 px-6">
         <CardTitle className="text-base">Transaction History</CardTitle>
       </CardHeader>
-      <CardContent className="px-6 pt-0 pb-6">
-        {isLoading && <Spinner label="Loading transactions…" />}
+      <CardContent className="px-0 pt-0 pb-2">
+        {isLoading && transactions.length === 0 && <Spinner label="Loading transactions…" />}
         {isError && (
-          <div className="pt-4">
+          <div className="px-6 pt-4">
             <Alert variant="danger">Unable to load transactions.</Alert>
           </div>
         )}
-        {!isLoading && !isError && transactions.length === 0 && (
+        {!isLoading && !isError && pagination.total === 0 && !isFetching && (
           <div className="py-10 text-center">
             <MutedText>No transactions</MutedText>
           </div>
         )}
-        {!isLoading && !isError && transactions.length > 0 && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Price / unit</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Fees</TableHead>
-                <TableHead className="text-right">Date &amp; time</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.map((tx) => (
-                <TableRow key={tx.id}>
-                  <TableCell>
-                    <Badge variant={tx.transactionType === 'BUY' ? 'success' : 'danger'}>
-                      {tx.transactionType}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{tx.quantity}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(tx.pricePerUnit)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-semibold">
-                    {fmt(tx.quantity * tx.pricePerUnit)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {tx.fees > 0 ? fmt(tx.fees) : '—'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <MutedText className="text-xs">{fmtDate(tx.executedAt)}</MutedText>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        {(transactions.length > 0 || isFetching) && !isError && (
+          <ServerDataTable
+            columns={tableColumns}
+            data={transactions}
+            pagination={pagination}
+            onPaginationChange={handlePaginationChange}
+            onSearchChange={handleSearchChange}
+            onSortChange={handleSortChange}
+            searchPlaceholder="Filter transactions…"
+            showSearch={pagination.total > 5}
+            isLoading={isFetching}
+          />
         )}
       </CardContent>
     </Card>

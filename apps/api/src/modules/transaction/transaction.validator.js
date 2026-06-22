@@ -3,6 +3,7 @@
  * Zod schemas for validating incoming order and history-query payloads.
  */
 const { z } = require('zod');
+const { TRANSACTION_TYPE_VALUES } = require('../../shared/constants');
 
 /**
  * orderSchema
@@ -20,7 +21,7 @@ const orderSchema = z
   .object({
     assetId: z.string().min(1, 'assetId is required'),
 
-    transactionType: z.enum(['BUY', 'SELL'], {
+    transactionType: z.enum(TRANSACTION_TYPE_VALUES, {
       errorMap: () => ({ message: 'transactionType must be BUY or SELL' }),
     }),
 
@@ -46,13 +47,8 @@ const orderSchema = z
   .strict();
 
 /**
- * historyQuerySchema
+ * historyQuerySchema (LEGACY — kept for backward compatibility)
  * Validates query-string parameters for GET /transactions.
- *
- * Fields:
- *  - page    : Page number (1-based); defaults to 1
- *  - limit   : Items per page (1–100); defaults to 20
- *  - assetId : Optional MongoDB ObjectId string to filter by a specific asset
  */
 const historyQuerySchema = z
   .object({
@@ -62,4 +58,30 @@ const historyQuerySchema = z
   })
   .strict();
 
-module.exports = { orderSchema, historyQuerySchema };
+/**
+ * transactionListSchema
+ * Validates POST body for POST /transactions/list.
+ *
+ * Request body:
+ *   {
+ *     pagination: { page: 1, limit: 20 },
+ *     filters: { assetId?, transactionType? },
+ *     search: "",
+ *     sort: { field: "executedAt", order: "desc" }
+ *   }
+ */
+const { baseListQuerySchema } = require('../../shared/pagination');
+
+const transactionFiltersSchema = z
+  .object({
+    assetId: z.string().optional(),
+    transactionType: z.enum(TRANSACTION_TYPE_VALUES).optional(),
+  })
+  .optional()
+  .default({});
+
+const transactionListSchema = baseListQuerySchema.extend({
+  filters: transactionFiltersSchema,
+});
+
+module.exports = { orderSchema, historyQuerySchema, transactionListSchema };

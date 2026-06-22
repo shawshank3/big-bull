@@ -2,13 +2,14 @@
  * Market API — RTK Query endpoints for /api/v1/market/*.
  *
  * Endpoints:
- *   getAssets        — GET /api/v1/market/assets
- *   getAssetByTicker — GET /api/v1/market/assets/:ticker
- *   searchMarket     — GET /api/v1/market/search?q=
- *   getStockQuote    — GET /api/v1/market/quote/:symbol
- *   getMutualQuote   — GET /api/v1/market/quote/:schemeCode
- *   getTickerQuotes  — GET /api/v1/market/ticker
- *   getChart         — GET /api/v1/market/chart/:ticker?range=1D|1W|1M|3M|1Y
+ *   listAssets       — POST /api/v1/market/assets/list  (paginated, filtered)
+ *   getAssets        — GET  /api/v1/market/assets       (legacy)
+ *   getAssetByTicker — GET  /api/v1/market/assets/:ticker
+ *   searchMarket     — GET  /api/v1/market/search?q=
+ *   getStockQuote    — GET  /api/v1/market/quote/:symbol
+ *   getMutualQuote   — GET  /api/v1/market/quote/:schemeCode
+ *   getTickerQuotes  — GET  /api/v1/market/ticker
+ *   getChart         — GET  /api/v1/market/chart/:ticker?range=1D|1W|1M|3M|1Y
  */
 import { apiSlice } from '@/shared/api/apiSlice';
 import {
@@ -22,6 +23,29 @@ import {
 
 export const marketApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
+    /**
+     * POST /api/v1/market/assets/list
+     * Server-side paginated, filtered assets list.
+     *
+     * @param {object} payload
+     * @param {object} payload.pagination - { page, limit }
+     * @param {object} [payload.filters] - { assetType?, sector? }
+     * @param {string} [payload.search] - text search term (ticker/name/sector)
+     * @param {object} [payload.sort] - { field, order }
+     */
+    listAssets: builder.query({
+      query: (payload) => ({
+        url: '/api/v1/market/assets/list',
+        method: 'POST',
+        body: payload,
+      }),
+      transformResponse: (res) => ({
+        items: toAssetListDTO(res?.data?.items ?? []),
+        pagination: res?.data?.pagination ?? { page: 1, limit: 5, total: 0, totalPages: 1 },
+      }),
+    }),
+
+    /** Legacy GET endpoint — kept for backward compatibility */
     getAssets: builder.query({
       query: ({ type } = {}) => ({
         url: '/api/v1/market/assets',
@@ -29,6 +53,7 @@ export const marketApi = apiSlice.injectEndpoints({
       }),
       transformResponse: (res) => toAssetListDTO(res?.data?.assets ?? res?.data),
     }),
+
     getAssetByTicker: builder.query({
       query: (ticker) => `/api/v1/market/assets/${encodeURIComponent(ticker)}`,
       transformResponse: (res) => toAssetDTO(res?.data?.asset ?? res?.data),
@@ -59,6 +84,7 @@ export const marketApi = apiSlice.injectEndpoints({
 });
 
 export const {
+  useListAssetsQuery,
   useGetAssetsQuery,
   useGetAssetByTickerQuery,
   useLazySearchMarketQuery,

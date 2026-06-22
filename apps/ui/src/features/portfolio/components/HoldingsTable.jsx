@@ -1,12 +1,81 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/shared/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 import { MutedText, StatValue } from '@/shared/ui/typography';
+import { DataTable } from '@/shared/ui/data-table';
 import { formatCurrency, getHoldingReturn } from '@/shared/utils';
 import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
 
+const columns = [
+  {
+    accessorFn: (row) => row.name || row.ticker,
+    id: 'name',
+    header: 'Name',
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'type',
+    header: 'Type',
+    cell: ({ getValue }) => (
+      <Badge variant={getValue() === 'mutual' ? 'info' : 'warning'}>
+        {getValue() === 'mutual' ? 'MF' : 'STK'}
+      </Badge>
+    ),
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'qty',
+    header: 'Quantity',
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'avgPrice',
+    header: 'Avg price',
+    cell: ({ getValue }) => formatCurrency(getValue()),
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'currentPrice',
+    header: 'Current price',
+    cell: ({ getValue }) => formatCurrency(getValue()),
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+  {
+    id: 'value',
+    header: 'Value',
+    accessorFn: (row) => row.currentValue ?? row.qty * row.currentPrice,
+    cell: ({ getValue }) => formatCurrency(getValue()),
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+  {
+    id: 'return',
+    header: 'Return',
+    accessorFn: (row) => getHoldingReturn(row).value,
+    cell: ({ row }) => {
+      const { value, percentage } = getHoldingReturn(row.original);
+      return (
+        <div className="space-y-0.5">
+          <StatValue tone={value >= 0 ? 'success' : 'danger'} className="text-sm">
+            {formatCurrency(value)}
+          </StatValue>
+          <MutedText as="span" className="text-xs">
+            {percentage.toFixed(2)}%
+          </MutedText>
+        </div>
+      );
+    },
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+];
+
 export const HoldingsTable = ({ holdings }) => {
   const navigate = useNavigate();
+  const tableColumns = useMemo(() => columns, []);
 
   const getDetailPath = (holding) => {
     if (holding.type === 'mutual') {
@@ -15,61 +84,19 @@ export const HoldingsTable = ({ holdings }) => {
     return buildStockDetailPath(holding.ticker);
   };
 
+  const handleRowClick = (holding) => {
+    navigate(getDetailPath(holding), { state: { name: holding.name } });
+  };
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead className="text-right">Quantity</TableHead>
-          <TableHead className="text-right">Avg price</TableHead>
-          <TableHead className="text-right">Current price</TableHead>
-          <TableHead className="text-right">Value</TableHead>
-          <TableHead className="text-right">Return</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {holdings.map((holding) => {
-          const { value, percentage } = getHoldingReturn(holding);
-          return (
-            <TableRow
-              key={holding.assetId ?? holding._id}
-              className="cursor-pointer"
-              onClick={() => navigate(getDetailPath(holding), { state: { name: holding.name } })}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) =>
-                e.key === 'Enter' &&
-                navigate(getDetailPath(holding), { state: { name: holding.name } })
-              }
-            >
-              <TableCell>{holding.name || holding.ticker}</TableCell>
-              <TableCell>
-                <Badge variant={holding.type === 'mutual' ? 'info' : 'warning'}>
-                  {holding.type === 'mutual' ? 'MF' : 'STK'}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right">{holding.qty}</TableCell>
-              <TableCell className="text-right">{formatCurrency(holding.avgPrice)}</TableCell>
-              <TableCell className="text-right">{formatCurrency(holding.currentPrice)}</TableCell>
-              <TableCell className="text-right">
-                {formatCurrency(holding.currentValue ?? holding.qty * holding.currentPrice)}
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="space-y-0.5">
-                  <StatValue tone={value >= 0 ? 'success' : 'danger'} className="text-sm">
-                    {formatCurrency(value)}
-                  </StatValue>
-                  <MutedText as="span" className="text-xs">
-                    {percentage.toFixed(2)}%
-                  </MutedText>
-                </div>
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+    <DataTable
+      columns={tableColumns}
+      data={holdings}
+      searchPlaceholder="Search holdings…"
+      searchKey="name"
+      onRowClick={handleRowClick}
+      pageSize={10}
+    />
   );
 };
 

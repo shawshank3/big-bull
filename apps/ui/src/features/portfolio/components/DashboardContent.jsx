@@ -14,8 +14,14 @@ export const DashboardContent = () => {
     data: holdings = [],
     isLoading,
     error,
-  } = useGetPortfolioHoldingsQuery(undefined, { skip: !isAuthenticated });
-  const { data: summary = {} } = useGetPortfolioSummaryQuery(undefined, { skip: !isAuthenticated });
+  } = useGetPortfolioHoldingsQuery(undefined, {
+    skip: !isAuthenticated,
+    refetchOnMountOrArgChange: true,
+  });
+  const { data: summary = {} } = useGetPortfolioSummaryQuery(undefined, {
+    skip: !isAuthenticated,
+    refetchOnMountOrArgChange: true,
+  });
   const allocation = getAllocation(holdings);
 
   return (

@@ -1,61 +1,96 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';
-import { useGetAssetsQuery } from '../api/marketApi';
+import { ServerDataTable } from '@/shared/ui/server-data-table';
+import { formatCurrency } from '@/shared/utils/format';
+import { useListAssetsQuery } from '../api/marketApi';
 import { buildStockDetailPath, buildMutualDetailPath } from '../constants/market';
-
-const fmt = (n) =>
-  new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(n ?? 0);
+import { ASSET_TYPES } from '@/shared/constants/assetTypes';
 
 const TABS = [
   { label: 'All', value: '' },
-  { label: 'Stocks', value: 'STOCK' },
-  { label: 'Mutual Funds', value: 'MUTUAL_FUND' },
+  { label: 'Stocks', value: ASSET_TYPES.STOCK },
+  { label: 'Mutual Funds', value: ASSET_TYPES.MUTUAL_FUND },
 ];
 
-const AssetRow = ({ asset, onClick }) => (
-  <tr
-    className="border-b border-border last:border-0 hover:bg-muted/5 cursor-pointer transition-colors"
-    onClick={onClick}
-    role="button"
-    tabIndex={0}
-    onKeyDown={(e) => e.key === 'Enter' && onClick()}
-  >
-    <td className="py-3 pl-6 pr-4">
-      <p className="font-semibold text-sm">{asset.ticker}</p>
-      <p className="text-xs text-muted truncate max-w-[200px]">{asset.name}</p>
-    </td>
-    <td className="py-3 pr-4">
-      <Badge variant={asset.assetType === 'STOCK' ? 'warning' : 'info'}>
-        {asset.assetType === 'STOCK' ? 'NSE' : 'MF'}
+const columns = [
+  {
+    accessorKey: 'ticker',
+    header: 'Asset',
+    cell: ({ row }) => (
+      <div>
+        <p className="font-semibold text-sm">{row.original.ticker}</p>
+        <p className="text-xs text-muted truncate max-w-[200px]">{row.original.name}</p>
+      </div>
+    ),
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'assetType',
+    header: 'Type',
+    cell: ({ row }) => (
+      <Badge variant={row.original.assetType === ASSET_TYPES.STOCK ? 'warning' : 'info'}>
+        {row.original.assetType === ASSET_TYPES.STOCK ? 'NSE' : 'MF'}
       </Badge>
-    </td>
-    <td className="py-3 pr-4 text-sm text-muted">{asset.sector?.replace(/_/g, ' ')}</td>
-    <td className="py-3 pr-6 tabular-nums text-right text-sm font-semibold">
-      {fmt(asset.currentPrice)}
-    </td>
-  </tr>
-);
+    ),
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'sector',
+    header: 'Sector',
+    cell: ({ getValue }) => (
+      <span className="text-sm text-muted">{getValue()?.replace(/_/g, ' ') ?? '—'}</span>
+    ),
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'currentPrice',
+    header: 'Price',
+    cell: ({ getValue }) => (
+      <span className="tabular-nums text-sm font-semibold">{formatCurrency(getValue() ?? 0)}</span>
+    ),
+    meta: { className: 'text-right' },
+    enableSorting: false,
+  },
+];
 
 export const MarketContent = () => {
   const navigate = useNavigate();
   const [activeType, setActiveType] = useState('');
+
+  // Server-side pagination state
+  const [paginationParams, setPaginationParams] = useState({ page: 1, limit: 5 });
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState(undefined);
+
   const {
-    data: assets = [],
+    data: listData,
     isLoading,
+    isFetching,
     isError,
-  } = useGetAssetsQuery(activeType ? { type: activeType } : undefined, { pollingInterval: 60000 });
+  } = useListAssetsQuery({
+    pagination: paginationParams,
+    filters: activeType ? { assetType: activeType } : {},
+    search,
+    sort,
+  });
+
+  const assets = listData?.items ?? [];
+  const pagination = listData?.pagination ?? {
+    page: 1,
+    limit: 5,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
 
   const handleRowClick = (asset) => {
-    if (asset.assetType === 'STOCK')
+    if (asset.assetType === ASSET_TYPES.STOCK)
       navigate(buildStockDetailPath(asset.ticker), {
         state: { name: asset.name, assetId: asset.id },
       });
@@ -64,6 +99,26 @@ export const MarketContent = () => {
         state: { name: asset.name, assetId: asset.id },
       });
   };
+
+  const tableColumns = useMemo(() => columns, []);
+
+  const handlePaginationChange = useCallback(({ page, limit }) => {
+    setPaginationParams({ page, limit });
+  }, []);
+
+  const handleSearchChange = useCallback((term) => {
+    setSearch(term);
+    setPaginationParams((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const handleSortChange = useCallback((newSort) => {
+    setSort(newSort);
+  }, []);
+
+  const handleTabChange = useCallback((value) => {
+    setActiveType(value);
+    setPaginationParams((prev) => ({ ...prev, page: 1 }));
+  }, []);
 
   return (
     <>
@@ -76,7 +131,7 @@ export const MarketContent = () => {
           <button
             key={value}
             type="button"
-            onClick={() => setActiveType(value)}
+            onClick={() => handleTabChange(value)}
             className={[
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeType === value
@@ -89,9 +144,9 @@ export const MarketContent = () => {
         ))}
       </div>
       {isError && <Alert variant="danger">Unable to load assets right now.</Alert>}
-      {isLoading ? (
+      {isLoading && assets.length === 0 ? (
         <Spinner label="Loading market…" />
-      ) : assets.length === 0 ? (
+      ) : !isLoading && assets.length === 0 && !isFetching ? (
         <Card>
           <CardContent className="py-16 text-center text-muted">
             No assets found. Run the seed script to populate the market catalog.
@@ -99,22 +154,18 @@ export const MarketContent = () => {
         </Card>
       ) : (
         <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted text-xs uppercase tracking-wide">
-                  <th className="py-3 pl-6 pr-4 text-left font-medium">Asset</th>
-                  <th className="py-3 pr-4 text-left font-medium">Type</th>
-                  <th className="py-3 pr-4 text-left font-medium">Sector</th>
-                  <th className="py-3 pr-6 text-right font-medium">Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assets.map((asset) => (
-                  <AssetRow key={asset.id} asset={asset} onClick={() => handleRowClick(asset)} />
-                ))}
-              </tbody>
-            </table>
+          <CardContent className="p-0">
+            <ServerDataTable
+              columns={tableColumns}
+              data={assets}
+              pagination={pagination}
+              onPaginationChange={handlePaginationChange}
+              onSearchChange={handleSearchChange}
+              onSortChange={handleSortChange}
+              searchPlaceholder="Search by ticker, name, or sector…"
+              onRowClick={handleRowClick}
+              isLoading={isFetching}
+            />
           </CardContent>
         </Card>
       )}

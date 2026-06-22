@@ -27,6 +27,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/shared/utils/format';
 
 // ─── Colour map: prop → CSS variable ─────────────────────────────────────────
 const STROKE = {
@@ -46,13 +47,6 @@ const formatDaily = (iso) => {
   const d = new Date(iso);
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
-
-const formatINR = (value) =>
-  new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(value);
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
 
@@ -88,7 +82,7 @@ export const LineChart = React.forwardRef(
 
     const defaultFormatX = granularity === 'daily' ? formatDaily : formatIntraday;
     const xFormatter = formatX ?? defaultFormatX;
-    const yFormatter = formatY ?? ((v) => `₹${Math.round(v).toLocaleString('en-IN')}`);
+    const yFormatter = formatY ?? ((v) => formatCurrency(Math.round(v)));
 
     // Compute y-axis domain with a small buffer so the line doesn't hug edges
     const prices = points.map((p) => p.price);
@@ -101,7 +95,7 @@ export const LineChart = React.forwardRef(
     return (
       <div ref={ref} className={cn('w-full', className)} {...props}>
         <ResponsiveContainer width="100%" height={height}>
-          <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+          <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={stroke} stopOpacity={0.18} />
@@ -126,12 +120,12 @@ export const LineChart = React.forwardRef(
               tick={{ fontSize: 10, fill: 'var(--muted)', fontFamily: 'inherit' }}
               axisLine={false}
               tickLine={false}
-              width={64}
+              width={56}
               tickCount={4}
             />
 
             <Tooltip
-              content={<ChartTooltip labelFormatter={xFormatter} valueFormatter={formatINR} />}
+              content={<ChartTooltip labelFormatter={xFormatter} valueFormatter={formatCurrency} />}
               cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
             />
 

@@ -13,6 +13,7 @@ const v1AuthRoutes = require('./modules/auth/auth.routes');
 const v1UserRoutes = require('./modules/user/user.routes');
 const v1WalletRoutes = require('./modules/wallet/wallet.routes');
 const v1TransactionRoutes = require('./modules/transaction/transaction.routes');
+const { HTTP_STATUS } = require('./shared/constants');
 const v1PortfolioRoutes = require('./modules/portfolio/portfolio.routes');
 const v1MarketRoutes = require('./modules/market/market.routes');
 const v1ChatRoutes = require('./modules/chat/chat.routes');
@@ -99,7 +100,7 @@ app.get('*', (req, res, next) => {
 
 // 404 handler for unknown API routes
 app.use((req, res) => {
-  res.status(404).json({
+  res.status(HTTP_STATUS.NOT_FOUND).json({
     success: false,
     message: 'Route not found',
   });

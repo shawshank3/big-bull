@@ -11,6 +11,7 @@
  *    computed via aggregateHoldings() from raw transactions.
  */
 const mongoose = require('mongoose');
+const { TRANSACTION_TYPE_VALUES } = require('../../shared/constants');
 
 const transactionSchema = new mongoose.Schema(
   {
@@ -32,7 +33,7 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       required: [true, 'transactionType is required'],
       enum: {
-        values: ['BUY', 'SELL'],
+        values: TRANSACTION_TYPE_VALUES,
         message: 'transactionType must be BUY or SELL',
       },
     },

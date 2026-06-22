@@ -15,6 +15,8 @@
  * - Live ticker: UI smoothness — 1s visual updates without DB overhead.
  */
 
+const { ASSET_TYPES, SSE_EVENTS } = require('../shared/constants');
+
 // ─── In-memory price cache ────────────────────────────────────────────────────
 // Map<ticker, { price, volatility }>
 // Seeded/refreshed by the BullMQ worker on every 30s tick.
@@ -31,7 +33,7 @@ const seedPriceCache = (assets) => {
     priceCache.set(ticker, {
       price,
       volatility: volatility ?? 0.01,
-      assetType: assetType ?? 'STOCK',
+      assetType: assetType ?? ASSET_TYPES.STOCK,
     });
   }
 };
@@ -59,7 +61,7 @@ const startLiveTicker = () => {
 
     for (const [ticker, entry] of priceCache.entries()) {
       // Mutual fund NAVs update once daily — skip intra-day 1s ticks
-      if (entry.assetType === 'MUTUAL_FUND') continue;
+      if (entry.assetType === ASSET_TYPES.MUTUAL_FUND) continue;
 
       const prevPrice = entry.price;
 

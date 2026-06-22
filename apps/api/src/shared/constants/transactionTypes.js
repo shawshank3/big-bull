@@ -1,0 +1,29 @@
+// Transaction Type Constants
+const TRANSACTION_TYPES = {
+  BUY: 'BUY',
+  SELL: 'SELL',
+};
+
+const TRANSACTION_TYPE_VALUES = Object.values(TRANSACTION_TYPES);
+
+// Display labels for transaction types
+const TRANSACTION_TYPE_LABELS = {
+  [TRANSACTION_TYPES.BUY]: 'Buy',
+  [TRANSACTION_TYPES.SELL]: 'Sell',
+};
+
+// Wallet transaction types
+const WALLET_TRANSACTION_TYPES = {
+  DEBIT: 'DEBIT',
+  CREDIT: 'CREDIT',
+};
+
+const WALLET_TRANSACTION_TYPE_VALUES = Object.values(WALLET_TRANSACTION_TYPES);
+
+module.exports = {
+  TRANSACTION_TYPES,
+  TRANSACTION_TYPE_VALUES,
+  TRANSACTION_TYPE_LABELS,
+  WALLET_TRANSACTION_TYPES,
+  WALLET_TRANSACTION_TYPE_VALUES,
+};

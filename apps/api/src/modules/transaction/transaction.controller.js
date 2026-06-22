@@ -4,13 +4,19 @@
  *
  * Routes:
  *   POST /order  → executeOrder
- *   GET  /       → getHistory
+ *   POST /list   → listTransactions  (paginated, filtered — standardised)
+ *   GET  /       → getHistory         (legacy GET — still supported)
  */
 const catchAsync = require('../../shared/catchAsync');
 const AppError = require('../../shared/AppError');
 const { sendSuccess } = require('../../utils/response');
+const { sendPaginatedSuccess } = require('../../shared/pagination');
 const transactionService = require('./transaction.service');
-const { orderSchema, historyQuerySchema } = require('./transaction.validator');
+const {
+  orderSchema,
+  historyQuerySchema,
+  transactionListSchema,
+} = require('./transaction.validator');
 
 /**
  * POST /transactions/order
@@ -33,10 +39,43 @@ const executeOrder = catchAsync(async (req, res) => {
 });
 
 /**
- * GET /transactions
+ * POST /transactions/list
+ *
+ * Returns a paginated, filtered, searchable transaction history.
+ * Uses standardised POST body with pagination, filters, search, and sort.
+ */
+const listTransactions = catchAsync(async (req, res) => {
+  const result = transactionListSchema.safeParse(req.body);
+
+  if (!result.success) {
+    const message = result.error.errors?.[0]?.message ?? 'Invalid request payload';
+    throw new AppError(message, 400);
+  }
+
+  const { pagination, filters, search, sort } = result.data;
+  const data = await transactionService.listTransactions(req.user.id, {
+    page: pagination.page,
+    limit: pagination.limit,
+    filters,
+    search,
+    sort,
+  });
+
+  sendPaginatedSuccess(
+    res,
+    data.transactions,
+    data.total,
+    pagination.page,
+    pagination.limit,
+    'Transaction history retrieved'
+  );
+});
+
+/**
+ * GET /transactions (LEGACY)
  *
  * Returns a paginated, reverse-chronological transaction history for the
- * authenticated user.
+ * authenticated user. Kept for backward compatibility.
  */
 const getHistory = catchAsync(async (req, res) => {
   const result = historyQuerySchema.safeParse(req.query);
@@ -51,4 +90,4 @@ const getHistory = catchAsync(async (req, res) => {
   sendSuccess(res, data, 'Transaction history retrieved');
 });
 
-module.exports = { executeOrder, getHistory };
+module.exports = { executeOrder, getHistory, listTransactions };

@@ -1,33 +1,29 @@
+import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Spinner } from '@/shared/ui/spinner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { PageHeader } from '@/shared/layout/PageHeader';
+import { DataTable } from '@/shared/ui/data-table';
 import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../api/portfolioApi';
+import { formatCurrency } from '@/shared/utils/format';
 import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
 
-const fmt = (n) =>
-  new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(n ?? 0);
 const pct = (n) => `${n >= 0 ? '+' : ''}${(n ?? 0).toFixed(2)}%`;
 
 const SummaryBar = ({ summary }) => (
   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
     {[
-      { label: 'Invested', value: fmt(summary?.totalInvested) },
-      { label: 'Current value', value: fmt(summary?.currentValue) },
+      { label: 'Invested', value: formatCurrency(summary?.totalInvested ?? 0) },
+      { label: 'Current value', value: formatCurrency(summary?.currentValue ?? 0) },
       {
         label: 'Total P&L',
-        value: fmt(summary?.totalPnL),
+        value: formatCurrency(summary?.totalPnL ?? 0),
         className: summary?.totalPnL >= 0 ? 'text-success' : 'text-danger',
       },
-      { label: 'Cash balance', value: fmt(summary?.cashBalance) },
+      { label: 'Cash balance', value: formatCurrency(summary?.cashBalance ?? 0) },
     ].map(({ label, value, className }) => (
       <Card key={label}>
         <CardContent className="py-4">
@@ -39,59 +35,87 @@ const SummaryBar = ({ summary }) => (
   </div>
 );
 
-const HoldingRow = ({ holding }) => {
-  const navigate = useNavigate();
-  const pnlUp = holding.unrealisedPnL >= 0;
-
-  const getDetailPath = () => {
-    if (holding.asset?.assetType === 'MUTUAL_FUND') {
-      return buildMutualDetailPath(holding.asset.ticker);
-    }
-    return buildStockDetailPath(holding.asset.ticker);
-  };
-
-  return (
-    <TableRow
-      className="cursor-pointer"
-      onClick={() => navigate(getDetailPath(), { state: { name: holding.asset?.name } })}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) =>
-        e.key === 'Enter' && navigate(getDetailPath(), { state: { name: holding.asset?.name } })
-      }
-    >
-      <TableCell>
-        <p className="font-semibold">{holding.asset?.ticker}</p>
-        <MutedText className="text-xs truncate max-w-[160px]">{holding.asset?.name}</MutedText>
-      </TableCell>
-      <TableCell className="text-right">{holding.netQuantity}</TableCell>
-      <TableCell className="text-right">{fmt(holding.avgCostBasis)}</TableCell>
-      <TableCell className="text-right">{fmt(holding.currentPrice)}</TableCell>
-      <TableCell className="text-right">
+const columns = [
+  {
+    accessorFn: (row) => row.asset?.ticker ?? '',
+    id: 'ticker',
+    header: 'Asset',
+    cell: ({ row }) => (
+      <div>
+        <p className="font-semibold">{row.original.asset?.ticker}</p>
+        <MutedText className="text-xs truncate max-w-[160px]">{row.original.asset?.name}</MutedText>
+      </div>
+    ),
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'netQuantity',
+    header: 'Qty',
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'avgCostBasis',
+    header: 'Avg Cost',
+    cell: ({ getValue }) => formatCurrency(getValue()),
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'currentPrice',
+    header: 'Price',
+    cell: ({ getValue }) => formatCurrency(getValue()),
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'unrealisedPnL',
+    header: 'Unrealised P&L',
+    cell: ({ row }) => {
+      const pnlUp = row.original.unrealisedPnL >= 0;
+      return (
         <div className="space-y-0.5">
           <StatValue tone={pnlUp ? 'success' : 'danger'} className="text-sm">
-            {fmt(holding.unrealisedPnL)}
+            {formatCurrency(row.original.unrealisedPnL)}
           </StatValue>
           <MutedText as="span" className="text-xs">
-            {pct(holding.unrealisedPnLPercent)}
+            {pct(row.original.unrealisedPnLPercent)}
           </MutedText>
         </div>
-      </TableCell>
-    </TableRow>
-  );
-};
+      );
+    },
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+];
 
 export const HoldingsContent = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+
   const { data: summary, isLoading: summaryLoading } = useGetPortfolioSummaryQuery(undefined, {
     skip: !isAuthenticated,
+    refetchOnMountOrArgChange: true,
   });
   const {
     data: holdingsData,
     isLoading,
     error,
-  } = useGetPortfolioHoldingsQuery(undefined, { skip: !isAuthenticated, pollingInterval: 30000 });
+  } = useGetPortfolioHoldingsQuery(undefined, {
+    skip: !isAuthenticated,
+    refetchOnMountOrArgChange: true,
+  });
   const holdings = holdingsData ?? [];
+
+  const tableColumns = useMemo(() => columns, []);
+
+  const handleRowClick = (holding) => {
+    const path =
+      holding.asset?.assetType === 'MUTUAL_FUND'
+        ? buildMutualDetailPath(holding.asset.ticker)
+        : buildStockDetailPath(holding.asset.ticker);
+    navigate(path, { state: { name: holding.asset?.name } });
+  };
 
   return (
     <>
@@ -112,22 +136,14 @@ export const HoldingsContent = () => {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Asset</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Avg Cost</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead className="text-right">Unrealised P&L</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {holdings.map((h) => (
-                  <HoldingRow key={h.assetId} holding={h} />
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={tableColumns}
+              data={holdings}
+              searchPlaceholder="Search holdings…"
+              searchKey="ticker"
+              onRowClick={handleRowClick}
+              pageSize={10}
+            />
           </CardContent>
         </Card>
       )}

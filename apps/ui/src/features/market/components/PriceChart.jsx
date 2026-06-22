@@ -31,11 +31,23 @@ import { Alert } from '@/shared/ui/alert';
 import { LineChart } from '@/shared/ui/line-chart';
 import { formatCurrency } from '@/shared/utils';
 import { useGetChartQuery } from '../api/marketApi';
+import { ASSET_TYPES, CHART_RANGES } from '@/shared/constants';
 
 // ─── Range options ────────────────────────────────────────────────────────────
 
-const STOCK_RANGES = ['1D', '1W', '1M', '3M', '1Y'];
-const MF_RANGES = ['1W', '1M', '3M', '1Y'];
+const STOCK_RANGES = [
+  CHART_RANGES.ONE_DAY,
+  CHART_RANGES.ONE_WEEK,
+  CHART_RANGES.ONE_MONTH,
+  CHART_RANGES.THREE_MONTHS,
+  CHART_RANGES.ONE_YEAR,
+];
+const MF_RANGES = [
+  CHART_RANGES.ONE_WEEK,
+  CHART_RANGES.ONE_MONTH,
+  CHART_RANGES.THREE_MONTHS,
+  CHART_RANGES.ONE_YEAR,
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -100,7 +112,7 @@ const ChartError = () => (
 
 const ChartEmpty = ({ range, assetType }) => {
   const msg =
-    assetType === 'MUTUAL_FUND' && range === '1D'
+    assetType === ASSET_TYPES.MUTUAL_FUND && range === CHART_RANGES.ONE_DAY
       ? 'Intraday chart is not available for mutual funds. Select 1W or longer.'
       : `No chart data available for the ${range} range yet. Data builds up as the simulation runs.`;
   return (
@@ -123,19 +135,16 @@ const ChartEmpty = ({ range, assetType }) => {
  *                                  on the trailing edge regardless.
  */
 export const PriceChart = ({ ticker, assetType, currentPrice, header }) => {
-  const isMF = assetType === 'MUTUAL_FUND';
+  const isMF = assetType === ASSET_TYPES.MUTUAL_FUND;
   const ranges = isMF ? MF_RANGES : STOCK_RANGES;
-  const [range, setRange] = useState(isMF ? '1W' : '1D');
+  const [range, setRange] = useState(isMF ? CHART_RANGES.ONE_WEEK : CHART_RANGES.ONE_DAY);
 
   const {
     data: chart,
     isLoading,
     isError,
     isFetching,
-  } = useGetChartQuery(
-    { ticker, range },
-    { skip: !ticker, pollingInterval: range === '1D' ? 60000 : 0 }
-  );
+  } = useGetChartQuery({ ticker, range }, { skip: !ticker });
 
   const points = chart?.points ?? [];
   const granularity = chart?.granularity ?? (range === '1D' ? '30s' : 'daily');

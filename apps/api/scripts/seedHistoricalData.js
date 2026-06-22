@@ -41,6 +41,7 @@ const Asset = require('../src/modules/asset/asset.model');
 const DailyPrice = require('../src/modules/market/dailyPrice.model');
 const StockPriceHistory = require('../src/modules/market/stockPriceHistory.model');
 const MarketState = require('../src/modules/market/marketState.model');
+const { ASSET_TYPES } = require('../src/shared/constants');
 
 // ─── CLI args ─────────────────────────────────────────────────────────────────
 
@@ -186,7 +187,7 @@ const seed = async () => {
   const TICK_INTERVAL_S = 30;
   const tickCount = Math.floor((MARKET_CLOSE_OFFSET_S - MARKET_OPEN_OFFSET_S) / TICK_INTERVAL_S);
 
-  const stocks = assets.filter((a) => a.assetType === 'STOCK');
+  const stocks = assets.filter((a) => a.assetType === ASSET_TYPES.STOCK);
 
   for (const asset of stocks) {
     // Start intraday from yesterday's close (the last simulated daily price)

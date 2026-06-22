@@ -15,6 +15,7 @@
 const redis = require('../../shared/redis');
 const Asset = require('../asset/asset.model');
 const MarketState = require('./marketState.model');
+const { ASSET_TYPES, PRICE_LABELS } = require('../../shared/constants');
 
 /**
  * resolvePrice(ticker, basePrice)
@@ -144,17 +145,17 @@ const getQuote = async (ticker) => {
     name: asset.name,
     assetType: asset.assetType,
     price,
-    priceLabel: asset.assetType === 'MUTUAL_FUND' ? 'NAV' : 'Price',
+    priceLabel: PRICE_LABELS[asset.assetType] || 'Price',
     currency: 'INR',
     change,
     changePercent,
     sector: asset.sector,
     // MF metadata (present only for MUTUAL_FUND)
-    ...(asset.assetType === 'MUTUAL_FUND' && {
+    ...(asset.assetType === ASSET_TYPES.MUTUAL_FUND && {
       schemeCode: asset.ticker,
       fundHouse: null,
       schemeCategory: asset.sector,
-      schemeType: 'MUTUAL_FUND',
+      schemeType: ASSET_TYPES.MUTUAL_FUND,
     }),
     asOf: new Date().toISOString().split('T')[0],
   };
@@ -232,7 +233,7 @@ const getTicker = async () => {
 // ─── Internal helper ──────────────────────────────────────────────────────────
 
 const formatAssetResult = (asset, livePrice) => ({
-  type: asset.assetType === 'STOCK' ? 'stock' : 'mutual',
+  type: asset.assetType === ASSET_TYPES.STOCK ? 'stock' : 'mutual',
   id: asset.ticker,
   assetId: asset._id,
   ticker: asset.ticker,

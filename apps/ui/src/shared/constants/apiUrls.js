@@ -18,9 +18,11 @@ export const API_URLS = {
   },
   WALLET: {
     BASE: '/api/v1/wallet',
+    TRANSACTIONS_LIST: '/api/v1/wallet/transactions/list',
   },
   TRANSACTIONS: {
     BASE: '/api/v1/transactions',
+    LIST: '/api/v1/transactions/list',
     ORDER: '/api/v1/transactions/order',
   },
   CHAT: {
@@ -29,6 +31,7 @@ export const API_URLS = {
   MARKET: {
     SEARCH: '/api/v1/market/search',
     TICKER: '/api/v1/market/ticker',
+    ASSETS_LIST: '/api/v1/market/assets/list',
     STOCK: (symbol) => `/api/v1/market/quote/${encodeURIComponent(symbol)}`,
     MUTUAL: (schemeCode) => `/api/v1/market/quote/${encodeURIComponent(schemeCode)}`,
     STREAM: '/api/v1/market/stream',

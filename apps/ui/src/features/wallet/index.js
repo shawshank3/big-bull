@@ -1,2 +1,3 @@
 // Wallet feature public API
-export { walletApi, useGetWalletQuery } from './api/walletApi';
+export { walletApi, useGetWalletQuery, useGetWalletTransactionsQuery } from './api/walletApi';
+export { Wallet } from './routes/Wallet';

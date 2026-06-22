@@ -15,6 +15,7 @@ const MarketState = require('../market/marketState.model');
 const AppError = require('../../shared/AppError');
 const walletService = require('../wallet/wallet.service');
 const redis = require('../../shared/redis');
+const { TRANSACTION_TYPES, ASSET_TYPES } = require('../../shared/constants');
 
 /**
  * resolveExecutionPrice(assetId)
@@ -89,19 +90,19 @@ const aggregateHoldings = async (userId) => {
         _id: '$assetId',
         totalBuyQty: {
           $sum: {
-            $cond: [{ $eq: ['$transactionType', 'BUY'] }, '$quantity', 0],
+            $cond: [{ $eq: ['$transactionType', TRANSACTION_TYPES.BUY] }, '$quantity', 0],
           },
         },
         totalSellQty: {
           $sum: {
-            $cond: [{ $eq: ['$transactionType', 'SELL'] }, '$quantity', 0],
+            $cond: [{ $eq: ['$transactionType', TRANSACTION_TYPES.SELL] }, '$quantity', 0],
           },
         },
         // Total amount spent on BUY orders (quantity × pricePerUnit for BUY only)
         totalBuyCost: {
           $sum: {
             $cond: [
-              { $eq: ['$transactionType', 'BUY'] },
+              { $eq: ['$transactionType', TRANSACTION_TYPES.BUY] },
               { $multiply: ['$quantity', '$pricePerUnit'] },
               0,
             ],
@@ -204,10 +205,16 @@ const executeOrder = async (userId, orderData) => {
   }
 
   // ── Resolve execution price from Redis / asset catalog ────────────────
-  const { pricePerUnit } = await resolveExecutionPrice(assetId);
+  const { asset, pricePerUnit } = await resolveExecutionPrice(assetId);
+
+  // User-friendly display name for error messages (ticker for stocks, name for MFs)
+  const assetDisplayName =
+    asset?.assetType === ASSET_TYPES.MUTUAL_FUND
+      ? (asset?.name ?? asset?.ticker ?? assetId)
+      : (asset?.ticker ?? asset?.name ?? assetId);
 
   // ── Pre-flight checks ──────────────────────────────────────────────────
-  if (transactionType === 'SELL') {
+  if (transactionType === TRANSACTION_TYPES.SELL) {
     // Ensure the user actually holds enough of this asset
     const holdings = await aggregateHoldings(userId);
     const holding = holdings.find((h) => h.assetId.toString() === assetId.toString());
@@ -215,17 +222,24 @@ const executeOrder = async (userId, orderData) => {
     const heldQty = holding ? holding.netQuantity : 0;
 
     if (heldQty < quantity) {
-      const ticker = holding?.asset?.ticker ?? assetId;
-      throw new AppError(`Insufficient holdings. You hold ${heldQty} units of ${ticker}`, 400);
+      const shortBy = +(quantity - heldQty).toFixed(3);
+      throw new AppError(
+        `Insufficient holdings for ${assetDisplayName}. You are ${shortBy} units short.`,
+        400
+      );
     }
   }
 
-  if (transactionType === 'BUY') {
+  if (transactionType === TRANSACTION_TYPES.BUY) {
     const totalCost = quantity * pricePerUnit + fees;
     const wallet = await walletService.getBalance(userId);
 
     if (wallet.balance < totalCost) {
-      throw new AppError('Insufficient wallet balance', 400);
+      const shortBy = (totalCost - wallet.balance).toFixed(2);
+      throw new AppError(
+        `Insufficient wallet balance to buy ${assetDisplayName}. You need ₹${shortBy} more.`,
+        400
+      );
     }
   }
 
@@ -248,7 +262,7 @@ const executeOrder = async (userId, orderData) => {
 
     const [tx] = await Transaction.create([txData], { session });
 
-    if (transactionType === 'BUY') {
+    if (transactionType === TRANSACTION_TYPES.BUY) {
       const totalCost = quantity * pricePerUnit + fees;
       await walletService.debit(userId, totalCost, session);
     } else {
@@ -301,8 +315,54 @@ const getTransactionHistory = async (userId, { page = 1, limit = 20, assetId } =
   };
 };
 
+/**
+ * listTransactions(userId, { page, limit, filters, search, sort })
+ *
+ * Standardised paginated list with filters and search.
+ * Used by POST /transactions/list.
+ *
+ * @param {string} userId
+ * @param {object} options
+ * @returns {Promise<{ transactions: Array, total: number }>}
+ */
+const listTransactions = async (
+  userId,
+  { page = 1, limit = 20, filters = {}, search = '', sort } = {}
+) => {
+  const skip = (page - 1) * limit;
+
+  // Build filter query
+  const query = { userId };
+  if (filters.assetId && mongoose.Types.ObjectId.isValid(filters.assetId)) {
+    query.assetId = new mongoose.Types.ObjectId(filters.assetId);
+  }
+  if (filters.transactionType) {
+    query.transactionType = filters.transactionType;
+  }
+
+  // Text search on notes field (if search term provided)
+  if (search && search.trim()) {
+    query.notes = { $regex: search.trim(), $options: 'i' };
+  }
+
+  // Build sort
+  const allowedSortFields = ['executedAt', 'quantity', 'pricePerUnit', 'fees'];
+  let sortObj = { executedAt: -1 }; // default
+  if (sort && sort.field && allowedSortFields.includes(sort.field)) {
+    sortObj = { [sort.field]: sort.order === 'asc' ? 1 : -1 };
+  }
+
+  const [transactions, total] = await Promise.all([
+    Transaction.find(query).sort(sortObj).skip(skip).limit(limit).lean(),
+    Transaction.countDocuments(query),
+  ]);
+
+  return { transactions, total };
+};
+
 module.exports = {
   aggregateHoldings,
   executeOrder,
   getTransactionHistory,
+  listTransactions,
 };

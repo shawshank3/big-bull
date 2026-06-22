@@ -39,7 +39,7 @@ export const MutualDetailContent = () => {
     data: quote,
     isLoading: quoteLoading,
     isError: quoteError,
-  } = useGetMutualQuoteQuery(schemeCode, { skip: !schemeCode, pollingInterval: 60000 });
+  } = useGetMutualQuoteQuery(schemeCode, { skip: !schemeCode });
   const { data: asset } = useGetAssetByTickerQuery(schemeCode, { skip: !schemeCode });
 
   const title = displayName || quote?.name || `Scheme ${schemeCode}`;

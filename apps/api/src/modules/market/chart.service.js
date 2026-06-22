@@ -18,6 +18,7 @@
 
 const Asset = require('../asset/asset.model');
 const StockPriceHistory = require('./stockPriceHistory.model');
+const { ASSET_TYPES, CHART_RANGES, HTTP_STATUS } = require('../../shared/constants');
 const DailyPrice = require('./dailyPrice.model');
 const AppError = require('../../shared/AppError');
 
@@ -28,13 +29,13 @@ const AppError = require('../../shared/AppError');
  * 1D is handled separately (intraday minutes, not days back).
  */
 const RANGE_DAYS = {
-  '1W': 7,
-  '1M': 30,
-  '3M': 90,
-  '1Y': 365,
+  [CHART_RANGES.ONE_WEEK]: 7,
+  [CHART_RANGES.ONE_MONTH]: 30,
+  [CHART_RANGES.THREE_MONTHS]: 90,
+  [CHART_RANGES.ONE_YEAR]: 365,
 };
 
-const VALID_RANGES = ['1D', '1W', '1M', '3M', '1Y'];
+const VALID_RANGES = Object.values(CHART_RANGES);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -101,16 +102,19 @@ const getChart = async (ticker, range) => {
   const upperRange = range.toUpperCase();
 
   if (!VALID_RANGES.includes(upperRange)) {
-    throw new AppError(`Invalid range "${range}". Valid values: ${VALID_RANGES.join(', ')}`, 400);
+    throw new AppError(
+      `Invalid range "${range}". Valid values: ${VALID_RANGES.join(', ')}`,
+      HTTP_STATUS.BAD_REQUEST
+    );
   }
 
   const asset = await Asset.findOne({ ticker: upperTicker }).lean();
   if (!asset) {
-    throw new AppError(`Asset not found: ${ticker}`, 404);
+    throw new AppError(`Asset not found: ${ticker}`, HTTP_STATUS.NOT_FOUND);
   }
 
   // ── 1D range ────────────────────────────────────────────────────────────
-  if (upperRange === '1D') {
+  if (upperRange === CHART_RANGES.ONE_DAY) {
     return get1DChart(asset);
   }
 
@@ -129,7 +133,7 @@ const getChart = async (ticker, range) => {
  * gracefully render a flat line or "no intraday data" message.
  */
 const get1DChart = async (asset) => {
-  if (asset.assetType === 'MUTUAL_FUND') {
+  if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
     // MFs do not have intraday history — return today's daily NAV if available
     const today = todayIST();
     const record = await DailyPrice.findOne({
@@ -144,7 +148,7 @@ const get1DChart = async (asset) => {
     return {
       ticker: asset.ticker,
       assetType: asset.assetType,
-      range: '1D',
+      range: CHART_RANGES.ONE_DAY,
       granularity: 'daily',
       points,
     };
@@ -172,7 +176,7 @@ const get1DChart = async (asset) => {
   return {
     ticker: asset.ticker,
     assetType: asset.assetType,
-    range: '1D',
+    range: CHART_RANGES.ONE_DAY,
     granularity: '30s',
     points,
   };

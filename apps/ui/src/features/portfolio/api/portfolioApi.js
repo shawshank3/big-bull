@@ -13,12 +13,14 @@ export const portfolioApi = apiSlice.injectEndpoints({
     getPortfolioHoldings: builder.query({
       query: () => '/api/v1/portfolio/holdings',
       transformResponse: (res) => toHoldingListDTO(res?.data?.holdings),
-      providesTags: ['Portfolio', 'Holdings'],
+      providesTags: ['Holdings'],
+      keepUnusedDataFor: 0,
     }),
     getPortfolioSummary: builder.query({
       query: () => '/api/v1/portfolio/summary',
       transformResponse: (res) => toSummaryDTO(res?.data),
       providesTags: ['Portfolio'],
+      keepUnusedDataFor: 0,
     }),
   }),
   overrideExisting: false,

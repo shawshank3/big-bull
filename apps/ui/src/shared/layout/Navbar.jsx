@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { Menu } from 'lucide-react';
+import { Menu, Search } from 'lucide-react';
 import { NavbarSearch } from '@/features/market/components/NavbarSearch';
 import { NavbarBrand } from './NavbarBrand';
 import { ThemeToggle } from './ThemeToggle';
@@ -17,13 +17,15 @@ import {
 import { GrowingMarketIcon } from '@/shared/ui/GrowingMarketIcon';
 import { ROUTES } from '@/shared/constants/routes';
 import { useGetProfileQuery } from '@/features/user/api/userApi';
+import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { UserAvatar } from '@/features/user/components/UserAvatar';
+import { formatCurrency } from '@/shared/utils/format';
 
 const NAV_LINKS = [
-  { to: ROUTES.DASHBOARD, label: 'Dashboard' },
-  { to: ROUTES.MARKET, label: 'Market' },
-  { to: ROUTES.HOLDINGS, label: 'Portfolio' },
+  { to: ROUTES.DASHBOARD, label: 'Dashboard', authOnly: true },
+  { to: ROUTES.MARKET, label: 'Market', authOnly: false },
+  { to: ROUTES.HOLDINGS, label: 'Portfolio', authOnly: true },
 ];
 
 const Start = ({ children }) => (
@@ -50,19 +52,24 @@ const Guest = ({ children }) => {
   return !isAuthenticated ? children : null;
 };
 
-const NavLinks = () => (
-  <nav className="hidden items-center gap-1 sm:flex">
-    {NAV_LINKS.map(({ to, label }) => (
-      <Link
-        key={to}
-        to={to}
-        className="rounded-md px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-foreground"
-      >
-        {label}
-      </Link>
-    ))}
-  </nav>
-);
+const NavLinks = () => {
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const visibleLinks = NAV_LINKS.filter((link) => !link.authOnly || isAuthenticated);
+
+  return (
+    <nav className="hidden items-center gap-1 sm:flex">
+      {visibleLinks.map(({ to, label }) => (
+        <Link
+          key={to}
+          to={to}
+          className="rounded-md px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-foreground"
+        >
+          {label}
+        </Link>
+      ))}
+    </nav>
+  );
+};
 
 const MobileDrawer = () => {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
@@ -73,8 +80,11 @@ const MobileDrawer = () => {
     isFetching,
     isError,
   } = useGetProfileQuery(undefined, { skip: !isAuthenticated });
+  const { data: wallet } = useGetWalletQuery(undefined, { skip: !isAuthenticated });
   const isPending = isLoading || isFetching;
   const profileReady = !isPending && !isError && Boolean(profile);
+
+  const visibleLinks = NAV_LINKS.filter((link) => !link.authOnly || isAuthenticated);
 
   return (
     <Sheet>
@@ -116,7 +126,7 @@ const MobileDrawer = () => {
         <SheetBody className="space-y-1">
           {isAuthenticated ? (
             <nav className="space-y-0.5">
-              {NAV_LINKS.map(({ to, label }) => (
+              {visibleLinks.map(({ to, label }) => (
                 <SheetClose key={to} asChild>
                   <Link
                     to={to}
@@ -128,6 +138,14 @@ const MobileDrawer = () => {
               ))}
               {profileReady ? (
                 <>
+                  <SheetClose asChild>
+                    <Link
+                      to={ROUTES.WALLET}
+                      className="block rounded-md py-2.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-foreground"
+                    >
+                      Wallet: {wallet ? formatCurrency(wallet.balance) : '—'}
+                    </Link>
+                  </SheetClose>
                   <SheetClose asChild>
                     <Link
                       to={ROUTES.PROFILE}
@@ -158,6 +176,18 @@ const MobileDrawer = () => {
             </nav>
           ) : (
             <div className="space-y-2 pt-1">
+              <nav className="space-y-0.5">
+                {visibleLinks.map(({ to, label }) => (
+                  <SheetClose key={to} asChild>
+                    <Link
+                      to={to}
+                      className="block rounded-md py-2.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-foreground"
+                    >
+                      {label}
+                    </Link>
+                  </SheetClose>
+                ))}
+              </nav>
               <SheetClose asChild>
                 <Button asChild size="md" className="w-full">
                   <Link to={ROUTES.LOGIN}>Log in</Link>
@@ -179,7 +209,10 @@ export const Navbar = ({ children }) => (
   <header className="sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur">
     <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
       {children}
-      <Navbar.MobileDrawer />
+      <div className="flex items-center gap-2 sm:hidden">
+        <Navbar.MobileSearch />
+        <Navbar.MobileDrawer />
+      </div>
     </div>
   </header>
 );
@@ -195,6 +228,15 @@ Navbar.Brand = NavbarBrand;
 Navbar.Search = NavbarSearch;
 Navbar.ThemeToggle = ThemeToggle;
 Navbar.UserMenu = UserMenu;
+Navbar.MobileSearch = () => (
+  <Link
+    to={ROUTES.SEARCH}
+    className="shrink-0 p-2 text-muted transition-colors hover:text-foreground sm:hidden"
+    aria-label="Search"
+  >
+    <Search className="h-5 w-5" />
+  </Link>
+);
 Navbar.LoginButton = () => (
   <Button asChild size="md" className="shrink-0">
     <Link to={ROUTES.LOGIN}>Log in</Link>

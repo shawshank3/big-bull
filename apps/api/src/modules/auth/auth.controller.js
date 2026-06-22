@@ -13,6 +13,7 @@
 const crypto = require('crypto');
 const User = require('../user/user.model');
 const VirtualWallet = require('../wallet/wallet.model');
+const { HTTP_STATUS, USER_DEFAULTS } = require('../../shared/constants');
 const catchAsync = require('../../shared/catchAsync');
 const AppError = require('../../shared/AppError');
 const { sendSuccess } = require('../../utils/response');
@@ -50,7 +51,7 @@ const register = catchAsync(async (req, res) => {
   const result = registerSchema.safeParse(req.body);
   if (!result.success) {
     const message = result.error.errors?.[0]?.message ?? 'Invalid registration payload';
-    throw new AppError(message, 400);
+    throw new AppError(message, HTTP_STATUS.BAD_REQUEST);
   }
 
   const { name, email, password } = result.data;
@@ -62,8 +63,8 @@ const register = catchAsync(async (req, res) => {
 
   const user = await User.create({ name, email, password });
 
-  // Seed a ₹10,00,000 virtual wallet for every new user
-  await VirtualWallet.create({ userId: user._id, balance: 1000000 });
+  // Seed a virtual wallet for every new user
+  await VirtualWallet.create({ userId: user._id, balance: USER_DEFAULTS.INITIAL_BALANCE });
 
   await issueAuthCookies(res, user);
 
@@ -82,7 +83,7 @@ const login = catchAsync(async (req, res) => {
   const result = loginSchema.safeParse(req.body);
   if (!result.success) {
     const message = result.error.errors?.[0]?.message ?? 'Invalid login payload';
-    throw new AppError(message, 400);
+    throw new AppError(message, HTTP_STATUS.BAD_REQUEST);
   }
 
   const { email, password } = result.data;
@@ -137,24 +138,24 @@ const me = catchAsync(async (req, res) => {
 const refresh = catchAsync(async (req, res) => {
   const incomingToken = req.cookies?.refresh_token;
   if (!incomingToken) {
-    throw new AppError('No refresh token provided', 401);
+    throw new AppError('No refresh token provided', HTTP_STATUS.UNAUTHORIZED);
   }
 
   let decoded;
   try {
     decoded = verifyRefreshToken(incomingToken);
   } catch {
-    throw new AppError('Invalid or expired refresh token', 401);
+    throw new AppError('Invalid or expired refresh token', HTTP_STATUS.UNAUTHORIZED);
   }
 
   const user = await User.findById(decoded.id).select('+refreshToken');
   if (!user) {
-    throw new AppError('User not found', 401);
+    throw new AppError('User not found', HTTP_STATUS.UNAUTHORIZED);
   }
 
   const incomingHash = hashToken(incomingToken);
   if (!user.refreshToken || user.refreshToken !== incomingHash) {
-    throw new AppError('Refresh token has been revoked or reused', 401);
+    throw new AppError('Refresh token has been revoked or reused', HTTP_STATUS.UNAUTHORIZED);
   }
 
   await issueAuthCookies(res, user);

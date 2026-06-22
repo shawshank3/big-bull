@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const User = require('../user/user.model');
 const { generateAccessToken, generateRefreshToken } = require('../../utils/jwt');
 const AppError = require('../../shared/AppError');
+const { HTTP_STATUS } = require('../../shared/constants');
 
 // ─── Expiry Parsing ───────────────────────────────────────────────────────────
 
@@ -116,7 +117,7 @@ const validateCredentials = async (email, password) => {
   const user = await User.findOne({ email }).select('+password');
 
   if (!user || !(await user.matchPassword(password))) {
-    throw new AppError('Invalid email or password', 401);
+    throw new AppError('Invalid email or password', HTTP_STATUS.UNAUTHORIZED);
   }
 
   return user;

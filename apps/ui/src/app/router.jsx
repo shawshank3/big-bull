@@ -12,7 +12,9 @@ import { Holdings } from '@/features/portfolio/routes/Holdings';
 import { Market } from '@/features/market/routes/Market';
 import { StockDetail } from '@/features/market/routes/StockDetail';
 import { MutualDetail } from '@/features/market/routes/MutualDetail';
+import { Search } from '@/features/market/routes/Search';
 import { Profile } from '@/features/user/routes/Profile';
+import { Wallet } from '@/features/wallet/routes/Wallet';
 import { Explore } from '@/features/explore/Explore';
 import NotFound from './routes/NotFound';
 
@@ -34,10 +36,12 @@ export const router = createBrowserRouter([
         children: [
           { path: ROUTES.DASHBOARD, element: <Dashboard /> },
           { path: ROUTES.HOLDINGS, element: <Holdings /> },
-          { path: ROUTES.MARKET, element: <Market /> },
           { path: ROUTES.PROFILE, element: <Profile /> },
+          { path: ROUTES.WALLET, element: <Wallet /> },
         ],
       },
+      { path: ROUTES.MARKET, element: <Market /> },
+      { path: ROUTES.SEARCH, element: <Search /> },
       { path: ROUTES.EXPLORE, element: <Explore /> },
       { path: ROUTES.STOCK_DETAIL, element: <StockDetail /> },
       { path: ROUTES.MUTUAL_DETAIL, element: <MutualDetail /> },

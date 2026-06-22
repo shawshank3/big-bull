@@ -55,6 +55,19 @@ apps/api/src/
 ├── shared/
 │   ├── catchAsync.js     # Wraps async handlers — forwards rejections to errorHandler
 │   ├── AppError.js       # Operational error class with statusCode
+│   ├── pagination.js     # baseListQuerySchema (Zod), sendPaginatedSuccess() helper
+│   ├── constants/        # All shared constants — NO magic strings in code
+│   │   ├── index.js          # Barrel export (central import point)
+│   │   ├── assetTypes.js     # ASSET_TYPES, ASSET_TYPE_VALUES
+│   │   ├── transactionTypes.js # TRANSACTION_TYPES, WALLET_TRANSACTION_TYPES
+│   │   ├── exchangeTypes.js  # EXCHANGE_TYPES
+│   │   ├── chartRanges.js    # CHART_RANGES, CHART_RANGE_VALUES
+│   │   ├── httpStatus.js     # HTTP_STATUS (200, 400, 401, 404, 500)
+│   │   ├── timeConstants.js  # TIME_CONSTANTS (TTLs, intervals)
+│   │   ├── defaultValues.js  # USER_DEFAULTS (initial balance, etc.)
+│   │   ├── eventTypes.js     # SSE_EVENTS
+│   │   ├── validationRules.js # VALIDATION_RULES (password, name limits)
+│   │   └── userRoles.js      # USER_ROLES, USER_ROLE_VALUES
 │   ├── redis.js          # ioredis singleton for cache ops (maxRetriesPerRequest: 3)
 │   └── redisBullMQ.js    # ioredis factory for BullMQ (maxRetriesPerRequest: null)
 ├── middleware/
@@ -201,15 +214,16 @@ Rate-limited: 5 requests / 15 min per IP.
 
 All routes are **public** (no auth required).
 
-| Method | Path              | Auth | Description                                                                        |
-| ------ | ----------------- | ---- | ---------------------------------------------------------------------------------- |
-| GET    | `/assets`         | —    | Full asset catalog enriched with live prices. `?type=STOCK\|MUTUAL_FUND` to filter |
-| GET    | `/assets/:ticker` | —    | Single asset by NSE ticker or MF scheme code                                       |
-| GET    | `/search?q=`      | —    | Full-text search over catalog (name + ticker, min 2 chars)                         |
-| GET    | `/quote/:ticker`  | —    | Current simulated price (Redis → MarketState → basePrice)                          |
-| GET    | `/ticker`         | —    | Top 10 NSE stocks with live prices — used by the UI ticker strip                   |
-| GET    | `/chart/:ticker`  | —    | Historical price series. `?range=1D\|1W\|1M\|3M\|1Y`                               |
-| GET    | `/stream`         | —    | SSE endpoint — streams `price_update` and `volatility_alert` events                |
+| Method | Path              | Auth | Description                                                                       |
+| ------ | ----------------- | ---- | --------------------------------------------------------------------------------- |
+| POST   | `/assets/list`    | —    | Paginated, filtered, sortable asset catalog (standardised POST body)              |
+| GET    | `/assets`         | —    | Full asset catalog enriched with live prices. `?type=STOCK\|MUTUAL_FUND` (legacy) |
+| GET    | `/assets/:ticker` | —    | Single asset by NSE ticker or MF scheme code                                      |
+| GET    | `/search?q=`      | —    | Full-text search over catalog (name + ticker, min 2 chars)                        |
+| GET    | `/quote/:ticker`  | —    | Current simulated price (Redis → MarketState → basePrice)                         |
+| GET    | `/ticker`         | —    | Top 10 NSE stocks with live prices — used by the UI ticker strip                  |
+| GET    | `/chart/:ticker`  | —    | Historical price series. `?range=1D\|1W\|1M\|3M\|1Y`                              |
+| GET    | `/stream`         | —    | SSE endpoint — streams `price_update` and `volatility_alert` events               |
 
 #### Chart endpoint detail
 
@@ -244,8 +258,9 @@ Response shape:
 
 | Method | Path     | Auth | Description                                                       |
 | ------ | -------- | ---- | ----------------------------------------------------------------- |
-| GET    | `/`      | ✅   | Paginated transaction history (`?page=1&limit=20&assetId=<opt>`)  |
+| POST   | `/list`  | ✅   | Paginated, filtered transaction history (standardised POST body)  |
 | POST   | `/order` | ✅   | Execute BUY or SELL — atomically updates wallet and writes ledger |
+| GET    | `/`      | ✅   | Legacy paginated history (`?page=1&limit=20&assetId=<opt>`)       |
 
 ### Portfolio `/api/v1/portfolio`
 
@@ -258,9 +273,11 @@ Computed on demand — nothing stored. Source: Transaction ledger + three-tier p
 
 ### Wallet `/api/v1/wallet`
 
-| Method | Path | Auth | Description                      |
-| ------ | ---- | ---- | -------------------------------- |
-| GET    | `/`  | ✅   | Current ₹ virtual wallet balance |
+| Method | Path                 | Auth | Description                                                      |
+| ------ | -------------------- | ---- | ---------------------------------------------------------------- |
+| GET    | `/`                  | ✅   | Current ₹ virtual wallet balance                                 |
+| POST   | `/transactions/list` | ✅   | Paginated, filtered wallet transactions (standardised POST body) |
+| GET    | `/transactions`      | ✅   | Legacy paginated wallet transactions                             |
 
 ### Chat `/api/v1/chat`
 
@@ -349,6 +366,8 @@ Every price read in the system (mseWorker, portfolio, market, transactions) reso
 - **Historical collections are read-only for the API.** `StockPriceHistory` and `DailyPrice` are written exclusively by workers, never by HTTP handlers.
 - **`Asset.basePrice` is read-only at runtime.** It is set during seeding and never updated by the simulation.
 - **Three-tier price resolution.** Redis → MarketState → basePrice — applied consistently everywhere.
+- **Shared constants eliminate magic strings.** All asset types, transaction types, HTTP status codes, chart ranges, user roles, exchange types, and validation rules are imported from `shared/constants/` — never hardcoded in services, controllers, models, or validators.
+- **Standardised pagination via POST.** All new list endpoints use `POST /…/list` with `{ pagination, filters, search, sort }` body validated by `baseListQuerySchema`. Response sent via `sendPaginatedSuccess()`. Legacy GET endpoints retained but not extended.
 
 ---
 

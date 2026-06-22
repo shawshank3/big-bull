@@ -1,4 +1,5 @@
 import { calculateReturnPercentage } from './format';
+import { HOLDING_TYPES } from '../constants/assetTypes';
 
 export const getHoldingValue = (holding) => holding.qty * holding.currentPrice;
 
@@ -37,7 +38,7 @@ export const getAllocation = (holdings = []) => {
     .reduce((sum, holding) => sum + getHoldingValue(holding), 0);
 
   const stockValue = holdings
-    .filter((holding) => holding.type === 'stock')
+    .filter((holding) => holding.type === HOLDING_TYPES.STOCK)
     .reduce((sum, holding) => sum + getHoldingValue(holding), 0);
 
   const total = mutualValue + stockValue;

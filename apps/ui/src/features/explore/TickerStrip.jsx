@@ -2,19 +2,14 @@ import { useMemo, memo } from 'react';
 import { useGetTickerQuotesQuery } from '@/features/market/api/marketApi';
 import { TICKER_ITEMS } from './constants';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/shared/utils/format';
 
 const TickerItem = memo(({ item, isLive }) => (
   <>
     <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium">
       <span className="font-semibold text-foreground tracking-wide">{item.label}</span>
       {isLive && item.price != null && (
-        <span className="text-muted">
-          ₹
-          {Number(item.price).toLocaleString('en-IN', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </span>
+        <span className="text-muted">{formatCurrency(item.price)}</span>
       )}
       <span className={cn('font-medium tabular-nums', item.up ? 'text-success' : 'text-danger')}>
         {item.changePercent ?? item.change}
@@ -30,9 +25,7 @@ const TickerItem = memo(({ item, isLive }) => (
 ));
 
 export const TickerStrip = () => {
-  const { data: liveItems, isSuccess } = useGetTickerQuotesQuery(undefined, {
-    pollingInterval: 60_000,
-  });
+  const { data: liveItems, isSuccess } = useGetTickerQuotesQuery(undefined);
   const isLive = isSuccess && liveItems?.length > 0;
   const items = isLive ? liveItems : TICKER_ITEMS;
 

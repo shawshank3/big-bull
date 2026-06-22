@@ -12,6 +12,12 @@ const mongoose = require('mongoose');
 const User = require('../src/modules/user/user.model');
 const Asset = require('../src/modules/asset/asset.model');
 const VirtualWallet = require('../src/modules/wallet/wallet.model');
+const {
+  ASSET_TYPES,
+  EXCHANGE_TYPES,
+  USER_DEFAULTS,
+  USER_ROLES,
+} = require('../src/shared/constants');
 
 // ── Indian Stocks (NSE) ────────────────────────────────────────────────────────
 const STOCKS = [
@@ -192,8 +198,8 @@ const seedDatabase = async () => {
         { ticker: stock.ticker },
         {
           ...stock,
-          assetType: 'STOCK',
-          exchange: 'NSE',
+          assetType: ASSET_TYPES.STOCK,
+          exchange: EXCHANGE_TYPES.NSE,
           lastUpdated: new Date(),
         },
         { upsert: true, new: true }
@@ -206,7 +212,7 @@ const seedDatabase = async () => {
         { ticker: mf.ticker },
         {
           ...mf,
-          assetType: 'MUTUAL_FUND',
+          assetType: ASSET_TYPES.MUTUAL_FUND,
           lastUpdated: new Date(),
         },
         { upsert: true, new: true }
@@ -225,9 +231,9 @@ const seedDatabase = async () => {
         name: 'Demo Investor',
         email: 'demo@bigbull.com',
         password: 'Demo@1234',
-        role: 'CLIENT',
+        role: USER_ROLES.CLIENT,
       });
-      await VirtualWallet.create({ userId: demoUser._id, balance: 1000000 });
+      await VirtualWallet.create({ userId: demoUser._id, balance: USER_DEFAULTS.INITIAL_BALANCE });
       console.log('✓ Created demo user: demo@bigbull.com / Demo@1234');
     } else {
       console.log('✓ Demo user already exists — skipped');
@@ -236,7 +242,7 @@ const seedDatabase = async () => {
     console.log('\n✅ Seed complete!');
     console.log('   Assets tradeable: 20 NSE stocks + 5 mutual funds');
     console.log('   Demo login: demo@bigbull.com / Demo@1234');
-    console.log('   Starting wallet: ₹10,00,000');
+    console.log('   Starting wallet: ₹' + USER_DEFAULTS.INITIAL_BALANCE.toLocaleString('en-IN'));
   } catch (err) {
     console.error('✗ Seed failed:', err.message);
     process.exit(1);

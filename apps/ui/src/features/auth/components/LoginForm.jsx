@@ -46,7 +46,9 @@ export const LoginForm = () => {
         autoComplete="current-password"
         error={errors.password?.message}
         {...register('password', { required: 'Password is required' })}
-      />
+      >
+        <FormInput.PasswordToggle />
+      </FormInput>
       <Button type="submit" variant="primary" size="lg" loading={isLoading} className="w-full">
         {isLoading ? 'Signing in…' : 'Login'}
       </Button>

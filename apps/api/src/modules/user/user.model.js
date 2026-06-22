@@ -3,6 +3,7 @@
  * Schema for user authentication and profile
  */
 const mongoose = require('mongoose');
+const { USER_ROLE_VALUES, USER_ROLES } = require('../../shared/constants');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
@@ -44,8 +45,8 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['CLIENT', 'ADVISOR'],
-    default: 'CLIENT',
+    enum: USER_ROLE_VALUES,
+    default: USER_ROLES.CLIENT,
   },
   createdAt: {
     type: Date,

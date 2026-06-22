@@ -8,6 +8,7 @@
  *     basePrice is only the seed price used when the asset is first introduced.
  */
 const mongoose = require('mongoose');
+const { ASSET_TYPE_VALUES } = require('../../shared/constants');
 
 const assetSchema = new mongoose.Schema({
   // NSE symbol for stocks (e.g. "RELIANCE", "INFY"); MFAPI scheme code for mutual funds
@@ -29,7 +30,7 @@ const assetSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Asset type is required'],
     enum: {
-      values: ['STOCK', 'MUTUAL_FUND'],
+      values: ASSET_TYPE_VALUES,
       message: 'assetType must be STOCK or MUTUAL_FUND',
     },
   },

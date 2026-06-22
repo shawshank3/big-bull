@@ -4,14 +4,15 @@
  * Reads the JWT from req.cookies.access_token.
  */
 const jwt = require('jsonwebtoken');
+const { HTTP_STATUS } = require('../shared/constants');
 
 const authMiddleware = (req, res, next) => {
   const token = req.cookies && req.cookies.access_token;
 
   if (!token) {
-    return res.status(401).json({
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
       success: false,
-      error: { code: 401, message: 'No authentication token provided' },
+      error: { code: HTTP_STATUS.UNAUTHORIZED, message: 'No authentication token provided' },
     });
   }
 
@@ -25,9 +26,9 @@ const authMiddleware = (req, res, next) => {
     };
     next();
   } catch (error) {
-    return res.status(401).json({
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
       success: false,
-      error: { code: 401, message: 'Invalid or expired token' },
+      error: { code: HTTP_STATUS.UNAUTHORIZED, message: 'Invalid or expired token' },
     });
   }
 };

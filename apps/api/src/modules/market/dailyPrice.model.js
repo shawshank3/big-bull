@@ -21,6 +21,7 @@
  *     runtime price resolution never touches this collection.
  */
 const mongoose = require('mongoose');
+const { ASSET_TYPE_VALUES } = require('../../shared/constants');
 
 const dailyPriceSchema = new mongoose.Schema(
   {
@@ -34,7 +35,7 @@ const dailyPriceSchema = new mongoose.Schema(
     assetType: {
       type: String,
       required: [true, 'assetType is required'],
-      enum: ['STOCK', 'MUTUAL_FUND'],
+      enum: ASSET_TYPE_VALUES,
     },
 
     // Calendar date in YYYY-MM-DD format (IST wall-clock date of the trading session).

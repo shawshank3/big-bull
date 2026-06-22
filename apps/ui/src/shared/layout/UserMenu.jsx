@@ -2,8 +2,10 @@ import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { ROUTES } from '@/shared/constants/routes';
 import { useGetProfileQuery } from '@/features/user/api/userApi';
+import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { UserAvatar } from '@/features/user/components/UserAvatar';
+import { formatCurrency } from '@/shared/utils/format';
 import { Button } from '@/shared/ui/button';
 import {
   DropdownMenu,
@@ -18,6 +20,7 @@ export const UserMenu = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
   const { logout } = useAuth();
   const { data: profile } = useGetProfileQuery(undefined, { skip: !isAuthenticated });
+  const { data: wallet } = useGetWalletQuery(undefined, { skip: !isAuthenticated });
 
   if (!isAuthenticated || !profile) return null;
 
@@ -42,6 +45,9 @@ export const UserMenu = () => {
           <p className="text-sm font-medium text-muted">{profile.email}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to={ROUTES.WALLET}>Wallet: {wallet ? formatCurrency(wallet.balance) : '—'}</Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to={ROUTES.PROFILE}>Profile</Link>
         </DropdownMenuItem>

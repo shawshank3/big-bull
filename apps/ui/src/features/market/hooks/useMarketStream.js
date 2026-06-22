@@ -92,6 +92,28 @@ export const useMarketStream = () => {
         );
       }
 
+      // Patch ALL existing listAssets cache entries (new server-paginated endpoint)
+      dispatch((dispatch2, getState) => {
+        const state = getState();
+        const queries = state?.api?.queries;
+        if (!queries) return;
+        const argsToUpdate = [];
+        for (const key of Object.keys(queries)) {
+          if (!key.startsWith('listAssets(')) continue;
+          const entry = queries[key];
+          if (!entry?.data?.items || entry.status !== 'fulfilled') continue;
+          argsToUpdate.push(entry.originalArgs);
+        }
+        for (const args of argsToUpdate) {
+          dispatch2(
+            apiSlice.util.updateQueryData('listAssets', args, (draft) => {
+              const asset = draft.items?.find((a) => a.ticker === ticker);
+              if (asset) asset.currentPrice = price;
+            })
+          );
+        }
+      });
+
       // ── Authenticated-only cache patches ──────────────────────────────────
       if (!isAuthenticatedRef.current) return;
 
