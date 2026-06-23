@@ -7,13 +7,13 @@
  *   logout     — POST /api/v1/auth/logout
  */
 import { apiSlice } from '@/shared/api/apiSlice';
-import { authResponseToUser } from '../dto/auth.dto';
+import { toAuthUserDTO } from '../dto/auth.dto';
 
 export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getMe: builder.query({
       query: () => '/api/v1/auth/me',
-      transformResponse: authResponseToUser,
+      transformResponse: (res) => toAuthUserDTO(res?.data?.user ?? res?.data),
     }),
     login: builder.mutation({
       query: (credentials) => ({
@@ -21,7 +21,7 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: credentials,
       }),
-      transformResponse: authResponseToUser,
+      transformResponse: (res) => toAuthUserDTO(res?.data?.user ?? res?.data),
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data: user } = await queryFulfilled;
@@ -37,7 +37,7 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: userData,
       }),
-      transformResponse: authResponseToUser,
+      transformResponse: (res) => toAuthUserDTO(res?.data?.user ?? res?.data),
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data: user } = await queryFulfilled;

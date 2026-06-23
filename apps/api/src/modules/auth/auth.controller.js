@@ -20,7 +20,7 @@ const { sendSuccess } = require('../../utils/response');
 const { registerSchema, loginSchema } = require('./auth.validator');
 const { issueAuthCookies, clearAuthCookies, validateCredentials } = require('./auth.service');
 const { getUserById } = require('../user/user.service');
-const { verifyRefreshToken, verifyAccessToken } = require('../../utils/jwt');
+const { verifyRefreshToken } = require('../../utils/jwt');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -117,27 +117,11 @@ const logout = catchAsync(async (req, res) => {
 /**
  * GET /api/v1/auth/me
  *
- * Always returns 200. If the access_token cookie is valid, returns the user.
- * If missing or invalid, returns { user: null }.
+ * Returns the authenticated user's minimal identity (id, name, email, role).
+ * For full profile data use GET /api/v1/users/profile.
  */
 const me = catchAsync(async (req, res) => {
-  const token = req.cookies?.access_token;
-  if (!token) {
-    return sendSuccess(res, { user: null }, 'Not authenticated', 200);
-  }
-
-  let decoded;
-  try {
-    decoded = verifyAccessToken(token);
-  } catch {
-    return sendSuccess(res, { user: null }, 'Not authenticated', 200);
-  }
-
-  const user = await getUserById(decoded.id);
-  if (!user) {
-    return sendSuccess(res, { user: null }, 'Not authenticated', 200);
-  }
-
+  const user = await getUserById(req.user.id);
   sendSuccess(res, { user: formatUser(user) }, 'User fetched successfully', 200);
 });
 
