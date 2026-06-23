@@ -27,6 +27,7 @@ const redis = require('../shared/redis');
 const Asset = require('../modules/asset/asset.model');
 const MarketState = require('../modules/market/marketState.model');
 const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
+const DailyPrice = require('../modules/market/dailyPrice.model');
 const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
 const { ASSET_TYPES } = require('../shared/constants');
 const { gaussianNoise, nextDayPrice, todayIST } = require('../utils/priceSimulation');
@@ -36,6 +37,11 @@ const getBroadcast = () => require('../modules/market/market.controller').broadc
 const getSeedCache = () => require('./mseLiveTicker').seedPriceCache;
 
 const isRedisAvailable = isRedisConfigured;
+
+// ─── Day-transition tracking ──────────────────────────────────────────────────
+// Tracks the last IST date seen by the worker so we can detect midnight
+// crossings and persist yesterday's DailyPrice automatically.
+let lastSeenDay = null;
 
 // ─── Redis keys ───────────────────────────────────────────────────────────────
 const SENTIMENT_KEY = 'mse:marketSentiment';
@@ -154,6 +160,65 @@ const persistStockHistory = async (points) => {
   }
 };
 
+/**
+ * Detects an IST day transition (midnight crossing) and snapshots the previous
+ * day's closing price into DailyPrice for all assets.
+ *
+ * Called once per 30s tick. On the first tick after IST midnight, writes
+ * yesterday's DailyPrice using the current MarketState prices (which represent
+ * the last authoritative prices from the previous day).
+ *
+ * Idempotent: uses upsert so re-runs for the same date are safe.
+ * Non-fatal: logs errors but does not throw.
+ */
+const handleDayTransition = async (currentDay) => {
+  // First tick ever — just initialize tracking, no snapshot needed
+  if (lastSeenDay === null) {
+    lastSeenDay = currentDay;
+    return;
+  }
+
+  // Same day — nothing to do
+  if (currentDay === lastSeenDay) return;
+
+  // Day changed! Snapshot the previous day's closing prices
+  const previousDay = lastSeenDay;
+  lastSeenDay = currentDay;
+
+  console.log(`[MSE] Day transition detected: ${previousDay} → ${currentDay}. Writing DailyPrice…`);
+
+  try {
+    const assets = await Asset.find({}).lean();
+    if (!assets.length) return;
+
+    // Resolve actual closing prices from MarketState (most accurate source)
+    const ops = await Promise.all(
+      assets.map(async (asset) => {
+        const price = await resolvePrevPrice(asset.ticker, asset.basePrice);
+        return {
+          updateOne: {
+            filter: { ticker: asset.ticker, date: previousDay },
+            update: {
+              $set: {
+                ticker: asset.ticker,
+                assetType: asset.assetType,
+                date: previousDay,
+                closePrice: price,
+              },
+            },
+            upsert: true,
+          },
+        };
+      })
+    );
+
+    await DailyPrice.bulkWrite(ops, { ordered: false });
+    console.log(`[MSE] ✓ DailyPrice: ${ops.length} closing records written for ${previousDay}`);
+  } catch (err) {
+    console.error('[MSE] DailyPrice day-transition write failed:', err.message);
+  }
+};
+
 // ─── Worker ──────────────────────────────────────────────────────────────────
 
 let mseWorker = null;
@@ -192,6 +257,10 @@ if (isRedisAvailable) {
 
       // 4. Process each asset
       const istToday = todayIST();
+
+      // 4a. Detect IST day transition — snapshot yesterday's close to DailyPrice
+      await handleDayTransition(istToday);
+
       for (const asset of assets) {
         const priceKey = `price:${asset.ticker}`;
 

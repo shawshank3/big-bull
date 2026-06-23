@@ -135,15 +135,15 @@ If any layer throws an `AppError` (or any uncaught error), the global `errorHand
 
 ## Database Ownership
 
-| Collection            | Owning Module | Authorised Writer(s)                                               | Write Conditions                      |
-| --------------------- | ------------- | ------------------------------------------------------------------ | ------------------------------------- |
-| `users`               | auth / user   | `auth.service.register()`, `user.service.update*()`                | Create on register; update on profile |
-| `assets`              | asset         | Seed script only (`scripts/seed.js`)                               | Setup-only, never runtime             |
-| `virtualwallets`      | wallet        | `wallet.service.debit()`, `wallet.service.credit()`                | Atomic `$inc` within session          |
-| `transactions`        | transaction   | `transaction.service.executeOrder()`                               | Create (immutable, never updated)     |
-| `marketstates`        | market (MSE)  | `mseWorker` bulk-upsert, `dailyPriceService.backfillMissingDays()` | Upsert on every 30s tick              |
-| `stockpricehistories` | market (MSE)  | `mseWorker` insertMany                                             | Append-only (48h TTL index)           |
-| `dailyprices`         | market (MSE)  | `dailyPriceService.writeTodayClose()`, `backfillMissingDays()`     | Upsert per ticker per day             |
+| Collection            | Owning Module | Authorised Writer(s)                                                                              | Write Conditions                      |
+| --------------------- | ------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `users`               | auth / user   | `auth.service.register()`, `user.service.update*()`                                               | Create on register; update on profile |
+| `assets`              | asset         | Seed script only (`scripts/seed.js`)                                                              | Setup-only, never runtime             |
+| `virtualwallets`      | wallet        | `wallet.service.debit()`, `wallet.service.credit()`                                               | Atomic `$inc` within session          |
+| `transactions`        | transaction   | `transaction.service.executeOrder()`                                                              | Create (immutable, never updated)     |
+| `marketstates`        | market (MSE)  | `mseWorker` bulk-upsert, `dailyPriceService.backfillMissingDays()`                                | Upsert on every 30s tick              |
+| `stockpricehistories` | market (MSE)  | `mseWorker` insertMany                                                                            | Append-only (48h TTL index)           |
+| `dailyprices`         | market (MSE)  | `dailyPriceService.writeTodayClose()`, `backfillMissingDays()`, `mseWorker.handleDayTransition()` | Upsert per ticker per day             |
 
 ---
 
@@ -176,12 +176,12 @@ Mutual fund NAVs are NOT simulated intraday — instead the mseWorker rolls each
 
 **Persistence Targets**
 
-| Target                 | Writer            | Trigger                     |
-| ---------------------- | ----------------- | --------------------------- |
-| Redis `price:<ticker>` | mseWorker         | Every 30s tick              |
-| MarketState            | mseWorker         | Every 30s tick              |
-| StockPriceHistory      | mseWorker         | Every 30s tick (stocks)     |
-| DailyPrice             | dailyPriceService | Shutdown + startup backfill |
+| Target                 | Writer                       | Trigger                                                  |
+| ---------------------- | ---------------------------- | -------------------------------------------------------- |
+| Redis `price:<ticker>` | mseWorker                    | Every 30s tick                                           |
+| MarketState            | mseWorker                    | Every 30s tick                                           |
+| StockPriceHistory      | mseWorker                    | Every 30s tick (stocks)                                  |
+| DailyPrice             | dailyPriceService, mseWorker | Shutdown + startup backfill + day-transition on 30s tick |
 
 ---
 

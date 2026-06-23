@@ -164,11 +164,15 @@ const seed = async () => {
   const intradayDocs = [];
   const dayStartUTC = istMidnightUTC(today);
 
-  // IST market session: 09:00 → 15:30 = 390 min = 780 thirty-second ticks
-  const MARKET_OPEN_OFFSET_S = 9 * 3600; // 09:00 IST in seconds from midnight
-  const MARKET_CLOSE_OFFSET_S = 15.5 * 3600; // 15:30 IST
+  // 24-hour market: generate ticks from 00:00 IST up to current IST time
+  const MARKET_OPEN_OFFSET_S = 0; // 00:00 IST
   const TICK_INTERVAL_S = 30;
-  const tickCount = Math.floor((MARKET_CLOSE_OFFSET_S - MARKET_OPEN_OFFSET_S) / TICK_INTERVAL_S);
+
+  // Current IST time in seconds from midnight
+  const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+  const nowSecondsIST =
+    nowIST.getUTCHours() * 3600 + nowIST.getUTCMinutes() * 60 + nowIST.getUTCSeconds();
+  const tickCount = Math.floor((nowSecondsIST - MARKET_OPEN_OFFSET_S) / TICK_INTERVAL_S);
 
   const stocks = assets.filter((a) => a.assetType === ASSET_TYPES.STOCK);
 

@@ -56,7 +56,9 @@ export const RegisterForm = () => {
             message: 'Password must contain a number and a special character',
           },
         })}
-      />
+      >
+        <FormInput.PasswordToggle />
+      </FormInput>
       <FormInput
         label="Confirm password"
         type="password"
@@ -66,7 +68,9 @@ export const RegisterForm = () => {
           required: 'Please confirm your password',
           validate: (v) => v === watch('password') || 'Passwords do not match',
         })}
-      />
+      >
+        <FormInput.PasswordToggle />
+      </FormInput>
       <Button type="submit" variant="primary" size="lg" loading={isLoading} className="w-full">
         {isLoading ? 'Creating account…' : 'Register'}
       </Button>

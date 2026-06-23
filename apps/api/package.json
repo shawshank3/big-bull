@@ -7,6 +7,7 @@
     "dev": "nodemon index.js",
     "seed": "node scripts/seed.js",
     "seed:history": "node scripts/seedHistoricalData.js",
+    "seed:history-force": "node scripts/seedHistoricalData.js --force",
     "test": "jest --runInBand"
   },
   "dependencies": {

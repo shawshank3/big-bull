@@ -348,7 +348,7 @@ const backfillMissingDays = async () => {
  * to build up meaningful data yet.
  *
  * Algorithm:
- *   1. Compute today's IST market window: 09:00 → min(15:30, now).
+ *   1. Compute today's IST window: 00:00 → now (24-hour market, no close).
  *   2. For each stock, resolve a starting price from MarketState → basePrice.
  *   3. Chain a random-walk at 30-second intervals with reduced volatility
  *      (same 0.25× scaling the seed script uses for intraday).
@@ -382,9 +382,8 @@ const backfillIntradayToday = async () => {
       return;
     }
 
-    // Market window in seconds from IST midnight
-    const MARKET_OPEN_S = 9 * 3600; // 09:00 IST
-    const MARKET_CLOSE_S = 15.5 * 3600; // 15:30 IST
+    // 24-hour market: generate ticks from 00:00 IST up to current time
+    const MARKET_OPEN_S = 0; // 00:00 IST (market is always open)
     const TICK_INTERVAL_S = 30;
 
     // Current IST time in seconds from midnight
@@ -393,11 +392,11 @@ const backfillIntradayToday = async () => {
     const nowSecondsIST =
       nowIST.getUTCHours() * 3600 + nowIST.getUTCMinutes() * 60 + nowIST.getUTCSeconds();
 
-    // End time is min(now, market close)
-    const endS = Math.min(nowSecondsIST, MARKET_CLOSE_S);
+    // End time is current IST time (market never closes)
+    const endS = nowSecondsIST;
 
     if (endS <= MARKET_OPEN_S) {
-      console.log('[Intraday] ✓ Market not yet open today — skipping backfill');
+      console.log('[Intraday] ✓ No ticks to generate yet — skipping backfill');
       return;
     }
 
