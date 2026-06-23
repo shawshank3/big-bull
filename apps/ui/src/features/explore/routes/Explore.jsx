@@ -1,11 +1,11 @@
 import { useSelector } from 'react-redux';
 import { ROUTES } from '@/shared/constants/routes';
-import { TickerStrip } from './TickerStrip';
-import { ExploreHero } from './ExploreHero';
-import { MarketStats } from './MarketStats';
-import { FeatureHighlights } from './FeatureHighlights';
-import { QuotesSection } from './QuotesSection';
-import { ExploreCta } from './ExploreCta';
+import { TickerStrip } from '../components/TickerStrip';
+import { ExploreHero } from '../components/ExploreHero';
+import { MarketStats } from '../components/MarketStats';
+import { FeatureHighlights } from '../components/FeatureHighlights';
+import { QuotesSection } from '../components/QuotesSection';
+import { ExploreCta } from '../components/ExploreCta';
 
 export const Explore = () => {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);

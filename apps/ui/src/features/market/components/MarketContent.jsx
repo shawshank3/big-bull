@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/shared/layout/PageHeader';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { Badge } from '@/shared/ui/badge';
 import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';

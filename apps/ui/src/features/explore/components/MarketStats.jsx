@@ -1,4 +1,4 @@
-import { MARKET_FACTS } from './constants';
+import { MARKET_FACTS } from '../constants';
 
 const StatCard = ({ icon: Icon, label, value, note }) => (
   <div className="flex items-start gap-4 rounded-2xl border border-border bg-surface p-5 shadow-soft">

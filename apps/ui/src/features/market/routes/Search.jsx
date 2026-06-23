@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppPageLayout } from '@/shared/layout/AppPageLayout';
 import { PageHeader } from '@/shared/layout/PageHeader';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { Badge } from '@/shared/ui/badge';
 import { Input } from '@/shared/ui/input';
 import { Spinner } from '@/shared/ui/spinner';

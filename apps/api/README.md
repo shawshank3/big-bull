@@ -1,382 +1,425 @@
-# BigBull API — Backend
+# BigBull API
 
-Node.js + Express 4 REST API for the BigBull simulated Indian stock market platform.
+Express REST API powering a virtual stock market simulation. Handles user auth, order execution, wallet management, portfolio aggregation, market price simulation via BullMQ workers, and real-time SSE price streaming. All prices are INR (₹) virtual currency generated internally — no external market APIs.
+
+---
 
 ## Stack
 
-| Layer          | Library / Tool                                 |
-| -------------- | ---------------------------------------------- |
-| Runtime        | Node.js 18+                                    |
-| Framework      | Express 4                                      |
-| Database       | MongoDB via Mongoose 7                         |
-| Cache / Queues | Redis (ioredis) + BullMQ                       |
-| Auth           | HTTP-Only JWT cookies (jsonwebtoken, bcryptjs) |
-| Validation     | Zod (schema-first, per module)                 |
-| AI             | Google Gemini (`@google/genai`)                |
-| Testing        | Jest + fast-check (property-based tests)       |
+| Technology         | Role                                 | Version |
+| ------------------ | ------------------------------------ | ------- |
+| Express            | HTTP framework                       | ^4.22   |
+| MongoDB/Mongoose   | Primary data store                   | ^7.3    |
+| Redis (ioredis)    | Price cache, BullMQ transport        | ^5.11   |
+| BullMQ             | 30s market simulation tick scheduler | ^5.78   |
+| JSON Web Tokens    | Cookie-based authentication          | ^9.0    |
+| bcryptjs           | Password hashing (10 rounds)         | ^2.4    |
+| Zod                | Request validation                   | ^4.4    |
+| @google/genai      | AI Copilot (Gemini)                  | ^2.7    |
+| cookie-parser      | HTTP-Only cookie handling            | ^1.4    |
+| express-rate-limit | Request throttling                   | ^8.5    |
+| dotenv             | Environment variable loading         | ^16.6   |
 
 ---
 
 ## Architecture
 
-Vertical feature-module structure. Each domain lives in `src/modules/<feature>/` and owns its model, validator, service, controller, and routes. No cross-module model imports — modules communicate through services only.
+```
+apps/api/
+├── index.js                    # Entry point: env validation, server listen, graceful shutdown
+└── src/
+    ├── server.js               # Express app: middleware stack, route registration, DB connect
+    ├── config/
+    │   ├── bullmq.js           # BullMQ queue factory (mse-price-tick queue)
+    │   ├── chat.js             # Gemini AI model config
+    │   ├── database.js         # MongoDB connection via Mongoose
+    │   └── market.js           # Search min length, result limits
+    ├── middleware/
+    │   ├── authMiddleware.js   # JWT cookie verification → req.user
+    │   ├── errorHandler.js     # Global error → JSON envelope
+    │   └── rateLimiter.js      # general, auth, chat rate limiters
+    ├── modules/
+    │   ├── asset/              # Model + validator (catalog, no routes)
+    │   ├── auth/               # Register, login, logout, refresh, me
+    │   ├── chat/               # AI Copilot (Gemini) conversation
+    │   ├── market/             # Assets, quotes, search, SSE stream, charts
+    │   ├── portfolio/          # Holdings aggregation, P&L summary
+    │   ├── transaction/        # Order execution, trade history
+    │   ├── user/               # Profile CRUD, avatar
+    │   └── wallet/             # Balance, debit/credit, wallet tx history
+    ├── shared/
+    │   ├── constants/          # Domain enums (11 files)
+    │   ├── AppError.js         # Operational error class with statusCode
+    │   ├── catchAsync.js       # Async handler wrapper
+    │   ├── pagination.js       # POST pagination helpers (Zod schema + meta builder)
+    │   ├── redis.js            # Shared ioredis client (no-op stub if unconfigured)
+    │   └── redisBullMQ.js      # BullMQ-specific ioredis (maxRetriesPerRequest: null)
+    ├── utils/
+    │   ├── avatarData.js       # Default avatar data
+    │   ├── http.js             # HTTP helpers
+    │   ├── jwt.js              # generateAccessToken, generateRefreshToken, verifyRefreshToken
+    │   └── response.js         # sendSuccess / sendError — standard envelope
+    └── workers/
+        ├── index.js            # Worker orchestration
+        ├── mseWorker.js        # BullMQ 30s authoritative price computation
+        ├── mseLiveTicker.js    # 1s interpolated SSE broadcast
+        └── dailyPriceService.js# Shutdown close + startup backfill
+```
 
-**Ownership principle:** The `user` module owns the User entity and all profile operations. The `auth` module handles authentication only — it calls into `user.service.js` when it needs user data. No other module imports the User model directly.
+---
+
+## Request Lifecycle
+
+Every HTTP request traverses the same pipeline. Example: `POST /api/v1/transactions/order`
 
 ```
-apps/api/src/
-├── modules/
-│   ├── auth/          # register, login, logout, me, refresh — auth logic only
-│   │   ├── auth.controller.js
-│   │   ├── auth.service.js    # issueAuthCookies, clearAuthCookies, validateCredentials
-│   │   ├── auth.routes.js     # /api/v1/auth/*
-│   │   └── auth.validator.js
-│   ├── user/          # User entity — schema, profile CRUD, avatar management
-│   │   ├── user.model.js
-│   │   ├── user.service.js
-│   │   ├── user.controller.js
-│   │   └── user.routes.js     # /api/v1/users/*
-│   ├── asset/         # Indian stock + MF catalog (Mongoose model + Zod validator)
-│   ├── wallet/        # VirtualWallet — ₹10L starting balance per user
-│   ├── transaction/   # BUY/SELL ledger — source of truth for portfolio values
-│   ├── portfolio/     # Holdings + summary computed from transactions + three-tier price chain
-│   ├── market/        # Assets, search, quotes, ticker, chart, SSE stream
-│   │   ├── market.controller.js
-│   │   ├── market.service.js      # resolvePrice() — three-tier chain exported
-│   │   ├── market.routes.js
-│   │   ├── market.validator.js
-│   │   ├── chart.controller.js    # GET /market/chart/:ticker
-│   │   ├── chart.service.js       # getChart() — reads StockPriceHistory + DailyPrice
-│   │   ├── chart.validator.js
-│   │   ├── stockPriceHistory.model.js  # intraday 30s ticks (stocks, 48h TTL)
-│   │   ├── dailyPrice.model.js         # daily closing price / NAV per asset
-│   │   └── marketState.model.js        # latest runtime price per ticker (recovery)
-│   └── chat/          # AI copilot — Google Gemini with live portfolio context
-├── shared/
-│   ├── catchAsync.js     # Wraps async handlers — forwards rejections to errorHandler
-│   ├── AppError.js       # Operational error class with statusCode
-│   ├── pagination.js     # baseListQuerySchema (Zod), sendPaginatedSuccess() helper
-│   ├── constants/        # All shared constants — NO magic strings in code
-│   │   ├── index.js          # Barrel export (central import point)
-│   │   ├── assetTypes.js     # ASSET_TYPES, ASSET_TYPE_VALUES
-│   │   ├── transactionTypes.js # TRANSACTION_TYPES, WALLET_TRANSACTION_TYPES
-│   │   ├── exchangeTypes.js  # EXCHANGE_TYPES
-│   │   ├── chartRanges.js    # CHART_RANGES, CHART_RANGE_VALUES
-│   │   ├── httpStatus.js     # HTTP_STATUS (200, 400, 401, 404, 500)
-│   │   ├── timeConstants.js  # TIME_CONSTANTS (TTLs, intervals)
-│   │   ├── defaultValues.js  # USER_DEFAULTS (initial balance, etc.)
-│   │   ├── eventTypes.js     # SSE_EVENTS
-│   │   ├── validationRules.js # VALIDATION_RULES (password, name limits)
-│   │   └── userRoles.js      # USER_ROLES, USER_ROLE_VALUES
-│   ├── redis.js          # ioredis singleton for cache ops (maxRetriesPerRequest: 3)
-│   └── redisBullMQ.js    # ioredis factory for BullMQ (maxRetriesPerRequest: null)
-├── middleware/
-│   ├── authMiddleware.js  # Reads + verifies access_token cookie, attaches req.user
-│   ├── rateLimiter.js     # generalLimiter (100/15 min), authLimiter (5/15 min)
-│   └── errorHandler.js    # Global Express error handler
-├── config/
-│   ├── database.js    # Mongoose connection
-│   ├── bullmq.js      # Queue definitions: mse-price-tick, net-worth-snapshot, goal-status-sync
-│   ├── chat.js        # Gemini model, generation config, system instruction
-│   └── market.js      # Market constants
-├── utils/
-│   ├── jwt.js         # generateAccessToken, generateRefreshToken, verify*
-│   ├── response.js    # sendSuccess(res, data, message, status)
-│   └── avatarData.js  # validateAvatarData(avatar)
-├── workers/
-│   ├── mseWorker.js          # MSE 30s price tick — writes Redis, StockPriceHistory, MarketState
-│   ├── mseLiveTicker.js      # In-process 1s SSE broadcast — micro-noise on stock prices
-│   ├── dailyPriceService.js  # writeTodayClose() on shutdown + backfillMissingDays() on startup
-│   └── index.js              # Standalone worker process entry point
-└── server.js          # Express app — mounts /api/v1/* only
+HTTP Request
+    │
+    ▼
+┌─ Global Middleware ────────────────────────────────────┐
+│  1. trust proxy                                        │
+│  2. cors (credentials: true)                           │
+│  3. cookieParser                                       │
+│  4. setNoCacheHeaders                                  │
+│  5. express.json (3 MB limit)                          │
+│  6. express.urlencoded (3 MB limit)                    │
+└────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ Route-Level Middleware ──────────────────────────────┐
+│  7. generalLimiter (/api/v1/*)                        │
+│  8. authMiddleware (reads access_token cookie → JWT)  │
+└───────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ Controller: transaction.controller.executeOrder ─────┐
+│  • Validates request body with Zod schema             │
+│  • Calls transaction.service.executeOrder(userId, …)  │
+└───────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ Service: transaction.service.executeOrder ───────────┐
+│  • Resolves execution price (Redis → MarketState → …) │
+│  • Pre-flight checks (balance / holdings)             │
+│  • Opens MongoDB session                              │
+│  • Creates Transaction document                       │
+│  • Calls wallet.service.debit() or .credit()          │
+│  • Commits session (or aborts on failure)             │
+└───────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ Response ────────────────────────────────────────────┐
+│  sendSuccess(res, data, message, statusCode)          │
+│  → { success, message, data, error, timestamp }       │
+└───────────────────────────────────────────────────────┘
 ```
+
+If any layer throws an `AppError` (or any uncaught error), the global `errorHandler` middleware catches it and returns a standardised error envelope.
+
+---
+
+## Module Map
+
+| Module          | Domain Responsibility                         | Files                                                                                                                                                                                                                                | Owned Routes           |
+| --------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| **auth**        | Register, login, logout, refresh, identity    | `auth.controller.js`, `auth.routes.js`, `auth.service.js`, `auth.validator.js`                                                                                                                                                       | `/api/v1/auth`         |
+| **user**        | Profile CRUD, avatar upload/delete            | `user.controller.js`, `user.routes.js`, `user.service.js`, `user.model.js`                                                                                                                                                           | `/api/v1/users`        |
+| **wallet**      | Cash balance, debit/credit, wallet tx history | `wallet.controller.js`, `wallet.routes.js`, `wallet.service.js`, `wallet.model.js`                                                                                                                                                   | `/api/v1/wallet`       |
+| **transaction** | Execute BUY/SELL orders, order history        | `transaction.controller.js`, `transaction.routes.js`, `transaction.service.js`, `transaction.model.js`, `transaction.validator.js`                                                                                                   | `/api/v1/transactions` |
+| **portfolio**   | Holdings aggregation, P&L summary             | `portfolio.controller.js`, `portfolio.routes.js`, `portfolio.service.js`                                                                                                                                                             | `/api/v1/portfolio`    |
+| **market**      | Asset catalog, quotes, search, SSE, charts    | `market.controller.js`, `market.routes.js`, `market.service.js`, `market.validator.js`, `chart.controller.js`, `chart.service.js`, `chart.validator.js`, `marketState.model.js`, `stockPriceHistory.model.js`, `dailyPrice.model.js` | `/api/v1/market`       |
+| **asset**       | Asset model + validator (catalog data)        | `asset.model.js`, `asset.validator.js`                                                                                                                                                                                               | None (reference data)  |
+| **chat**        | AI Copilot — Gemini conversation              | `chat.controller.js`, `chat.routes.js`, `chat.service.js`                                                                                                                                                                            | `/api/v1/chat`         |
+
+---
+
+## Database Ownership
+
+| Collection            | Owning Module | Authorised Writer(s)                                               | Write Conditions                      |
+| --------------------- | ------------- | ------------------------------------------------------------------ | ------------------------------------- |
+| `users`               | auth / user   | `auth.service.register()`, `user.service.update*()`                | Create on register; update on profile |
+| `assets`              | asset         | Seed script only (`scripts/seed.js`)                               | Setup-only, never runtime             |
+| `virtualwallets`      | wallet        | `wallet.service.debit()`, `wallet.service.credit()`                | Atomic `$inc` within session          |
+| `transactions`        | transaction   | `transaction.service.executeOrder()`                               | Create (immutable, never updated)     |
+| `marketstates`        | market (MSE)  | `mseWorker` bulk-upsert, `dailyPriceService.backfillMissingDays()` | Upsert on every 30s tick              |
+| `stockpricehistories` | market (MSE)  | `mseWorker` insertMany                                             | Append-only (48h TTL index)           |
+| `dailyprices`         | market (MSE)  | `dailyPriceService.writeTodayClose()`, `backfillMissingDays()`     | Upsert per ticker per day             |
+
+---
+
+## Market Simulation Flow
+
+The Market Simulation Engine (MSE) operates as a two-layer system:
+
+**Layer 1 — Authoritative Tick (mseWorker, every 30s via BullMQ)**
+
+Per-tick operations in order:
+
+1. Fetch all assets from MongoDB
+2. Read global MarketSentiment and SectorTrend values from Redis
+3. For each stock: resolve previous price (three-tier chain), compute new price using formula `Price_t = Price_{t-1} × (1 + Sm + Ts + Va × N)` where N is Gaussian noise
+4. Write updated price to Redis (`price:<ticker>`, TTL 60s)
+5. Broadcast SSE `price_update` event to all connected clients
+6. Emit `volatility_alert` if single-tick swing > 3%
+7. Seed the live ticker in-memory cache
+8. Persist MarketState (bulk upsert) — recovery tier
+9. Append StockPriceHistory documents — charting data
+10. Decay MarketSentiment and SectorTrends by 10% toward zero
+
+Mutual fund NAVs are NOT simulated intraday — written to Redis only if the key is absent.
+
+**Layer 2 — Live Ticker (mseLiveTicker, every 1s via setInterval)**
+
+- Applies micro-noise (scaled to 1/√30 of volatility) to in-memory cached prices
+- Broadcasts SSE `price_update` per stock to all clients
+- No database reads, no Redis writes — pure in-process interpolation
+
+**Persistence Targets**
+
+| Target                 | Writer            | Trigger                     |
+| ---------------------- | ----------------- | --------------------------- |
+| Redis `price:<ticker>` | mseWorker         | Every 30s tick              |
+| MarketState            | mseWorker         | Every 30s tick              |
+| StockPriceHistory      | mseWorker         | Every 30s tick (stocks)     |
+| DailyPrice             | dailyPriceService | Shutdown + startup backfill |
+
+---
+
+## Price Resolution Chain
+
+When the system needs the current price for an asset (order execution, portfolio valuation), it uses this priority chain:
+
+```
+Tier 1: Redis  →  price:<ticker> (JSON, TTL 60s)
+        ↓ miss or unavailable
+Tier 2: MarketState.lastPrice  →  MongoDB, survives restarts and Redis flushes
+        ↓ miss or unavailable
+Tier 3: Asset.basePrice  →  seed/reference value, never written at runtime
+```
+
+| Tier | Source              | Staleness Window | Fallback Behavior                               |
+| ---- | ------------------- | ---------------- | ----------------------------------------------- |
+| 1    | Redis               | 60s TTL          | Key expires if no tick for 60s → fall to Tier 2 |
+| 2    | MarketState (Mongo) | Until next tick  | Used after Redis flush or server restart        |
+| 3    | Asset.basePrice     | Permanent seed   | Last resort — only on first-ever boot           |
+
+`Asset.basePrice` is never written at runtime. It serves purely as the original seed value.
 
 ---
 
 ## Prerequisites
 
-- **Node.js 18+**
-- **MongoDB** — local (`mongod`) or MongoDB Atlas
-- **Redis** _(optional)_ — BullMQ workers and price caching require Redis. Without it, prices fall back to `MarketState` then `Asset.basePrice`.
-
-No external market data API keys are needed. All prices are simulated internally by the MSE worker.
+- Node.js ≥ 18
+- pnpm (monorepo workspace manager)
+- MongoDB (local or Atlas)
+- Redis (local or Upstash) — optional, app runs with degraded caching if absent
 
 ---
 
 ## Setup
 
 ```bash
-cd apps/api
-pnpm install        # or: npm install
-cp .env.example .env
-# Edit .env — set MONGODB_URI, JWT_SECRET, JWT_REFRESH_SECRET at minimum
+# From monorepo root
+pnpm install
+
+# Copy environment template
+cp apps/api/.env.example apps/api/.env
+# Edit .env with your values (see Environment Variables below)
 ```
 
 ---
 
 ## Environment Variables
 
-| Variable              | Required | Default       | Description                                                               |
-| --------------------- | -------- | ------------- | ------------------------------------------------------------------------- |
-| `MONGO_URI`           | ✅       | —             | MongoDB connection string                                                 |
-| `MONGODB_URI`         | ✅       | —             | Alias checked by `validateEnv()` — set to the same value as `MONGO_URI`   |
-| `JWT_SECRET`          | ✅       | —             | Access token signing secret (min 32 chars)                                |
-| `JWT_REFRESH_SECRET`  | ✅       | —             | Refresh token signing secret (must differ from `JWT_SECRET`)              |
-| `JWT_ACCESS_EXPIRES`  | —        | `30s`         | Access token lifetime — parsed by `parseExpiry()` for cookie `maxAge`     |
-| `JWT_REFRESH_EXPIRES` | —        | `2h`          | Refresh token lifetime — parsed by `parseExpiry()` for cookie `maxAge`    |
-| `PORT`                | —        | `4000`        | HTTP port                                                                 |
-| `NODE_ENV`            | —        | `development` | Set to `production` on Render                                             |
-| `REDIS_URL`           | —        | —             | Redis connection string. If absent, caching + BullMQ workers are disabled |
-| `GEMENI_API_KEY`      | —        | —             | Google AI Studio API key for the chat copilot                             |
+| Variable              | Required | Default       | Description                                           |
+| --------------------- | -------- | ------------- | ----------------------------------------------------- |
+| `PORT`                | No       | `4000`        | HTTP listen port                                      |
+| `MONGODB_URI`         | Yes      | —             | MongoDB connection string                             |
+| `JWT_SECRET`          | Yes      | —             | Access token signing secret                           |
+| `JWT_REFRESH_SECRET`  | Yes      | —             | Refresh token signing secret (must differ from above) |
+| `JWT_ACCESS_EXPIRES`  | No       | `30s`         | Access token lifetime                                 |
+| `JWT_REFRESH_EXPIRES` | No       | `2h`          | Refresh token lifetime                                |
+| `REDIS_URL`           | No       | —             | Redis connection string (app runs without it)         |
+| `GEMENI_API_KEY`      | No       | —             | Google Gemini API key for AI Copilot                  |
+| `CORS_ORIGIN`         | No       | `true` (all)  | Allowed CORS origin                                   |
+| `NODE_ENV`            | No       | `development` | Environment flag (affects cookie `secure` flag)       |
+
+`validateEnv()` in `index.js` crashes the process if `MONGODB_URI`, `JWT_SECRET`, or `JWT_REFRESH_SECRET` are missing.
 
 ---
 
-## Seed the database
-
-**Step 1 — Assets + demo user:**
+## Seed
 
 ```bash
-npm run seed
-# Demo login: demo@bigbull.com / Demo@1234
+cd apps/api
+pnpm seed
 ```
 
-**Step 2 — Historical chart data (optional, local dev only):**
+Seeds 20 NSE stocks + 5 mutual funds into the `assets` collection and creates a demo user.
 
-Backfills 30 days of synthetic price history into `dailyprices`, `stockpricehistories`, and `marketstates`:
+| What                    | Value                            |
+| ----------------------- | -------------------------------- |
+| Demo login              | `demo@bigbull.com` / `Demo@1234` |
+| Starting wallet balance | ₹10,00,000                       |
+| Stocks seeded           | 20 (NSE-listed companies)        |
+| Mutual funds seeded     | 5 (Indian direct-growth funds)   |
+
+For historical chart data:
 
 ```bash
-npm run seed:history -- --force
+pnpm seed:history
 ```
-
-Options:
-
-| Flag       | Description                                                                     |
-| ---------- | ------------------------------------------------------------------------------- |
-| `--force`  | Clears the three collections first, then seeds. Required if they are non-empty. |
-| `--days N` | Seed N days of history (default: 30). e.g. `--days 60`                          |
-
-> `scripts/seedHistoricalData.js` is gitignored — it is a local development utility and should not be committed.
-
-Without `seed:history`, charts still work — 1D intraday data builds up live as the `mseWorker` fires every 30 seconds. Multi-day ranges (1W/1M/3M/1Y) populate once the server shuts down gracefully (writing today's close) or on the next boot (backfilling any gap days).
 
 ---
 
 ## Run
 
 ```bash
-npm run dev     # nodemon — auto-restarts on file changes
-npm start       # Production
-npm test        # Jest (property tests + unit tests)
+# Development (with nodemon)
+pnpm dev
+
+# Production
+pnpm start
 ```
 
-API base: `http://localhost:4000`
+Server starts at `http://localhost:4000`. On startup:
+
+1. Connects to MongoDB
+2. Backfills any missing DailyPrice records from downtime days
+3. Starts BullMQ mse-price-tick scheduler (30s interval)
+4. Starts live ticker (1s SSE broadcast)
+
+On graceful shutdown (SIGTERM/SIGINT): writes today's closing prices to DailyPrice before exiting.
 
 ---
 
 ## API Reference
 
-All v1 responses use the unified envelope:
+All routes are prefixed with `/api/v1/` unless noted. Standard response envelope:
 
 ```json
-{ "success": true, "data": {}, "error": null, "timestamp": "..." }
+{ "success": true, "message": "...", "data": { ... }, "error": null, "timestamp": "ISO-8601" }
 ```
 
-Auth uses **HTTP-Only cookies** — no Bearer tokens in any response body or request header.
+### Auth (`/api/v1/auth`)
 
-### Health
+| Method | Path             | Auth     | Body / Params                                              | Response `data`                       |
+| ------ | ---------------- | -------- | ---------------------------------------------------------- | ------------------------------------- |
+| POST   | `/auth/register` | Public   | `{ name, email, password }` — pw ≥8 chars, digit + special | `{ user: { id, name, email, role } }` |
+| POST   | `/auth/login`    | Public   | `{ email, password }`                                      | `{ user: { id, name, email, role } }` |
+| POST   | `/auth/refresh`  | Public   | None (reads `refresh_token` cookie)                        | `{ user: { id, name, email, role } }` |
+| POST   | `/auth/logout`   | Required | None                                                       | `null`                                |
+| GET    | `/auth/me`       | Required | None                                                       | `{ user: { id, name, email, role } }` |
 
-| Method | Path          | Description                                                             |
-| ------ | ------------- | ----------------------------------------------------------------------- |
-| GET    | `/api/health` | Returns `{ version, db: "connected" }` or 503 if MongoDB is unreachable |
+### User (`/api/v1/users`)
 
-### Auth `/api/v1/auth`
+| Method | Path                    | Auth     | Body / Params                      | Response `data`                           |
+| ------ | ----------------------- | -------- | ---------------------------------- | ----------------------------------------- |
+| GET    | `/users/profile`        | Required | None                               | `{ id, name, email, phone, bio, avatar }` |
+| PATCH  | `/users/profile`        | Required | `{ name?, phone?, bio?, avatar? }` | `{ id, name, email, phone, bio, avatar }` |
+| POST   | `/users/profile/avatar` | Required | `{ avatar }` — base64 data-URL     | `{ id, name, email, phone, bio, avatar }` |
+| DELETE | `/users/profile/avatar` | Required | None                               | `{ id, name, email, phone, bio, avatar }` |
 
-Rate-limited: 5 requests / 15 min per IP.
+### Wallet (`/api/v1/wallet`)
 
-| Method | Path        | Auth | Description                                                            |
-| ------ | ----------- | ---- | ---------------------------------------------------------------------- |
-| POST   | `/register` | —    | Create account, issue HTTP-Only cookies, seed ₹10L wallet              |
-| POST   | `/login`    | —    | Validate credentials, issue cookies                                    |
-| POST   | `/logout`   | ✅   | Invalidate refresh token, clear cookies                                |
-| GET    | `/me`       | ✅   | Current user `{ id, name, email, role }` — used for app-load hydration |
-| POST   | `/refresh`  | —    | Rotate refresh token (reads cookie), issue new access cookie           |
+| Method | Path                        | Auth     | Body / Params                                                                    | Response `data`                   |
+| ------ | --------------------------- | -------- | -------------------------------------------------------------------------------- | --------------------------------- |
+| GET    | `/wallet`                   | Required | None                                                                             | `{ balance, currency }`           |
+| POST   | `/wallet/transactions/list` | Required | `{ pagination: { page, limit }, filters?: { type?: "DEBIT"\|"CREDIT" }, sort? }` | Paginated `{ items, pagination }` |
+| GET    | `/wallet/transactions`      | Required | Query: `?page=1&limit=20` (legacy)                                               | `{ transactions, pagination }`    |
 
-### Users `/api/v1/users`
+### Transactions (`/api/v1/transactions`)
 
-| Method | Path              | Auth | Description                                                   |
-| ------ | ----------------- | ---- | ------------------------------------------------------------- |
-| GET    | `/profile`        | ✅   | Full profile `{ id, name, email, phone, bio, avatar }`        |
-| PATCH  | `/profile`        | ✅   | Partial update — any subset of `{ name, phone, bio, avatar }` |
-| POST   | `/profile/avatar` | ✅   | Upload base64 data URL avatar                                 |
-| DELETE | `/profile/avatar` | ✅   | Remove avatar (sets field to `null`)                          |
+| Method | Path                  | Auth     | Body / Params                                                                                       | Response `data`                   |
+| ------ | --------------------- | -------- | --------------------------------------------------------------------------------------------------- | --------------------------------- |
+| POST   | `/transactions/order` | Required | `{ assetId, transactionType: "BUY"\|"SELL", quantity, fees?, notes? }` — price resolved server-side | `{ transaction }`                 |
+| POST   | `/transactions/list`  | Required | `{ pagination: { page, limit }, filters?: { assetId?, transactionType? }, search?, sort? }`         | Paginated `{ items, pagination }` |
+| GET    | `/transactions`       | Required | Query: `?page=1&limit=20&assetId=` (legacy)                                                         | `{ transactions, pagination }`    |
 
-### Market `/api/v1/market`
+### Portfolio (`/api/v1/portfolio`)
 
-All routes are **public** (no auth required).
+| Method | Path                  | Auth     | Body / Params | Response `data`                                  |
+| ------ | --------------------- | -------- | ------------- | ------------------------------------------------ |
+| GET    | `/portfolio/holdings` | Required | None          | `{ holdings }`                                   |
+| GET    | `/portfolio/summary`  | Required | None          | Portfolio summary (invested, current, P&L, cash) |
 
-| Method | Path              | Auth | Description                                                                       |
-| ------ | ----------------- | ---- | --------------------------------------------------------------------------------- |
-| POST   | `/assets/list`    | —    | Paginated, filtered, sortable asset catalog (standardised POST body)              |
-| GET    | `/assets`         | —    | Full asset catalog enriched with live prices. `?type=STOCK\|MUTUAL_FUND` (legacy) |
-| GET    | `/assets/:ticker` | —    | Single asset by NSE ticker or MF scheme code                                      |
-| GET    | `/search?q=`      | —    | Full-text search over catalog (name + ticker, min 2 chars)                        |
-| GET    | `/quote/:ticker`  | —    | Current simulated price (Redis → MarketState → basePrice)                         |
-| GET    | `/ticker`         | —    | Top 10 NSE stocks with live prices — used by the UI ticker strip                  |
-| GET    | `/chart/:ticker`  | —    | Historical price series. `?range=1D\|1W\|1M\|3M\|1Y`                              |
-| GET    | `/stream`         | —    | SSE endpoint — streams `price_update` and `volatility_alert` events               |
+### Market (`/api/v1/market`)
 
-#### Chart endpoint detail
+| Method | Path                     | Auth   | Body / Params                                                                        | Response `data`                                             |
+| ------ | ------------------------ | ------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| GET    | `/market/ticker`         | Public | None                                                                                 | Live ticker quotes for top stocks                           |
+| GET    | `/market/assets`         | Public | Query: `?type=STOCK\|MUTUAL_FUND` (legacy)                                           | `{ assets }` — enriched with live prices                    |
+| POST   | `/market/assets/list`    | Public | `{ pagination: { page, limit }, filters?: { assetType?, sector? }, search?, sort? }` | Paginated `{ items, pagination }`                           |
+| GET    | `/market/assets/:ticker` | Public | Path param: ticker (NSE symbol)                                                      | `{ asset }`                                                 |
+| GET    | `/market/search`         | Public | Query: `?q=` — min 2 chars, max 100                                                  | `{ results }`                                               |
+| GET    | `/market/quote/:ticker`  | Public | Path param: ticker                                                                   | Quote object with live price                                |
+| GET    | `/market/stream`         | Public | None (SSE connection)                                                                | SSE events: `connected`, `price_update`, `volatility_alert` |
+| GET    | `/market/chart/:ticker`  | Public | Path param: ticker; Query: `?range=1D\|1W\|1M\|3M\|1Y`                               | `{ ticker, assetType, range, granularity, points }`         |
 
-`GET /api/v1/market/chart/:ticker?range=1D|1W|1M|3M|1Y`
+### Chat (`/api/v1/chat`)
 
-Response shape:
+| Method | Path    | Auth     | Body / Params             | Response `data` |
+| ------ | ------- | -------- | ------------------------- | --------------- |
+| POST   | `/chat` | Required | `{ message }` — non-empty | `{ reply }`     |
+
+### Health (`/api/health`)
+
+| Method | Path          | Auth   | Body / Params | Response `data`                                    |
+| ------ | ------------- | ------ | ------------- | -------------------------------------------------- |
+| GET    | `/api/health` | Public | None          | `{ version, db }` — returns 503 if DB disconnected |
+
+### POST Pagination Convention
+
+All list endpoints share a common request body:
 
 ```json
 {
-  "ticker": "RELIANCE",
-  "assetType": "STOCK",
-  "range": "1D",
-  "granularity": "30s",
-  "points": [
-    {
-      "timestamp": "2026-06-21T03:45:00.000Z",
-      "price": 2963.41,
-      "change": 13.41,
-      "changePercent": "+0.46%"
-    }
-  ]
+  "pagination": { "page": 1, "limit": 20 },
+  "filters": {},
+  "search": "",
+  "sort": { "field": "createdAt", "order": "desc" }
 }
 ```
 
-| Range                     | Data source                                                 | Granularity |
-| ------------------------- | ----------------------------------------------------------- | ----------- |
-| `1D` (Stock)              | `StockPriceHistory` — today's intraday ticks                | 30 seconds  |
-| `1D` (MF)                 | `DailyPrice` — today's NAV only (MFs have no intraday data) | Daily       |
-| `1W` / `1M` / `3M` / `1Y` | `DailyPrice` — daily closing prices                         | Daily       |
+Response includes `{ items, pagination: { page, limit, total, totalPages, hasNextPage, hasPrevPage } }`. Default limit is 5, maximum is 100.
 
-### Transactions `/api/v1/transactions`
+### Rate Limiting
 
-| Method | Path     | Auth | Description                                                       |
-| ------ | -------- | ---- | ----------------------------------------------------------------- |
-| POST   | `/list`  | ✅   | Paginated, filtered transaction history (standardised POST body)  |
-| POST   | `/order` | ✅   | Execute BUY or SELL — atomically updates wallet and writes ledger |
-| GET    | `/`      | ✅   | Legacy paginated history (`?page=1&limit=20&assetId=<opt>`)       |
-
-### Portfolio `/api/v1/portfolio`
-
-Computed on demand — nothing stored. Source: Transaction ledger + three-tier price chain.
-
-| Method | Path        | Auth | Description                                                         |
-| ------ | ----------- | ---- | ------------------------------------------------------------------- |
-| GET    | `/holdings` | ✅   | Per-asset holdings with live price, P&L, and portfolio weight       |
-| GET    | `/summary`  | ✅   | Aggregate: `{ totalInvested, currentValue, totalPnL, cashBalance }` |
-
-### Wallet `/api/v1/wallet`
-
-| Method | Path                 | Auth | Description                                                      |
-| ------ | -------------------- | ---- | ---------------------------------------------------------------- |
-| GET    | `/`                  | ✅   | Current ₹ virtual wallet balance                                 |
-| POST   | `/transactions/list` | ✅   | Paginated, filtered wallet transactions (standardised POST body) |
-| GET    | `/transactions`      | ✅   | Legacy paginated wallet transactions                             |
-
-### Chat `/api/v1/chat`
-
-| Method | Path | Auth | Description                                      |
-| ------ | ---- | ---- | ------------------------------------------------ |
-| POST   | `/`  | ✅   | Send a message to the AI copilot (Google Gemini) |
+| Limiter          | Scope          | Window | Max Requests |
+| ---------------- | -------------- | ------ | ------------ |
+| `generalLimiter` | `/api/v1/*`    | 1 min  | 1000         |
+| `authLimiter`    | `/api/v1/auth` | 1 min  | 1000         |
+| `chatLimiter`    | `/api/v1/chat` | 1 min  | 1000         |
 
 ---
 
-## Price Architecture — Three-Tier Recovery Chain
+## Feature Creation Guide
 
-Every price read in the system (mseWorker, portfolio, market, transactions) resolves via:
+To add a new feature module (e.g., `watchlist`):
 
-```
-1. Redis  price:<ticker>  (TTL 60s)   — fastest, most current
-2. MarketState.lastPrice  (MongoDB)   — survived Redis flush / server restart
-3. Asset.basePrice                    — original seed value, last resort
-```
-
-`MarketState` is upserted by the `mseWorker` after every tick. On a fresh boot with an empty Redis, the simulation resumes from the last known persisted price rather than reverting to seed values.
-
-`Asset.basePrice` is **never written at runtime** — it is pure reference/seed data.
-
----
-
-## MongoDB Collections
-
-| Collection            | Owner                | Purpose                                             |
-| --------------------- | -------------------- | --------------------------------------------------- |
-| `users`               | `user` module        | User accounts and profiles                          |
-| `assets`              | `asset` module       | Tradeable instrument catalog (seed only)            |
-| `transactions`        | `transaction` module | BUY/SELL ledger — source of truth for portfolio     |
-| `virtualwallets`      | `wallet` module      | Per-user cash balance                               |
-| `stockpricehistories` | `mseWorker`          | Intraday 30s price ticks for STOCK assets (48h TTL) |
-| `dailyprices`         | `dailyPriceService`  | One closing price per asset per calendar day        |
-| `marketstates`        | `mseWorker`          | Latest runtime price per ticker (recovery layer)    |
-
----
-
-## DailyPrice Lifecycle
-
-`DailyPrice` records are written by `dailyPriceService.js` — no BullMQ queue or cron involved:
-
-| Trigger                                  | Function                | What it writes                                                                                    |
-| ---------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------- |
-| Graceful shutdown (`SIGTERM` / `SIGINT`) | `writeTodayClose()`     | Upserts today's `DailyPrice` per asset using the current three-tier price                         |
-| Server startup (after `connectDB()`)     | `backfillMissingDays()` | Fills every calendar day between last known `DailyPrice` and yesterday via random-walk simulation |
-
-**Downtime recovery behaviour:**
-
-| Scenario                                 | What happens                                                                                                                                                           |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server runs then shuts down normally     | `writeTodayClose()` fires — today's last price is persisted                                                                                                            |
-| Server runs 12:00–12:15, then shuts down | Same — 12:15's `MarketState` price becomes that day's `DailyPrice`                                                                                                     |
-| Server restarts the same day             | `backfillMissingDays()` skips today (fills up to yesterday only). Next shutdown overwrites today's record with the latest price                                        |
-| Server offline all day                   | On next boot: yesterday gets `MarketState.lastPrice` as its close                                                                                                      |
-| Server offline for N days                | On next boot: N gap days filled by chaining random-walk from `MarketState.lastPrice`; `MarketState` updated to end-of-chain price so live simulation resumes correctly |
-| Cold DB — no `MarketState` either        | Falls back to `Asset.basePrice`, fills 30 days of synthetic history                                                                                                    |
-| Redis flushed / Upstash reset            | `backfillMissingDays()` bypasses Redis entirely — uses `MarketState` directly                                                                                          |
-| `writeTodayClose()` fails at shutdown    | Error logged, process exits cleanly. Next boot fills the gap as "yesterday"                                                                                            |
-| Server crashes (SIGKILL / OOM)           | No graceful shutdown — same recovery as "server offline all day"                                                                                                       |
-| `backfillMissingDays()` fails on startup | Error logged, server continues normally. Live simulation unaffected                                                                                                    |
-
----
-
-## BullMQ Workers
-
-| Queue                | Worker file           | Schedule  | Purpose                                                                                          |
-| -------------------- | --------------------- | --------- | ------------------------------------------------------------------------------------------------ |
-| `mse-price-tick`     | `mseWorker.js`        | Every 30s | Stock price simulation, Redis writes, SSE broadcast, StockPriceHistory + MarketState persistence |
-| `net-worth-snapshot` | _(planned — Phase 3)_ | Daily     | Net worth snapshot per user                                                                      |
-| `goal-status-sync`   | _(planned — Phase 3)_ | Daily     | Goal status recalculation                                                                        |
-
-> `dailyPriceService.js` is **not** a BullMQ worker — it is a plain async module called directly at startup and shutdown. No queue, no cron, no Redis dependency for scheduling.
-
-**BullMQ requires a separate ioredis connection** (`maxRetriesPerRequest: null`). Use `makeBullMQConnection()` from `shared/redisBullMQ.js` — never pass the shared `redis.js` client to a Queue or Worker.
+1. **Create directory**: `src/modules/watchlist/`
+2. **Model**: `watchlist.model.js` — define Mongoose schema with appropriate indexes
+3. **Validator**: `watchlist.validator.js` — define Zod schemas for request validation
+4. **Service**: `watchlist.service.js` — all business logic; call other services (never import other models directly)
+5. **Controller**: `watchlist.controller.js` — validate input with Zod, call service, format response via `sendSuccess()`
+6. **Routes**: `watchlist.routes.js` — Express router, apply `authMiddleware` per route as needed
+7. **Register**: In `src/server.js`, import and mount the router:
+   ```js
+   const v1WatchlistRoutes = require('./modules/watchlist/watchlist.routes');
+   app.use('/api/v1/watchlist', v1WatchlistRoutes);
+   ```
+8. **Constants**: If new enums are needed, add to `shared/constants/` and export via `shared/constants/index.js`
 
 ---
 
 ## Key Design Rules
 
-- **User module owns the User entity.** No other module imports `user.model.js` directly.
-- **Transactions are the single source of truth.** Portfolio values are never stored — always computed by aggregating the Transaction ledger.
-- **No external market APIs.** All data comes from the seeded Asset catalog + MSE simulation.
-- **Cookie auth only.** JWTs live in HTTP-Only cookies. No Bearer tokens.
-- **Historical collections are read-only for the API.** `StockPriceHistory` and `DailyPrice` are written exclusively by workers, never by HTTP handlers.
-- **`Asset.basePrice` is read-only at runtime.** It is set during seeding and never updated by the simulation.
-- **Three-tier price resolution.** Redis → MarketState → basePrice — applied consistently everywhere.
-- **Shared constants eliminate magic strings.** All asset types, transaction types, HTTP status codes, chart ranges, user roles, exchange types, and validation rules are imported from `shared/constants/` — never hardcoded in services, controllers, models, or validators.
-- **Standardised pagination via POST.** All new list endpoints use `POST /…/list` with `{ pagination, filters, search, sort }` body validated by `baseListQuerySchema`. Response sent via `sendPaginatedSuccess()`. Legacy GET endpoints retained but not extended.
-
----
-
-## Scripts
-
-| Command                | Description                                            |
-| ---------------------- | ------------------------------------------------------ |
-| `npm run dev`          | Start with nodemon (auto-restart on file changes)      |
-| `npm start`            | Start production server                                |
-| `npm run seed`         | Seed 20 NSE stocks + 5 MFs + demo user                 |
-| `npm run seed:history` | Backfill 30 days of historical chart data (gitignored) |
-| `npm test`             | Run Jest test suite                                    |
+- **Cookie-only auth** — JWTs stored exclusively in HTTP-Only cookies, never in response bodies or localStorage. Prevents XSS token theft.
+- **Transaction as source of truth** — Portfolio holdings and P&L are always computed on-demand from raw Transaction documents via aggregation pipeline. No stored derived values, no stale-cache bugs.
+- **No external APIs** — All market prices are generated internally by the MSE worker. No Alpha Vantage, Yahoo Finance, or MFAPI calls at runtime. Self-contained simulation with no API keys to manage.
+- **Shared constants** — Domain enums (asset types, transaction types, chart ranges, HTTP status) live in `shared/constants/` and are imported by both API and UI packages. Single source of truth for magic values.
+- **Standardised POST pagination** — All list endpoints use POST with `{ pagination, filters, search, sort }` body. Complex filters don't fit in query params; consistent client contract across all modules.
+- **Module isolation** — Each module owns its routes, controller, service, and model. Cross-module calls go through the service layer only. Never import another module's model directly.
+- **Server-resolved execution price** — `transaction.service.executeOrder()` discards any client-supplied price. Price is resolved server-side via the three-tier chain. Prevents client-side price manipulation.
+- **Atomic order execution** — Every BUY/SELL wraps Transaction creation + wallet update in a single MongoDB session. No partial states.
+- **INR-only virtual currency** — All monetary values in ₹. No multi-currency support.

@@ -1,6 +1,7 @@
-import { Input } from './input';
-import { Label } from './label';
-import { Button } from './button';
+// Tier 4 — Context Compound Component
+import { Input } from '@/shared/ui/input';
+import { Label } from '@/shared/ui/label';
+import { Button } from '@/shared/ui/button';
 import { cn } from '@/lib/utils';
 import { useState, cloneElement } from 'react';
 import { Eye, EyeOff } from 'lucide-react';

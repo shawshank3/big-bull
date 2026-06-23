@@ -14,7 +14,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/shared/ui/dropdown-menu';
+} from '@/shared/components/dropdown-menu';
 
 export const UserMenu = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);

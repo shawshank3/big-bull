@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { Alert } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { useGetProfileQuery, useUpdateProfileMutation } from '../api/userApi';

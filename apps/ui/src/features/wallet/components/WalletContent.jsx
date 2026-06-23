@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { Alert } from '@/shared/ui/alert';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
 import { Badge } from '@/shared/ui/badge';
 import { MutedText } from '@/shared/ui/typography';

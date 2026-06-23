@@ -1,7 +1,7 @@
 import { Alert } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
-import { FormInput } from '@/shared/ui/FormInput';
-import { FormTextarea } from '@/shared/ui/FormTextarea';
+import { FormInput } from '@/shared/components/FormInput';
+import { FormTextarea } from '@/shared/components/FormTextarea';
 
 export const ProfileEditForm = ({
   profile,

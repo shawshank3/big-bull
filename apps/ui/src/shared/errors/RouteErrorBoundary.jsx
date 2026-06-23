@@ -6,7 +6,7 @@ import {
   CardDescription,
   CardContent,
   CardFooter,
-} from '@/shared/ui/card';
+} from '@/shared/components/card';
 import { Button } from '@/shared/ui/button';
 import { ROUTES } from '@/shared/constants/routes';
 

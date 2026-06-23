@@ -13,7 +13,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetBody,
-} from '@/shared/ui/sheet';
+} from '@/shared/components/sheet';
 import { GrowingMarketIcon } from '@/shared/ui/GrowingMarketIcon';
 import { ROUTES } from '@/shared/constants/routes';
 import { useGetProfileQuery } from '@/features/user/api/userApi';

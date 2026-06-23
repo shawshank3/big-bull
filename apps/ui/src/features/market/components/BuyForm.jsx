@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { Alert } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
-import { FormInput } from '@/shared/ui/FormInput';
+import { FormInput } from '@/shared/components/FormInput';
 import { useExecuteOrderMutation } from '@/features/transaction/api/transactionApi';
 import { formatCurrency } from '@/shared/utils/format';
 import { ROUTES } from '@/shared/constants/routes';

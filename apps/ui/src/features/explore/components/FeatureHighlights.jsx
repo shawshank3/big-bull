@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { FEATURE_HIGHLIGHTS } from './constants';
+import { FEATURE_HIGHLIGHTS } from '../constants';
 
 const FeatureCard = ({ title, description, gradient, iconBg, icon }) => (
   <div

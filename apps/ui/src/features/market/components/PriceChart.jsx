@@ -24,14 +24,15 @@
 
 import { useState } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/shared/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs';
+import { Card, CardContent, CardHeader } from '@/shared/components/card';
+import { Tabs, TabsList, TabsTrigger } from '@/shared/components/tabs';
 import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';
 import { LineChart } from '@/shared/ui/line-chart';
 import { formatCurrency } from '@/shared/utils';
 import { useGetChartQuery } from '../api/marketApi';
 import { ASSET_TYPES, CHART_RANGES } from '@/shared/constants';
+import { getPriceDelta } from '../utils/price';
 
 // ─── Range options ────────────────────────────────────────────────────────────
 
@@ -58,15 +59,6 @@ const deriveColor = (points) => {
   if (last > first) return 'up';
   if (last < first) return 'down';
   return 'neutral';
-};
-
-const getPriceDelta = (points) => {
-  if (!points || points.length < 2) return null;
-  const first = points[0].price;
-  const last = points[points.length - 1].price;
-  const delta = last - first;
-  const pct = first > 0 ? (delta / first) * 100 : 0;
-  return { delta, pct, up: delta >= 0 };
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────

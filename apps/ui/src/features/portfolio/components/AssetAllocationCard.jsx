@@ -1,16 +1,13 @@
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { Progress } from '@/shared/ui/progress';
 import { MutedText, SectionTitle } from '@/shared/ui/typography';
 import { formatCurrency } from '@/shared/utils';
+import { getAllocationValue, getAllocationAmount } from '../utils/allocation';
 
 const ALLOCATION_ROWS = [
   { label: 'Mutual funds', key: 'mutual', colorClass: 'bg-primary' },
   { label: 'Stocks', key: 'stock', colorClass: 'bg-secondary' },
 ];
-const getAllocationValue = (allocation, key) =>
-  key === 'mutual' ? allocation.mutualAllocation : allocation.stockAllocation;
-const getAllocationAmount = (allocation, key) =>
-  key === 'mutual' ? allocation.mutualValue : allocation.stockValue;
 
 export const AssetAllocationCard = ({ allocation }) => (
   <Card>

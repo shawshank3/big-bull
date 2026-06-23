@@ -1,7 +1,7 @@
 import { useLocation, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { Alert } from '@/shared/ui/alert';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
 import { formatCurrency } from '@/shared/utils';
 import { useGetMutualQuoteQuery, useGetAssetByTickerQuery } from '../api/marketApi';

@@ -1,3 +1,4 @@
+// Tier 1 — Presentational Token
 export const GrowingMarketIcon = ({ className = '', size = 36 }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

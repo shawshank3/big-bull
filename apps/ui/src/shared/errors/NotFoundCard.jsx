@@ -1,6 +1,6 @@
 import { Link as RouterLink } from 'react-router-dom';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { ROUTES } from '@/shared/constants/routes';
 
 export const NotFoundCard = () => (

@@ -1,5 +1,5 @@
 import { Badge } from '@/shared/ui/badge';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { MutedText, SectionTitle, StatValue } from '@/shared/ui/typography';
 import { formatCurrency } from '@/shared/utils';
 

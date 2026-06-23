@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../hooks/useAuth';
 import { Alert } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
-import { FormInput } from '@/shared/ui/FormInput';
+import { FormInput } from '@/shared/components/FormInput';
 
 export const LoginForm = () => {
   const { login, isLoading, error } = useAuth();

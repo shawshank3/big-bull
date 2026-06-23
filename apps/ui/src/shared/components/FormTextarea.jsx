@@ -1,4 +1,5 @@
-import { Label } from './label';
+// Tier 4 — Context Compound Component
+import { Label } from '../ui/label';
 import { cn } from '@/lib/utils';
 
 export function FormTextarea({ ref, label, error, id, name, className = '', ...props }) {

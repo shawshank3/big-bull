@@ -1,9 +1,17 @@
+// Tier 2 — Prop-Based Component (verified)
 import { useState, useCallback, useEffect } from 'react';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { ArrowUpDown, Search } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/shared/components/table';
 import { Input } from '@/shared/ui/input';
-import { ServerDataTablePagination } from '@/shared/ui/server-data-table-pagination';
+import { Pagination } from '@/shared/ui/pagination';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 
@@ -174,10 +182,7 @@ export function ServerDataTable({
 
       {/* Pagination */}
       {showPagination && pagination && (
-        <ServerDataTablePagination
-          pagination={pagination}
-          onPaginationChange={onPaginationChange}
-        />
+        <Pagination pagination={pagination} onPaginationChange={onPaginationChange} />
       )}
     </div>
   );

@@ -1,6 +1,12 @@
 import { createContext, useContext } from 'react';
 import { Alert } from '@/shared/ui/alert';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
 import { formatCurrency, formatMarketDate } from '@/shared/utils';
 

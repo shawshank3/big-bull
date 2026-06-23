@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Alert } from '@/shared/ui/alert';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { PageHeader } from '@/shared/layout/PageHeader';

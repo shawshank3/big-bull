@@ -1,5 +1,5 @@
 import { Quote } from 'lucide-react';
-import { STOCK_QUOTES } from './constants';
+import { STOCK_QUOTES } from '../constants';
 
 const QuoteCard = ({ text, author }) => (
   <figure className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-soft transition-shadow hover:shadow-md">

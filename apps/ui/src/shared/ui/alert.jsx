@@ -1,3 +1,4 @@
+// Tier 1 — Presentational Token
 import * as React from 'react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils';

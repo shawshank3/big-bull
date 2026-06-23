@@ -1,3 +1,4 @@
+// Tier 1 — Presentational Token
 import { cn } from '@/lib/utils';
 
 export const PageTitle = ({ children, className }) => (

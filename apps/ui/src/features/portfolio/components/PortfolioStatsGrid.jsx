@@ -1,4 +1,4 @@
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { formatCurrency, formatPercentage } from '@/shared/utils';
 

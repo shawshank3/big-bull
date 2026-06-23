@@ -1,299 +1,263 @@
-# BigBull UI — Frontend
+# BigBull UI
 
-React 19 + Vite 5 SPA for the BigBull simulated Indian stock market platform.
+> React single-page application for BigBull — a virtual stock market simulation platform. Feature-module architecture with RTK Query data fetching, SSE real-time price updates, and cookie-based authentication.
 
 ## Stack
 
-| Layer     | Library / Tool                                                                              |
-| --------- | ------------------------------------------------------------------------------------------- |
-| Framework | React 19 + Vite 5                                                                           |
-| Routing   | React Router v6 (nested layouts, protected routes)                                          |
-| State     | Redux Toolkit — `authSlice` for auth, RTK Query for all server state                        |
-| Forms     | React Hook Form (no `useState` for form fields)                                             |
-| Styling   | Tailwind CSS v3 + Radix UI primitives                                                       |
-| Charts    | Recharts — wrapped behind `shared/ui/line-chart.jsx`                                        |
-| Tables    | TanStack React Table (`@tanstack/react-table`) — `DataTable` + `ServerDataTable` primitives |
-| HTTP      | RTK Query with `baseQueryWithReauth` mutex wrapper (auto token refresh on 401)              |
-| Testing   | Jest (unit / property tests)                                                                |
+| Technology               | Role                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| React 19                 | UI library                                                                        |
+| Redux Toolkit            | Global state management (auth slice)                                              |
+| RTK Query                | Server data fetching, caching, and mutations                                      |
+| React Router 6           | Client-side routing (`createBrowserRouter`)                                       |
+| Vite 5                   | Build tool and dev server                                                         |
+| Tailwind CSS 3           | Utility-first styling                                                             |
+| Radix UI                 | Accessible headless primitives (Avatar, Dialog, Select, Tabs, Progress, Dropdown) |
+| class-variance-authority | Component variant definitions                                                     |
+| React Hook Form          | Form state management                                                             |
+| Recharts                 | Chart visualisations                                                              |
+| @tanstack/react-table    | Data table rendering (client + server paginated)                                  |
+| Lucide React             | Icon library                                                                      |
+| async-mutex              | Token refresh race-condition guard                                                |
 
----
-
-## Architecture — Feature-Module Structure
-
-The frontend mirrors the backend's vertical module structure. Every feature owns its API layer, DTOs, components, hooks, routes, and state. Shared infrastructure lives in `shared/`.
+## Architecture
 
 ```
 apps/ui/src/
-├── app/
-│   ├── router.jsx           # React Router v6 route tree — imports from feature modules
-│   ├── store.js             # Redux store — authReducer + apiSlice + listenerMiddleware
-│   └── routes/
-│       └── NotFound.jsx     # 404 page
-│
-├── features/
-│   ├── auth/                ↔ backend auth module
-│   │   ├── api/authApi.js
-│   │   ├── dto/auth.dto.js
-│   │   ├── store/authSlice.js
-│   │   ├── hooks/useAuth.js
-│   │   ├── providers/AuthProvider.jsx
-│   │   ├── layout/AuthLayout.jsx
-│   │   └── routes/ + components/
-│   │
-│   ├── user/                ↔ backend user module
-│   │   ├── api/userApi.js
-│   │   ├── dto/user.dto.js
-│   │   └── routes/ + components/
-│   │
-│   ├── market/              ↔ backend market module
-│   │   ├── api/marketApi.js       # listAssets (POST), getAssets (legacy), getAssetByTicker,
-│   │   │                          #   searchMarket, getStockQuote, getMutualQuote,
-│   │   │                          #   getTickerQuotes, getChart (useGetChartQuery)
-│   │   ├── dto/market.dto.js      # toAssetDTO, toQuoteDTO, toTickerDTO,
-│   │   │                          #   toSearchResultDTO, toChartDTO
-│   │   ├── constants/market.js
-│   │   ├── hooks/
-│   │   │   ├── useMarketSearch.js
-│   │   │   └── useMarketStream.js # SSE hook — patches RTK Query cache on price_update
-│   │   ├── routes/
-│   │   │   ├── Market.jsx
-│   │   │   ├── StockDetail.jsx
-│   │   │   ├── MutualDetail.jsx
-│   │   │   └── Search.jsx          # Mobile-first asset search page
-│   │   └── components/
-│   │       ├── MarketContent.jsx     # ServerDataTable with server-side pagination
-│   │       ├── MarketQuoteCard.jsx   # compound component for price display
-│   │       ├── StockDetailContent.jsx  # quote card + PriceChart + OrderForm + txn table
-│   │       ├── MutualDetailContent.jsx # quote card + PriceChart + OrderForm + txn table
-│   │       ├── PriceChart.jsx          # chart card with range tabs + LineChart
-│   │       ├── NavbarSearch.jsx
-│   │       ├── OrderForm.jsx           # tab switcher delegating to BuyForm/SellForm
-│   │       ├── BuyForm.jsx             # compound buy form
-│   │       └── SellForm.jsx            # compound sell form
-│   │
-│   ├── portfolio/           ↔ backend portfolio module
-│   ├── transaction/         ↔ backend transaction module
-│   ├── wallet/              ↔ backend wallet module
-│   ├── chat/                ↔ backend chat module
-│   └── explore/             # Public landing page
-│
-├── shared/
-│   ├── api/apiSlice.js      # Base RTK Query slice — baseQueryWithReauth (401 → refresh → retry)
-│   ├── dto/helpers.js       # str, num, bool, arr safe-default coercion helpers
-│   ├── constants/           # ROUTES, API_URLS, ASSET_TYPES, TRANSACTION_TYPES, CHART_RANGES,
-│   │   │                    #   HTTP_STATUS, TIME_CONSTANTS, VALIDATION_RULES (central barrel index.js)
-│   │   ├── routes.js
-│   │   ├── apiUrls.js
-│   │   ├── assetTypes.js
-│   │   ├── transactionTypes.js
-│   │   ├── chartRanges.js
-│   │   ├── httpStatus.js
-│   │   ├── timeConstants.js
-│   │   ├── validationRules.js
-│   │   └── index.js         # Central barrel export for all constants
-│   ├── hooks/               # useDebounce, useThemeMode
-│   ├── layout/              # RootLayout, Navbar, AppPageLayout, PageHeader …
-│   ├── errors/              # RouteErrorBoundary, NotFoundCard
-│   └── ui/                  # Design-system primitives (Radix UI + Tailwind + Recharts + TanStack Table)
-│       ├── alert.jsx
-│       ├── avatar.jsx
-│       ├── badge.jsx
-│       ├── button.jsx
-│       ├── card.jsx
-│       ├── data-table.jsx           # Client-side DataTable (TanStack React Table wrapper)
-│       ├── data-table-pagination.jsx
-│       ├── dropdown-menu.jsx
-│       ├── FormInput.jsx            # Compound pattern with PasswordToggle child
-│       ├── FormTextarea.jsx
-│       ├── GrowingMarketIcon.jsx
-│       ├── input.jsx
-│       ├── label.jsx
-│       ├── line-chart.jsx   # Recharts AreaChart wrapper — theme-aware, forwardRef
-│       ├── progress.jsx
-│       ├── select.jsx       # Radix UI Select primitive
-│       ├── server-data-table.jsx    # Server-driven DataTable (pagination from API)
-│       ├── server-data-table-pagination.jsx
-│       ├── sheet.jsx
-│       ├── spinner.jsx
-│       ├── table.jsx
-│       ├── tabs.jsx
-│       ├── typography.jsx
-│       └── index.js         # Barrel export for all primitives
-│
-├── theme/
-├── lib/utils.js             # cn() — clsx + tailwind-merge
-├── App.jsx
-└── main.jsx
+├── app/                        # App-level wiring
+│   ├── store.js                # Redux store (auth reducer + apiSlice middleware)
+│   ├── router.jsx              # createBrowserRouter route definitions
+│   └── routes/NotFound.jsx     # 404 page
+├── features/                   # Feature modules (domain-sliced)
+│   ├── auth/                   # Login, register, session, route guards
+│   ├── market/                 # Asset listing, quotes, SSE stream, search
+│   ├── portfolio/              # Holdings, dashboard summary, P&L
+│   ├── transaction/            # Buy/sell order execution
+│   ├── wallet/                 # Balance display, wallet transaction history
+│   ├── chat/                   # AI copilot (Gemini)
+│   ├── explore/                # Asset discovery landing page
+│   └── user/                   # Profile management, avatar
+├── shared/                     # Cross-cutting concerns
+│   ├── api/apiSlice.js         # RTK Query base slice + reauth wrapper
+│   ├── components/             # Composite components (table, tabs, sheet, select, card)
+│   ├── constants/              # Routes, API URLs, asset types, validation rules
+│   ├── dto/helpers.js          # DTO primitives (str, num, bool, arr)
+│   ├── errors/                 # Error boundary, NotFoundCard
+│   ├── hooks/                  # useDebounce, useThemeMode
+│   ├── layout/                 # RootLayout, Navbar, PageShell, PageHeader
+│   ├── ui/                     # Design system primitives (see below)
+│   └── utils/                  # Formatters, localStorage, market/portfolio helpers
+├── lib/utils.js                # Tailwind cn() merge utility
+├── theme/                      # Theme constants + utilities
+├── App.jsx                     # Provider composition root
+└── main.jsx                    # Vite entry point
 ```
 
----
+**Backend module mapping:** Each frontend feature module maps to a corresponding backend API module — `auth → /api/v1/auth`, `market → /api/v1/market`, `portfolio → /api/v1/portfolio`, `transaction → /api/v1/transactions`, `wallet → /api/v1/wallet`, `chat → /api/v1/chat`, `user → /api/v1/users`.
 
-## Architectural Rules
+### Feature Module Internal Structure
 
-- **Feature code lives inside its owning feature module.** Nothing from `features/auth` leaks into `features/market`, etc.
-- **Features may import from `shared/`, but `shared/` never imports from `features/`.**
-- **API definitions and DTOs belong to the owning feature.** Import RTK Query hooks from `features/<name>/api/<name>Api.js`.
-- **`shared/ui/` is for stateless design-system primitives only.** Feature-specific business logic stays inside the feature.
-- **`LineChart` is the only chart primitive** — `PriceChart` (a feature component) uses it; nothing else imports Recharts directly.
-- **`DataTable` and `ServerDataTable` are the table primitives** — features use these instead of raw `<Table>` for any list with pagination, search, or sorting.
-- **Constants are imported from `shared/constants/`** — no magic strings for asset types, transaction types, chart ranges, etc. in feature code.
+```
+features/<module>/
+├── api/<module>Api.js       # RTK Query injectEndpoints
+├── dto/<module>.dto.js      # Response → DTO transformers
+├── components/              # UI components (private to module)
+├── hooks/                   # Custom hooks (private unless exported via index.js)
+├── routes/                  # Page-level components mounted by router
+├── store/                   # Redux slice (only auth has one)
+├── constants/               # Module-specific constants
+├── utils/                   # Module-specific helpers
+└── index.js                 # Public barrel — only this is importable externally
+```
 
----
+**Rules:**
 
-## Backend ↔ Frontend Module Mapping
-
-| Backend Module | Frontend Feature       |
-| -------------- | ---------------------- |
-| `auth`         | `features/auth`        |
-| `user`         | `features/user`        |
-| `market`       | `features/market`      |
-| `portfolio`    | `features/portfolio`   |
-| `transaction`  | `features/transaction` |
-| `wallet`       | `features/wallet`      |
-| `chat`         | `features/chat`        |
-
----
-
-## API / DTO Ownership
-
-| Feature file                                 | Endpoints                                                    | DTOs                                                                         |
-| -------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `features/auth/api/authApi.js`               | `getMe`, `login`, `register`, `logout`                       | `toAuthUserDTO`                                                              |
-| `features/user/api/userApi.js`               | `getProfile`, `updateProfile`, avatar                        | `toUserProfileDTO`                                                           |
-| `features/market/api/marketApi.js`           | **listAssets**, assets, search, quotes, ticker, **chart**    | `toAssetDTO`, `toQuoteDTO`, `toTickerDTO`, `toSearchResultDTO`, `toChartDTO` |
-| `features/portfolio/api/portfolioApi.js`     | holdings, summary                                            | `toHoldingListDTO`, `toSummaryDTO`                                           |
-| `features/transaction/api/transactionApi.js` | **listTransactions**, history (legacy), executeOrder         | `toTransactionHistoryDTO`, `toOrderResultDTO`                                |
-| `features/wallet/api/walletApi.js`           | getWallet, **listWalletTransactions**, getWalletTransactions | `toWalletDTO`, `toWalletTransactionHistoryDTO`                               |
-| `features/chat/api/chatApi.js`               | sendChatMessage                                              | `toChatReplyDTO`                                                             |
-
----
+- Cross-feature imports use the barrel (`index.js`) only — never reach into another module's internals
+- Each module owns its own API endpoints, DTOs, and components
+- Only `auth` has a Redux slice; all other server data lives in RTK Query cache
 
 ## Pages
 
-| Route                         | Feature / Page                                                                    | Auth       |
-| ----------------------------- | --------------------------------------------------------------------------------- | ---------- |
-| `/`                           | `auth/routes/RootRedirect` → `/dashboard` or `/explore`                           | —          |
-| `/explore`                    | `explore/Explore` — public landing, live ticker strip                             | —          |
-| `/login`                      | `auth/routes/Login`                                                               | Guest only |
-| `/register`                   | `auth/routes/Register`                                                            | Guest only |
-| `/dashboard`                  | `portfolio/routes/Dashboard` — stats + allocation + AI                            | ✅         |
-| `/market`                     | `market/routes/Market` — server-paginated asset catalog (public)                  | —          |
-| `/search`                     | `market/routes/Search` — mobile-first asset discovery                             | —          |
-| `/market/stocks/:symbol`      | `market/routes/StockDetail` — quote + **chart** + order + **transaction history** | ✅         |
-| `/market/mutuals/:schemeCode` | `market/routes/MutualDetail` — NAV + **chart** + order + **transaction history**  | ✅         |
-| `/holdings`                   | `portfolio/routes/Holdings` — full P&L table (DataTable)                          | ✅         |
-| `/wallet`                     | `wallet/routes/Wallet` — balance + server-paginated transaction history           | ✅         |
-| `/profile`                    | `user/routes/Profile` — view/edit profile + avatar                                | ✅         |
+| Route                         | Feature   | Auth       | Component      |
+| ----------------------------- | --------- | ---------- | -------------- |
+| `/`                           | auth      | Any        | `RootRedirect` |
+| `/login`                      | auth      | Guest only | `Login`        |
+| `/register`                   | auth      | Guest only | `Register`     |
+| `/dashboard`                  | portfolio | Protected  | `Dashboard`    |
+| `/holdings`                   | portfolio | Protected  | `Holdings`     |
+| `/profile`                    | user      | Protected  | `Profile`      |
+| `/wallet`                     | wallet    | Protected  | `Wallet`       |
+| `/market`                     | market    | Public     | `Market`       |
+| `/market/stocks/:symbol`      | market    | Public     | `StockDetail`  |
+| `/market/mutuals/:schemeCode` | market    | Public     | `MutualDetail` |
+| `/search`                     | market    | Public     | `Search`       |
+| `/explore`                    | explore   | Public     | `Explore`      |
+| `*`                           | app       | Any        | `NotFound`     |
 
----
+**Route guards:**
 
-## Historical Price Charts
-
-Both `StockDetail` and `MutualDetail` pages include a `PriceChart` card below the quote card.
-
-**`PriceChart`** (`features/market/components/PriceChart.jsx`):
-
-- Range selector tabs: `1D | 1W | 1M | 3M | 1Y` for stocks; `1W | 1M | 3M | 1Y` for mutual funds (MFs have no intraday 1D data)
-- Fetches from `GET /api/v1/market/chart/:ticker?range=…` via `useGetChartQuery`
-- No polling — SSE `price_update` events keep prices current
-- Shows a delta badge with ₹ change and % for the selected range
-- Derives line colour from first vs last price: green (up), red (down), blue (neutral)
-- Loading, error, and empty states all handled with contextual messages
-
-**`LineChart`** (`shared/ui/line-chart.jsx`):
-
-- Recharts `AreaChart` with gradient fill
-- Fully theme-aware — all colours come from CSS variables (`--success`, `--danger`, `--primary`, `--border`, `--muted`)
-- Follows the `forwardRef + cn() + CSS variable token` pattern of every other `shared/ui` component
-- `granularity` prop switches the default x-axis formatter between `HH:MM` (intraday) and `DD MMM` (daily)
-
----
+- `GuestRoute` — wraps login/register; redirects to `/dashboard` if already authenticated
+- `ProtectedRoute` — wraps dashboard/holdings/profile/wallet; redirects to `/login` if unauthenticated
 
 ## Prerequisites
 
-- **Node.js 18+**
-- `apps/api` running on `http://localhost:4000`
-
----
+- Node.js ≥ 18
+- pnpm ≥ 8
+- Backend API running on `http://localhost:4000` (proxied automatically by Vite)
 
 ## Setup
 
 ```bash
-cd apps/ui
-pnpm install    # or: npm install
+# From monorepo root
+pnpm install
+
+# Or from apps/ui/
+pnpm install
 ```
-
-No `.env` changes needed for local dev — Vite proxies all `/api` requests to `http://localhost:4000`.
-
----
 
 ## Environment Variables
 
-| Variable        | Default                     | Description                                         |
-| --------------- | --------------------------- | --------------------------------------------------- |
-| `VITE_API_URL`  | `http://localhost:4000/api` | API base URL (production only; dev uses Vite proxy) |
-| `VITE_APP_NAME` | `BigBull`                   | Display name of the application                     |
+| Variable        | Description                                                   | Default                     |
+| --------------- | ------------------------------------------------------------- | --------------------------- |
+| `VITE_API_URL`  | API base URL (used only if direct fetch needed outside proxy) | `http://localhost:4000/api` |
+| `VITE_APP_NAME` | Application display name                                      | `BigBull`                   |
 
----
+The Vite dev server proxies all `/api` requests to `http://localhost:4000` — no environment variables are required for local development.
 
-## Run
+## Run Commands
 
-```bash
-npm run dev       # Dev server → http://localhost:5173
-npm run build     # Production build → dist/
-npm run preview   # Preview the production build locally
-npm run lint      # ESLint
-npm test          # Jest unit / property tests
+| Command         | Description                                      |
+| --------------- | ------------------------------------------------ |
+| `pnpm dev`      | Start Vite dev server on `http://localhost:5173` |
+| `pnpm build`    | Production build to `dist/`                      |
+| `pnpm preview`  | Serve production build locally                   |
+| `pnpm lint`     | Run ESLint                                       |
+| `pnpm lint:fix` | Auto-fix ESLint issues                           |
+| `pnpm test`     | Run Jest tests                                   |
+
+## Design Patterns
+
+### RTK Query Flow
+
+RTK Query is the primary data-fetching and server-cache layer. The architecture follows a **base slice + endpoint injection** pattern.
+
+```
+shared/api/apiSlice.js            Base slice: createApi({ baseQuery: baseQueryWithReauth })
+        │                          tagTypes: Profile, Portfolio, Holdings, Wallet, Transactions
+        ▼
+features/<mod>/api/<mod>Api.js    injectEndpoints({ endpoints: (build) => ({...}) })
+        │                          • query: URL, method, body
+        │                          • transformResponse → DTO function
+        │                          • providesTags / invalidatesTags
+        ▼
+features/<mod>/dto/<mod>.dto.js   DTO transformers normalise server responses
+        │                          using shared/dto/helpers.js (str, num, bool, arr)
+        ▼
+Component hooks                    useGetPortfolioHoldingsQuery(), useExecuteOrderMutation(), etc.
 ```
 
----
+**Base query location:** `src/shared/api/apiSlice.js`
 
-## Key Design Patterns
+**Endpoint injection:** Each feature's `api/<mod>Api.js` calls `apiSlice.injectEndpoints(...)`. All are imported as side-effects in `app/store.js` to ensure registration before the store is created.
 
-### Authentication
+**DTO transforms:** `transformResponse` in each endpoint normalises raw server JSON using type-safe helpers (`str`, `num`, `bool`, `arr` from `shared/dto/helpers.js`).
 
-- JWTs live in **HTTP-Only cookies** set by the server. The frontend never reads the raw token.
-- `AuthProvider` calls `useGetMeQuery` on mount to hydrate Redux auth state.
-- On 401, `baseQueryWithReauth` calls `POST /api/v1/auth/refresh` transparently using a mutex so only one refresh is ever in flight.
-- **Logout flow:** `useAuth.logout()` dispatches `setLoggingOut(true)` before the API call. `RootLayout` renders `<GlobalLoader />` which reads `isLoggingOut` from Redux and shows a full-screen branded overlay. `clearUser()` resets the flag and the overlay disappears as the route transitions to `/login`.
+**Cache tags:**
 
-### RTK Query (server state)
+| Tag            | Provided By                                                     | Invalidated By                                  |
+| -------------- | --------------------------------------------------------------- | ----------------------------------------------- |
+| `Profile`      | `getProfile`                                                    | `updateProfile`, `uploadAvatar`, `removeAvatar` |
+| `Portfolio`    | `getPortfolioSummary`                                           | —                                               |
+| `Holdings`     | `getPortfolioHoldings`                                          | —                                               |
+| `Wallet`       | `getWallet`, `listWalletTransactions`, `getWalletTransactions`  | `executeOrder`                                  |
+| `Transactions` | `listTransactions`, `getTransactions`, `listWalletTransactions` | `executeOrder`                                  |
 
-- All server state is RTK Query. No `useEffect` to sync API responses into local state.
-- Each feature owns its RTK Query endpoints via `injectEndpoints` on the shared base `apiSlice`.
-- Cache invalidation is tag-based: executing an order invalidates `Wallet` and `Transactions`.
-- Cache is fully reset on auth state changes (login/logout) via a Redux `listenerMiddleware`.
-- Portfolio queries use `refetchOnMountOrArgChange: true` and `keepUnusedDataFor: 0` to ensure fresh data after trades.
+**401 refresh flow:**
 
-### DTOs
+1. Request returns 401
+2. Acquire mutex (prevents parallel refresh races)
+3. POST `/api/v1/auth/refresh` (cookie-based, no body)
+4. Refresh succeeds → dispatch `tokenRefreshed()`, retry original request
+5. Refresh fails → dispatch `clearUser()` (forces logout)
+6. Concurrent 401s wait on mutex, then retry automatically
 
-- Every API response is transformed through a DTO function before entering the store. Raw server shapes never reach components.
-- DTO helpers (`str`, `num`, `bool`, `arr`) guarantee safe defaults — components never guard against `undefined`.
-- All DTO transformers are property-based tested in `shared/dto/transformers.test.js`.
+**Auth state reset:** A `listenerMiddleware` listens for `clearUser`, `logout`, `loginSuccess`, `registerSuccess` — on any of these it dispatches `apiSlice.util.resetApiState()` to clear all cached data.
 
-### Forms
+### SSE Flow
 
-- All forms use **React Hook Form**. No `useState` for individual field values.
+The `useMarketStream` hook maintains a single `EventSource` connection to `/api/v1/market/stream`. Mounted once in `RootLayout` — all pages receive live price updates without additional subscriptions.
 
-### Market data and live prices
+```
+EventSource (/api/v1/market/stream)
+    │
+    │  event: price_update
+    │  data: { ticker, price, change, changePercent, up }
+    │
+    ▼
+useMarketStream (features/market/hooks/useMarketStream.js)
+    │
+    ├── Public patches (always):
+    │     • getStockQuote(ticker)     → StockDetail page price
+    │     • getMutualQuote(ticker)    → MutualDetail page price
+    │     • getTickerQuotes()         → Navbar ticker strip
+    │     • getAssets(*)              → Market listing prices
+    │     • listAssets(*)             → Paginated market listing prices
+    │
+    └── Authenticated patches (when logged in):
+          • getPortfolioHoldings()   → Recalculates currentValue, unrealisedPnL, portfolioWeight
+          • getPortfolioSummary()    → Updates currentValue, totalPnL, totalPnLPercent
+```
 
-- **`useMarketStream`** — mounted once in `RootLayout`. Opens an `EventSource` to `GET /api/v1/market/stream`. On each `price_update` SSE event it patches the RTK Query cache in-place — no re-fetch.
+Uses `apiSlice.util.updateQueryData()` (Immer-based draft patches) to mutate cached data in-place. Portfolio derived values (unrealised P&L, portfolio weight) are recomputed on every tick. Auto-reconnects via native `EventSource` reconnection on error.
 
-  | Cache patched              | Consumer                                                       |
-  | -------------------------- | -------------------------------------------------------------- |
-  | `getStockQuote(ticker)`    | `StockDetailContent`                                           |
-  | `getMutualQuote(ticker)`   | `MutualDetailContent`                                          |
-  | `getTickerQuotes`          | `TickerStrip`                                                  |
-  | `getAssets` (all variants) | `MarketContent` (legacy)                                       |
-  | `listAssets` (all entries) | `MarketContent` ServerDataTable live price column              |
-  | `getPortfolioHoldings`     | `HoldingsContent` — currentPrice, P&L, portfolioWeight         |
-  | `getPortfolioSummary`      | Dashboard stat cards — currentValue, totalPnL, totalPnLPercent |
+### State Ownership
 
-- **Stock prices** update every second via SSE. **Mutual fund NAVs** are fixed for the day.
-- SSE is the sole real-time data delivery mechanism — no polling intervals are used on quote, chart, or asset queries.
+| Tier                   | Technology                | What Lives Here                                                   | Example                                       |
+| ---------------------- | ------------------------- | ----------------------------------------------------------------- | --------------------------------------------- |
+| **Global Redux slice** | `@reduxjs/toolkit` slice  | Auth session (user, isAuthenticated, isLoading)                   | `features/auth/store/authSlice.js`            |
+| **RTK Query cache**    | `apiSlice` managed cache  | All server data: market, portfolio, wallet, transactions, profile | `useGetPortfolioHoldingsQuery()` return value |
+| **Local component**    | `useState` / `useReducer` | Form inputs, UI toggles, pagination params, search text           | Order form quantity, chart range selector     |
 
-### Order Form & Detail Pages
+**Rules:**
 
-- **OrderForm** is a compound component with a BUY/SELL tab switcher delegating to `BuyForm` and `SellForm`. Shows "In holdings" (live held quantity) and wallet balance. Error messages include exact shortfall amounts (e.g., "You are 5 units short", "You need ₹2,500 more").
-- **AssetTransactionsTable** (`features/transaction/components/`) uses `ServerDataTable` for server-paginated transaction history. Calls `POST /api/v1/transactions/list` with `assetId` filter. Shown on both `StockDetailContent` and `MutualDetailContent`.
-- **FormInput** supports a compound pattern with `<FormInput.PasswordToggle />` for password visibility toggle (used on the login form).
+- Server data belongs in RTK Query cache — never copy into a Redux slice or local state
+- Auth is the only Redux slice; hydrated on app load via `useGetMeQuery` in `AuthProvider`
+- Derived values (P&L, weight) are computed in `transformResponse` or SSE patch callbacks
+- UI-only state (modal, tab, form draft) stays in local component state
+
+### Feature Creation Guide
+
+To add a new feature module:
+
+1. Create directory structure: `src/features/<name>/api/`, `components/`, `dto/`, `routes/`, `index.js`
+2. Create API slice: `api/<name>Api.js` — call `apiSlice.injectEndpoints({ endpoints: (build) => ({...}) })`
+3. Add DTO transformer: `dto/<name>.dto.js` — normalise server responses using `shared/dto/helpers.js`
+4. Create page component: `routes/<PageName>.jsx`
+5. Register the route in `app/router.jsx` with the correct path and auth wrapper
+6. Import the API slice as a side-effect in `app/store.js`: `import '@/features/<name>/api/<name>Api'`
+7. Export public API from `index.js` barrel file
+
+## Design System
+
+All primitives live in `src/shared/ui/` and are exported from `shared/ui/index.js`. Import from the barrel: `import { Button, Badge } from '@/shared/ui'`.
+
+| Component           | Description                                                                                    | When to Use                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `Button`            | Multi-variant button with loading state (primary, secondary, danger, outline, ghost; sm/md/lg) | Any clickable action — form submit, navigation trigger, destructive action |
+| `Input`             | Styled text input with focus ring and placeholder styling                                      | Form fields, search boxes, text entry                                      |
+| `Label`             | Form field label with disabled state styling                                                   | Pair with `Input` in forms                                                 |
+| `Badge`             | Coloured pill for status indicators (success, danger, warning, info)                           | Tags, status labels, category chips                                        |
+| `Alert`             | Dismissible alert banner with variant colours                                                  | Success/error/warning messages, notifications                              |
+| `Avatar`            | Radix-based image avatar with fallback initials                                                | User profile images, comment avatars                                       |
+| `Spinner`           | Animated loading indicator with optional label                                                 | Loading states, async operations in progress                               |
+| `Progress`          | Radix-based progress bar                                                                       | Upload progress, completion indicators                                     |
+| `LineChart`         | Recharts area chart wrapper with theme-aware colours                                           | Price history charts, trend visualisations                                 |
+| `DataTable`         | Client-side paginated, sortable, searchable data table (TanStack)                              | Displaying in-memory datasets with filtering                               |
+| `ServerDataTable`   | Server-side paginated data table with debounced search                                         | Large datasets fetched page-by-page from API                               |
+| `Pagination`        | Unified pagination bar supporting both client and server modes                                 | Used internally by DataTable and ServerDataTable                           |
+| `GrowingMarketIcon` | SVG candlestick chart icon                                                                     | Brand/logo usage, empty states                                             |
+| `PageTitle`         | `<h1>` with standard heading styles                                                            | Page-level titles                                                          |
+| `PageDescription`   | Muted paragraph text                                                                           | Subtitle/description below page titles                                     |
+| `SectionTitle`      | `<h2>` with section heading styles                                                             | Section headings within a page                                             |
+| `MutedText`         | Small muted text element                                                                       | Captions, helper text, timestamps                                          |
+| `StatValue`         | Large bold number with tone colouring (primary, success, danger)                               | Dashboard stat cards, KPI displays                                         |

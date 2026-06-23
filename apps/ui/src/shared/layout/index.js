@@ -1,4 +1,5 @@
 export { AppPageLayout } from './AppPageLayout';
+export { GlobalLoader } from './GlobalLoader';
 export { Navbar } from './Navbar';
 export { NavbarBrand } from './NavbarBrand';
 export { PageHeader } from './PageHeader';

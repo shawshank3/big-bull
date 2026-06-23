@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { useMarketStream } from '@/features/market/hooks/useMarketStream';
-import { GlobalLoader } from '@/shared/ui/GlobalLoader';
+import { GlobalLoader } from './GlobalLoader';
 
 export const RootLayout = () => {
   useMarketStream();

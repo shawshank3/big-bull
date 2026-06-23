@@ -1,3 +1,4 @@
+// Tier 2 — Prop-Based Component
 import { cn } from '@/lib/utils';
 
 export function Input({ className, type, ref, ...props }) {

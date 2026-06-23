@@ -2,20 +2,12 @@ import { createBrowserRouter } from 'react-router-dom';
 import { ROUTES } from '@/shared/constants/routes';
 import { RootLayout } from '@/shared/layout/RootLayout';
 import { RouteErrorBoundary } from '@/shared/errors/RouteErrorBoundary';
-import { GuestRoute } from '@/features/auth/routes/GuestRoute';
-import { ProtectedRoute } from '@/features/auth/routes/ProtectedRoute';
-import { RootRedirect } from '@/features/auth/routes/RootRedirect';
-import { Login } from '@/features/auth/routes/Login';
-import { Register } from '@/features/auth/routes/Register';
-import { Dashboard } from '@/features/portfolio/routes/Dashboard';
-import { Holdings } from '@/features/portfolio/routes/Holdings';
-import { Market } from '@/features/market/routes/Market';
-import { StockDetail } from '@/features/market/routes/StockDetail';
-import { MutualDetail } from '@/features/market/routes/MutualDetail';
-import { Search } from '@/features/market/routes/Search';
-import { Profile } from '@/features/user/routes/Profile';
-import { Wallet } from '@/features/wallet/routes/Wallet';
-import { Explore } from '@/features/explore/Explore';
+import { GuestRoute, ProtectedRoute, RootRedirect, Login, Register } from '@/features/auth';
+import { Dashboard, Holdings } from '@/features/portfolio';
+import { Market, StockDetail, MutualDetail, Search } from '@/features/market';
+import { Profile } from '@/features/user';
+import { Wallet } from '@/features/wallet';
+import { Explore } from '@/features/explore';
 import NotFound from './routes/NotFound';
 
 export const router = createBrowserRouter([

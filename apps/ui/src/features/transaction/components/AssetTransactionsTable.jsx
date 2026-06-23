@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Badge } from '@/shared/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';
 import { MutedText } from '@/shared/ui/typography';

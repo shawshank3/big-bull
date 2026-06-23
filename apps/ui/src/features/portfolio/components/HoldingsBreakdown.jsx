@@ -1,7 +1,7 @@
 import { Alert } from '@/shared/ui/alert';
-import { Card, CardContent } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/tabs';
 import { HOLDING_TABS, HOLDING_TYPES } from '../constants/holdings';
 import { HoldingsSectionHeader } from './HoldingsSectionHeader';
 import { HoldingsTable } from './HoldingsTable';

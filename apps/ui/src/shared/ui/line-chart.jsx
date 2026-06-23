@@ -1,3 +1,4 @@
+// Tier 2 — Prop-Based Component
 /**
  * LineChart — atomic shadcn-style Recharts wrapper.
  *
