@@ -7,8 +7,8 @@
 | Technology               | Role                                                                              |
 | ------------------------ | --------------------------------------------------------------------------------- |
 | React 19                 | UI library                                                                        |
-| Redux Toolkit            | Global state management (auth slice)                                              |
-| RTK Query                | Server data fetching, caching, and mutations                                      |
+| Redux Toolkit            | Global state management (RTK Query cache only — no custom slices)                 |
+| RTK Query                | Server data fetching, caching, mutations, and auth state derivation               |
 | React Router 6           | Client-side routing (`createBrowserRouter`)                                       |
 | Vite 5                   | Build tool and dev server                                                         |
 | Tailwind CSS 3           | Utility-first styling                                                             |
@@ -25,7 +25,7 @@
 ```
 apps/ui/src/
 ├── app/                        # App-level wiring
-│   ├── store.js                # Redux store (auth reducer + apiSlice middleware)
+│   ├── store.js                # Redux store (apiSlice reducer + middleware only)
 │   ├── router.jsx              # createBrowserRouter route definitions
 │   └── routes/NotFound.jsx     # 404 page
 ├── features/                   # Feature modules (domain-sliced)
@@ -64,7 +64,7 @@ features/<module>/
 ├── components/              # UI components (private to module)
 ├── hooks/                   # Custom hooks (private unless exported via index.js)
 ├── routes/                  # Page-level components mounted by router
-├── store/                   # Redux slice (only auth has one)
+├── store/                   # Selectors (auth derives state from RTK Query cache)
 ├── constants/               # Module-specific constants
 ├── utils/                   # Module-specific helpers
 └── index.js                 # Public barrel — only this is importable externally
@@ -74,7 +74,8 @@ features/<module>/
 
 - Cross-feature imports use the barrel (`index.js`) only — never reach into another module's internals
 - Each module owns its own API endpoints, DTOs, and components
-- Only `auth` has a Redux slice; all other server data lives in RTK Query cache
+- No custom Redux slices exist — all server state (including auth) lives in RTK Query cache
+- Auth state is derived from the `getMe` query cache via `createSelector`-based selectors in `features/auth/store/authSelectors.js`
 
 ## Pages
 
@@ -177,11 +178,20 @@ Component hooks                    useGetPortfolioHoldingsQuery(), useExecuteOrd
 1. Request returns 401
 2. Acquire mutex (prevents parallel refresh races)
 3. POST `/api/v1/auth/refresh` (cookie-based, no body)
-4. Refresh succeeds → dispatch `tokenRefreshed()`, retry original request
-5. Refresh fails → dispatch `clearUser()` (forces logout)
+4. Refresh succeeds → retry original request
+5. Refresh fails → no action (let the `getMe` query remain as-is)
 6. Concurrent 401s wait on mutex, then retry automatically
 
-**Auth state reset:** A `listenerMiddleware` listens for `clearUser`, `logout`, `loginSuccess`, `registerSuccess` — on any of these it dispatches `apiSlice.util.resetApiState()` to clear all cached data.
+**Auth state management (slice-free):**
+
+Auth state is no longer managed by a Redux slice. Instead:
+
+- `getMe` query is fired on app load via `AuthProvider` → RTK Query caches the result
+- The `/me` endpoint always returns 200 — `{ user: {...} }` if authenticated, `{ user: null }` if not
+- `authSelectors.js` derives `user`, `isAuthenticated`, `isLoading` from the `getMe` cache using `createSelector`
+- `login` / `register` mutations use `onQueryStarted` + `upsertQueryData` to write the returned user directly into the `getMe` cache
+- `logout` mutation uses `onQueryStarted` to set the `getMe` cache to `null` and invalidate all data tags (Profile, Portfolio, Holdings, Wallet, Transactions)
+- `GlobalLoader` reads logout loading state via a `fixedCacheKey` on the logout mutation — no Redux slice dependency
 
 ### SSE Flow
 
@@ -212,16 +222,17 @@ Uses `apiSlice.util.updateQueryData()` (Immer-based draft patches) to mutate cac
 
 ### State Ownership
 
-| Tier                   | Technology                | What Lives Here                                                   | Example                                       |
-| ---------------------- | ------------------------- | ----------------------------------------------------------------- | --------------------------------------------- |
-| **Global Redux slice** | `@reduxjs/toolkit` slice  | Auth session (user, isAuthenticated, isLoading)                   | `features/auth/store/authSlice.js`            |
-| **RTK Query cache**    | `apiSlice` managed cache  | All server data: market, portfolio, wallet, transactions, profile | `useGetPortfolioHoldingsQuery()` return value |
-| **Local component**    | `useState` / `useReducer` | Form inputs, UI toggles, pagination params, search text           | Order form quantity, chart range selector     |
+| Tier                  | Technology                | What Lives Here                                                 | Example                                             |
+| --------------------- | ------------------------- | --------------------------------------------------------------- | --------------------------------------------------- |
+| **RTK Query cache**   | `apiSlice` managed cache  | All server data including auth: market, portfolio, wallet, user | `useGetMeQuery()`, `useGetPortfolioHoldingsQuery()` |
+| **Derived selectors** | `createSelector`          | Auth state derived from `getMe` cache (user, isAuthenticated)   | `selectAuthState`, `selectIsAuthenticated`          |
+| **Local component**   | `useState` / `useReducer` | Form inputs, UI toggles, pagination params, search text         | Order form quantity, chart range selector           |
 
 **Rules:**
 
 - Server data belongs in RTK Query cache — never copy into a Redux slice or local state
-- Auth is the only Redux slice; hydrated on app load via `useGetMeQuery` in `AuthProvider`
+- No custom Redux slices exist — auth state is derived from the `getMe` query cache via selectors in `features/auth/store/authSelectors.js`
+- Session hydration: `AuthProvider` fires `useGetMeQuery()` on mount; the `/me` endpoint always returns 200 with either the user object or `null`
 - Derived values (P&L, weight) are computed in `transformResponse` or SSE patch callbacks
 - UI-only state (modal, tab, form draft) stays in local component state
 
