@@ -1,5 +1,6 @@
 import { useLocation, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
@@ -32,7 +33,7 @@ const ChartHeader = ({ name, schemeCode, subtitle, price, currency, asOf }) => (
 export const MutualDetailContent = () => {
   const { schemeCode } = useParams();
   const location = useLocation();
-  const { isAuthenticated } = useSelector((s) => s.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const displayName = location.state?.name;
 
   const {

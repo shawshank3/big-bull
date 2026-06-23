@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { Menu, Search } from 'lucide-react';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { NavbarSearch } from '@/features/market/components/NavbarSearch';
 import { NavbarBrand } from './NavbarBrand';
 import { ThemeToggle } from './ThemeToggle';
@@ -43,17 +44,17 @@ const End = ({ children }) => (
 );
 
 const Authenticated = ({ children }) => {
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   return isAuthenticated ? children : null;
 };
 
 const Guest = ({ children }) => {
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   return !isAuthenticated ? children : null;
 };
 
 const NavLinks = () => {
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const visibleLinks = NAV_LINKS.filter((link) => !link.authOnly || isAuthenticated);
 
   return (
@@ -72,7 +73,7 @@ const NavLinks = () => {
 };
 
 const MobileDrawer = () => {
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const { logout } = useAuth();
   const {
     data: profile,

@@ -19,10 +19,11 @@ import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { apiSlice } from '@/shared/api/apiSlice';
 import { API_URLS } from '@/shared/constants/apiUrls';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 
 export const useMarketStream = () => {
   const dispatch = useDispatch();
-  const { isAuthenticated } = useSelector((s) => s.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const isAuthenticatedRef = useRef(isAuthenticated);
 
   // Keep the ref in sync so the event handler always reads the current value

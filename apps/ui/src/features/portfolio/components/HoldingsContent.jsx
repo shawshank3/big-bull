@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
@@ -90,7 +91,7 @@ const columns = [
 ];
 
 export const HoldingsContent = () => {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const navigate = useNavigate();
 
   const { data: summary, isLoading: summaryLoading } = useGetPortfolioSummaryQuery(undefined, {

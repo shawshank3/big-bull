@@ -14,17 +14,8 @@ export {
   useLogoutMutation,
 } from './api/authApi';
 export {
-  setUser,
-  clearUser,
-  setLoading,
-  clearError,
-  loginStart,
-  loginSuccess,
-  loginFailure,
-  registerStart,
-  registerSuccess,
-  registerFailure,
-  tokenRefreshed,
-  logout,
-} from './store/authSlice';
-export { default as authReducer } from './store/authSlice';
+  selectAuthState,
+  selectIsAuthenticated,
+  selectAuthUser,
+  selectAuthIsLoading,
+} from './store/authSelectors';

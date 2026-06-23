@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { Alert } from '@/shared/ui/alert';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../api/portfolioApi';
@@ -9,7 +10,7 @@ import { PortfolioStatsGrid } from './PortfolioStatsGrid';
 import { PortfolioTotalValueCard } from './PortfolioTotalValueCard';
 
 export const DashboardContent = () => {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const {
     data: holdings = [],
     isLoading,

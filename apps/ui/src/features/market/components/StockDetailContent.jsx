@@ -1,5 +1,6 @@
 import { useLocation, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
@@ -46,7 +47,7 @@ const ChartHeader = ({ name, symbol, assetLabel, price, currency, change, change
 export const StockDetailContent = () => {
   const { symbol } = useParams();
   const location = useLocation();
-  const { isAuthenticated } = useSelector((s) => s.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const displayName = location.state?.name || symbol;
 
   const {

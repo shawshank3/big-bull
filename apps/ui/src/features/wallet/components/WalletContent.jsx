@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
@@ -84,7 +85,7 @@ const columns = [
 ];
 
 export const WalletContent = () => {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
   // Server-side pagination state
   const [paginationParams, setPaginationParams] = useState({ page: 1, limit: 5 });

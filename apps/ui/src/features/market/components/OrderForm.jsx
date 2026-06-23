@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
 import { useGetPortfolioHoldingsQuery } from '@/features/portfolio/api/portfolioApi';
 import { formatCurrency } from '@/shared/utils/format';
@@ -8,7 +9,7 @@ import SellForm from './SellForm';
 import { ASSET_TYPES, TRANSACTION_TYPES } from '@/shared/constants';
 
 export const OrderForm = ({ asset, currentPrice }) => {
-  const { isAuthenticated } = useSelector((s) => s.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const { data: wallet } = useGetWalletQuery(undefined, { skip: !isAuthenticated });
   const { data: holdings } = useGetPortfolioHoldingsQuery(undefined, {
     skip: !isAuthenticated,

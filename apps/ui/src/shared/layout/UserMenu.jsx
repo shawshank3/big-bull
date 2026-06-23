@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { ROUTES } from '@/shared/constants/routes';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { useGetProfileQuery } from '@/features/user/api/userApi';
 import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
 import { useAuth } from '@/features/auth/hooks/useAuth';
@@ -17,7 +18,7 @@ import {
 } from '@/shared/components/dropdown-menu';
 
 export const UserMenu = () => {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const { logout } = useAuth();
   const { data: profile } = useGetProfileQuery(undefined, { skip: !isAuthenticated });
   const { data: wallet } = useGetWalletQuery(undefined, { skip: !isAuthenticated });

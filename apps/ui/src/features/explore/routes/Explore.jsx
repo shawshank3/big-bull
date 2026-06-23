@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { ROUTES } from '@/shared/constants/routes';
 import { TickerStrip } from '../components/TickerStrip';
 import { ExploreHero } from '../components/ExploreHero';
@@ -8,7 +9,7 @@ import { QuotesSection } from '../components/QuotesSection';
 import { ExploreCta } from '../components/ExploreCta';
 
 export const Explore = () => {
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
   return (
     <div className="flex flex-col gap-16 pb-20">

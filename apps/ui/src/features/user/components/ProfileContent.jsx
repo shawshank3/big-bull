@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSelector } from 'react-redux';
+import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { useForm } from 'react-hook-form';
 import { Alert } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
@@ -13,7 +14,7 @@ import { ProfilePhotoSection } from './ProfilePhotoSection';
 import { profileToFormValues } from '../utils/profileForm';
 
 export const ProfileContent = () => {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const {
     data: profile,
     isLoading,

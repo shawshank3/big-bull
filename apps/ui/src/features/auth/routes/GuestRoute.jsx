@@ -5,9 +5,10 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { ROUTES } from '@/shared/constants/routes';
+import { selectAuthState } from '../store/authSelectors';
 
 export const GuestRoute = () => {
-  const { isAuthenticated, isLoading } = useSelector((state) => state.auth);
+  const { isAuthenticated, isLoading } = useSelector(selectAuthState);
 
   if (isLoading) return <Outlet />;
 

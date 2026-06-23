@@ -2,9 +2,10 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { ROUTES } from '@/shared/constants/routes';
 import { Spinner } from '@/shared/ui/spinner';
+import { selectAuthState } from '../store/authSelectors';
 
 export const ProtectedRoute = () => {
-  const { isAuthenticated, isLoading } = useSelector((state) => state.auth);
+  const { isAuthenticated, isLoading } = useSelector(selectAuthState);
 
   if (isLoading) {
     return (

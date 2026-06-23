@@ -1,10 +1,8 @@
-import { useSelector } from 'react-redux';
 import { cn } from '@/lib/utils';
+import { useLogoutMutation } from '@/features/auth/api/authApi';
 
 /**
  * BigBullIcon
- * The app's branded SVG mark — reused from GrowingMarketIcon but extracted
- * here so the loader has no extra dependencies.
  */
 const BigBullIcon = ({ className }) => (
   <svg
@@ -44,19 +42,10 @@ const BigBullIcon = ({ className }) => (
   </svg>
 );
 
-/**
- * GlobalLoader
- *
- * Full-screen overlay shown while a global async operation is in progress.
- * Currently used during logout. Reads `isLoggingOut` from auth state so it
- * can be placed once in RootLayout and activate anywhere in the tree.
- *
- * Usage:
- *   <GlobalLoader />                         — auto-reads Redux state
- *   <GlobalLoader show label="Signing out…" /> — controlled / custom label
- */
 export const GlobalLoader = ({ show, label }) => {
-  const isLoggingOut = useSelector((s) => s.auth.isLoggingOut);
+  const [, { isLoading: isLoggingOut }] = useLogoutMutation({
+    fixedCacheKey: 'global-logout',
+  });
   const visible = show ?? isLoggingOut;
 
   if (!visible) return null;

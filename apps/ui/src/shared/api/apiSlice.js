@@ -1,23 +1,9 @@
 /**
  * RTK Query base API slice.
- *
- * This file owns ONLY the base slice definition and the baseQueryWithReauth
- * wrapper. All domain endpoints are injected via their own *Api.js files:
- *
- *   features/auth/api/authApi.js        → /api/v1/auth/*
- *   features/user/api/userApi.js        → /api/v1/users/*
- *   features/market/api/marketApi.js    → /api/v1/market/*
- *   features/portfolio/api/portfolioApi.js → /api/v1/portfolio/*
- *   features/wallet/api/walletApi.js    → /api/v1/wallet
- *   features/transaction/api/transactionApi.js → /api/v1/transactions/*
- *   features/chat/api/chatApi.js        → /api/v1/chat
- *
- * Cookie-based auth — the browser sends the HTTP-Only access_token cookie
- * automatically on every request via `credentials: 'include'`.
+ * Domain endpoints are injected via their own *Api.js files.
  */
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { Mutex } from 'async-mutex';
-import { tokenRefreshed, clearUser } from '@/features/auth/store/authSlice';
 
 const mutex = new Mutex();
 
@@ -43,10 +29,7 @@ export const baseQueryWithReauth = async (args, api, extraOptions) => {
       );
 
       if (refreshResult.data) {
-        api.dispatch(tokenRefreshed());
         result = await rawBaseQuery(args, api, extraOptions);
-      } else {
-        api.dispatch(clearUser());
       }
     } finally {
       release();
