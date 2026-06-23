@@ -57,7 +57,7 @@ apps/api/
     ├── utils/
     │   ├── avatarData.js       # Default avatar data
     │   ├── http.js             # HTTP helpers
-    │   ├── jwt.js              # generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken
+    │   ├── jwt.js              # generateAccessToken, generateRefreshToken, verifyRefreshToken
     │   └── response.js         # sendSuccess / sendError — standard envelope
     └── workers/
         ├── index.js            # Worker orchestration
@@ -303,13 +303,13 @@ All routes are prefixed with `/api/v1/` unless noted. Standard response envelope
 
 ### Auth (`/api/v1/auth`)
 
-| Method | Path             | Auth     | Body / Params                                              | Response `data`                                           |
-| ------ | ---------------- | -------- | ---------------------------------------------------------- | --------------------------------------------------------- |
-| POST   | `/auth/register` | Public   | `{ name, email, password }` — pw ≥8 chars, digit + special | `{ user: { id, name, email, role } }`                     |
-| POST   | `/auth/login`    | Public   | `{ email, password }`                                      | `{ user: { id, name, email, role } }`                     |
-| POST   | `/auth/refresh`  | Public   | None (reads `refresh_token` cookie)                        | `{ user: { id, name, email, role } }`                     |
-| POST   | `/auth/logout`   | Required | None                                                       | `null`                                                    |
-| GET    | `/auth/me`       | Public   | None (reads `access_token` cookie)                         | `{ user: { id, name, email, role } }` or `{ user: null }` |
+| Method | Path             | Auth     | Body / Params                                              | Response `data`                       |
+| ------ | ---------------- | -------- | ---------------------------------------------------------- | ------------------------------------- |
+| POST   | `/auth/register` | Public   | `{ name, email, password }` — pw ≥8 chars, digit + special | `{ user: { id, name, email, role } }` |
+| POST   | `/auth/login`    | Public   | `{ email, password }`                                      | `{ user: { id, name, email, role } }` |
+| POST   | `/auth/refresh`  | Public   | None (reads `refresh_token` cookie)                        | `{ user: { id, name, email, role } }` |
+| POST   | `/auth/logout`   | Required | None                                                       | `null`                                |
+| GET    | `/auth/me`       | Required | None                                                       | `{ user: { id, name, email, role } }` |
 
 ### User (`/api/v1/users`)
 
@@ -415,7 +415,6 @@ To add a new feature module (e.g., `watchlist`):
 ## Key Design Rules
 
 - **Cookie-only auth** — JWTs stored exclusively in HTTP-Only cookies, never in response bodies or localStorage. Prevents XSS token theft.
-- **`/me` always returns 200** — `GET /api/v1/auth/me` is a public route that returns `{ user: {...} }` if the access_token cookie is valid, or `{ user: null }` if missing/invalid. This eliminates 401 noise during client-side session hydration and lets the frontend derive auth state from a standard RTK Query cache entry.
 - **Transaction as source of truth** — Portfolio holdings and P&L are always computed on-demand from raw Transaction documents via aggregation pipeline. No stored derived values, no stale-cache bugs.
 - **No external APIs** — All market prices are generated internally by the MSE worker. No Alpha Vantage, Yahoo Finance, or MFAPI calls at runtime. Self-contained simulation with no API keys to manage.
 - **Shared constants** — Domain enums (asset types, transaction types, chart ranges, HTTP status) live in `shared/constants/` and are imported by both API and UI packages. Single source of truth for magic values.

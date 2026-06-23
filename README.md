@@ -24,8 +24,6 @@ BigBull is a full-stack stock market simulation platform where users trade virtu
 │                         BROWSER (React + RTK Query)                        │
 │                                                                           │
 │    REST /api/v1/*              SSE /api/v1/market/stream                   │
-│    (auth state derived         (live price updates)                        │
-│     from getMe cache)                                                     │
 │         │                              ▲                                  │
 └─────────┼──────────────────────────────┼──────────────────────────────────┘
           │ HTTP requests                │ EventSource (price_update events)

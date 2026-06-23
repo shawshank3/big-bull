@@ -179,15 +179,14 @@ Component hooks                    useGetPortfolioHoldingsQuery(), useExecuteOrd
 2. Acquire mutex (prevents parallel refresh races)
 3. POST `/api/v1/auth/refresh` (cookie-based, no body)
 4. Refresh succeeds → retry original request
-5. Refresh fails → no action (let the `getMe` query remain as-is)
+5. Refresh fails → no action (getMe query will naturally be in error state)
 6. Concurrent 401s wait on mutex, then retry automatically
 
 **Auth state management (slice-free):**
 
-Auth state is no longer managed by a Redux slice. Instead:
+Auth state is not managed by a Redux slice. Instead:
 
-- `getMe` query is fired on app load via `AuthProvider` → RTK Query caches the result
-- The `/me` endpoint always returns 200 — `{ user: {...} }` if authenticated, `{ user: null }` if not
+- `getMe` query is fired on app load via `AuthProvider` → RTK Query caches the result (or enters error state if 401)
 - `authSelectors.js` derives `user`, `isAuthenticated`, `isLoading` from the `getMe` cache using `createSelector`
 - `login` / `register` mutations use `onQueryStarted` + `upsertQueryData` to write the returned user directly into the `getMe` cache
 - `logout` mutation uses `onQueryStarted` to set the `getMe` cache to `null` and invalidate all data tags (Profile, Portfolio, Holdings, Wallet, Transactions)
@@ -232,7 +231,7 @@ Uses `apiSlice.util.updateQueryData()` (Immer-based draft patches) to mutate cac
 
 - Server data belongs in RTK Query cache — never copy into a Redux slice or local state
 - No custom Redux slices exist — auth state is derived from the `getMe` query cache via selectors in `features/auth/store/authSelectors.js`
-- Session hydration: `AuthProvider` fires `useGetMeQuery()` on mount; the `/me` endpoint always returns 200 with either the user object or `null`
+- Session hydration: `AuthProvider` fires `useGetMeQuery()` on mount; a 401 response (unauthenticated) leaves the query in error state, and selectors derive `isAuthenticated: false`
 - Derived values (P&L, weight) are computed in `transformResponse` or SSE patch callbacks
 - UI-only state (modal, tab, form draft) stays in local component state
 
