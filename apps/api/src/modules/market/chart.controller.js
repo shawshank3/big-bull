@@ -32,7 +32,8 @@ const { HTTP_STATUS } = require('../../shared/constants');
  *   assetType:   'STOCK' | 'MUTUAL_FUND',
  *   range:       string,
  *   granularity: '30s' | 'daily',
- *   points: [{ timestamp: string, price: number, change?: number, changePercent?: string }]
+ *   points: [{ timestamp: string, price: number, change?: number, changePercent?: string }],
+ *   baseline:    { price: number, date: string } | null
  * }
  */
 const getChart = catchAsync(async (req, res) => {

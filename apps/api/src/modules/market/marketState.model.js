@@ -24,7 +24,8 @@
  *
  * Mutual funds are included: even though MF NAVs do not change intraday, we
  * still persist them here so that a Redis flush does not cause MF price quotes
- * to fall back to the original seed price.
+ * to fall back to the original seed price. The `lastNavDate` field gates the
+ * once-per-day NAV rollover so it is idempotent across restarts and ticks.
  */
 const mongoose = require('mongoose');
 
@@ -52,6 +53,17 @@ const marketStateSchema = new mongoose.Schema(
       type: Date,
       required: [true, 'lastUpdatedAt is required'],
       default: Date.now,
+    },
+
+    // IST date (YYYY-MM-DD) of the most recent NAV rollover for mutual funds.
+    // Stocks leave this field unset — they get a fresh price every 30s tick.
+    // The MF branch of mseWorker / writeTodayClose checks this before applying
+    // a one-step random-walk so a NAV is rolled at most once per IST calendar
+    // day, regardless of restart or tick frequency.
+    lastNavDate: {
+      type: String,
+      match: [/^\d{4}-\d{2}-\d{2}$/, 'lastNavDate must be in YYYY-MM-DD format'],
+      default: undefined,
     },
   },
   {

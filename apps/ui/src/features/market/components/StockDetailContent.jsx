@@ -8,13 +8,20 @@ import { formatCurrency } from '@/shared/utils';
 import { useGetStockQuoteQuery, useGetAssetByTickerQuery } from '../api/marketApi';
 import { MARKET_ASSET_LABELS } from '../constants/market';
 import { OrderForm } from './OrderForm';
-import { PriceChart, DeltaBadge } from './PriceChart';
+import { PriceChart } from './PriceChart';
 import { AssetTransactionsTable } from '@/features/transaction/components/AssetTransactionsTable';
 
 // ─── Chart header slot ────────────────────────────────────────────────────────
 
-const ChartHeader = ({ name, symbol, assetLabel, price, currency, change, changePercent }) => {
-  const up = change != null && change >= 0;
+/**
+ * Renders the price headline beside the chart. The +/- shown next to the
+ * live price reflects the chart's baseline (previous-day close on 1D, the
+ * close from N days ago on multi-day ranges). When the chart is still loading
+ * a baseline, we fall back to no delta rather than display a stale tick-level
+ * value that contradicts the chart.
+ */
+const ChartHeader = ({ name, symbol, assetLabel, price, currency, delta }) => {
+  const up = delta != null && delta.up;
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
       <p className="text-xs text-muted truncate">
@@ -26,14 +33,16 @@ const ChartHeader = ({ name, symbol, assetLabel, price, currency, change, change
           <span className="text-2xl font-black tabular-nums tracking-tight">
             {formatCurrency(price, currency ?? 'INR')}
           </span>
-          {change != null && (
+          {delta && (
             <span
               className={[
                 'text-sm font-semibold tabular-nums',
-                up ? 'text-success' : 'text-danger',
+                up ? 'text-success' : delta.delta === 0 ? 'text-muted' : 'text-danger',
               ].join(' ')}
             >
-              {up ? '▲' : '▼'} {formatCurrency(Math.abs(change))} ({changePercent})
+              {up ? '▲' : delta.delta === 0 ? '•' : '▼'}{' '}
+              {formatCurrency(Math.abs(delta.delta), currency ?? 'INR')} ({up ? '+' : ''}
+              {delta.pct.toFixed(2)}%)
             </span>
           )}
         </div>
@@ -57,15 +66,14 @@ export const StockDetailContent = () => {
   } = useGetStockQuoteQuery(symbol, { skip: !symbol });
   const { data: asset } = useGetAssetByTickerQuery(symbol, { skip: !symbol });
 
-  const chartHeader = (
+  const chartHeader = ({ delta }) => (
     <ChartHeader
       name={displayName}
       symbol={symbol}
       assetLabel={MARKET_ASSET_LABELS.stock}
       price={quote?.price ?? asset?.basePrice}
       currency={quote?.currency}
-      change={quote?.change}
-      changePercent={quote?.changePercent}
+      delta={delta}
     />
   );
 

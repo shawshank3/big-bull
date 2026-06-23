@@ -53,7 +53,7 @@ const MAX_VALUES = {
 
 // Default user settings
 const USER_DEFAULTS = {
-  INITIAL_BALANCE: 100000,
+  INITIAL_BALANCE: 1000000, // ₹10,00,000 — matches VirtualWallet model default
   CURRENCY: 'INR',
   LANGUAGE: 'en',
   TIMEZONE: 'Asia/Kolkata',

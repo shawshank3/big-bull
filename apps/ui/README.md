@@ -261,7 +261,7 @@ All primitives live in `src/shared/ui/` and are exported from `shared/ui/index.j
 | `Avatar`            | Radix-based image avatar with fallback initials                                                | User profile images, comment avatars                                       |
 | `Spinner`           | Animated loading indicator with optional label                                                 | Loading states, async operations in progress                               |
 | `Progress`          | Radix-based progress bar                                                                       | Upload progress, completion indicators                                     |
-| `LineChart`         | Recharts area chart wrapper with theme-aware colours                                           | Price history charts, trend visualisations                                 |
+| `LineChart`         | Recharts area chart wrapper with theme-aware colours and optional baseline reference line      | Price history charts, trend visualisations                                 |
 | `DataTable`         | Client-side paginated, sortable, searchable data table (TanStack)                              | Displaying in-memory datasets with filtering                               |
 | `ServerDataTable`   | Server-side paginated data table with debounced search                                         | Large datasets fetched page-by-page from API                               |
 | `Pagination`        | Unified pagination bar supporting both client and server modes                                 | Used internally by DataTable and ServerDataTable                           |

@@ -18,7 +18,12 @@
 
 const Asset = require('../asset/asset.model');
 const StockPriceHistory = require('./stockPriceHistory.model');
-const { ASSET_TYPES, CHART_RANGES, HTTP_STATUS } = require('../../shared/constants');
+const {
+  ASSET_TYPES,
+  CHART_RANGES,
+  CHART_BASELINE_OFFSETS,
+  HTTP_STATUS,
+} = require('../../shared/constants');
 const DailyPrice = require('./dailyPrice.model');
 const AppError = require('../../shared/AppError');
 
@@ -58,6 +63,39 @@ const daysAgoIST = (n) => {
 };
 
 /**
+ * Look up the baseline (reference) closing price for the given range.
+ *
+ * The baseline is the most recent DailyPrice whose date is on or before the
+ * range's lookback target (today − CHART_BASELINE_OFFSETS[range] calendar
+ * days). Concretely:
+ *   - 1D → yesterday's close
+ *   - 1W → close from 7 days ago (or the most recent prior close if 7-days-
+ *          ago itself has no record, e.g. weekend / market holiday)
+ *   - 1M / 3M / 1Y → analogous behaviour
+ *
+ * The chart UI uses this value to draw a horizontal baseline and to show the
+ * +/- delta vs. that historical close.
+ *
+ * @returns {Promise<{ price: number, date: string } | null>} Null when no
+ *          prior close exists yet (cold-start / new asset).
+ */
+const getBaselineForRange = async (asset, range) => {
+  const offsetDays = CHART_BASELINE_OFFSETS[range];
+  if (!offsetDays) return null;
+
+  const targetDate = daysAgoIST(offsetDays);
+  const doc = await DailyPrice.findOne({
+    ticker: asset.ticker,
+    date: { $lte: targetDate },
+  })
+    .sort({ date: -1 })
+    .lean();
+
+  if (!doc) return null;
+  return { price: doc.closePrice, date: doc.date };
+};
+
+/**
  * Returns the UTC start-of-day (midnight) for a YYYY-MM-DD IST date string.
  * Used to build the Date filter for StockPriceHistory timestamp queries.
  *
@@ -89,7 +127,11 @@ const istDayEndUTC = (dateStr) => {
  *   granularity: '30s' | 'daily',
  *   points: [
  *     { timestamp: string (ISO), price: number, change?: number, changePercent?: string }
- *   ]
+ *   ],
+ *   baseline: { price: number, date: string } | null  // reference close used
+ *                                                       // for +/- delta and the
+ *                                                       // chart's horizontal
+ *                                                       // baseline line
  * }
  *
  * @param {string} ticker  - NSE ticker or MF scheme code
@@ -133,6 +175,10 @@ const getChart = async (ticker, range) => {
  * gracefully render a flat line or "no intraday data" message.
  */
 const get1DChart = async (asset) => {
+  // Resolve the previous-day close once for both branches; used by the
+  // chart UI as the baseline reference line and the +/- delta anchor.
+  const baseline = await getBaselineForRange(asset, CHART_RANGES.ONE_DAY);
+
   if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
     // MFs do not have intraday history — return today's daily NAV if available
     const today = todayIST();
@@ -151,6 +197,7 @@ const get1DChart = async (asset) => {
       range: CHART_RANGES.ONE_DAY,
       granularity: 'daily',
       points,
+      baseline,
     };
   }
 
@@ -179,6 +226,7 @@ const get1DChart = async (asset) => {
     range: CHART_RANGES.ONE_DAY,
     granularity: '30s',
     points,
+    baseline,
   };
 };
 
@@ -194,12 +242,15 @@ const getDailyChart = async (asset, range) => {
   const fromDate = daysAgoIST(daysBack);
   const toDate = todayIST();
 
-  const docs = await DailyPrice.find({
-    ticker: asset.ticker,
-    date: { $gte: fromDate, $lte: toDate },
-  })
-    .sort({ date: 1 })
-    .lean();
+  const [docs, baseline] = await Promise.all([
+    DailyPrice.find({
+      ticker: asset.ticker,
+      date: { $gte: fromDate, $lte: toDate },
+    })
+      .sort({ date: 1 })
+      .lean(),
+    getBaselineForRange(asset, range),
+  ]);
 
   const points = docs.map((d) => ({
     timestamp: `${d.date}T00:00:00.000Z`,
@@ -212,6 +263,7 @@ const getDailyChart = async (asset, range) => {
     range,
     granularity: 'daily',
     points,
+    baseline,
   };
 };
 

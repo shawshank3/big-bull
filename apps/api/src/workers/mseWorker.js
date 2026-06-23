@@ -29,6 +29,7 @@ const MarketState = require('../modules/market/marketState.model');
 const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
 const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
 const { ASSET_TYPES } = require('../shared/constants');
+const { gaussianNoise, nextDayPrice, todayIST } = require('../utils/priceSimulation');
 
 // Lazy-require to avoid circular dependency issues at startup
 const getBroadcast = () => require('../modules/market/market.controller').broadcastPriceUpdate;
@@ -51,15 +52,6 @@ const getFloat = async (key, fallback = 0) => {
   } catch (_) {
     return fallback;
   }
-};
-
-/**
- * Box-Muller transform — returns a single standard-normal sample (μ=0, σ=1).
- */
-const gaussianNoise = () => {
-  const u1 = 1 - Math.random(); // (0, 1]
-  const u2 = Math.random();
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 };
 
 /**
@@ -122,18 +114,22 @@ const resolvePrevPrice = async (ticker, basePrice) => {
  * Bulk-upsert MarketState records for all assets processed in this tick.
  * Uses bulkWrite for efficiency — one round-trip for all assets.
  *
- * @param {Array<{ ticker: string, price: number, updatedAt: Date }>} updates
+ * @param {Array<{ ticker: string, price: number, updatedAt: Date, lastNavDate?: string }>} updates
  */
 const persistMarketState = async (updates) => {
   if (!updates.length) return;
   try {
-    const ops = updates.map(({ ticker, price, updatedAt }) => ({
-      updateOne: {
-        filter: { ticker },
-        update: { $set: { lastPrice: price, lastUpdatedAt: updatedAt } },
-        upsert: true,
-      },
-    }));
+    const ops = updates.map(({ ticker, price, updatedAt, lastNavDate }) => {
+      const $set = { lastPrice: price, lastUpdatedAt: updatedAt };
+      if (lastNavDate) $set.lastNavDate = lastNavDate;
+      return {
+        updateOne: {
+          filter: { ticker },
+          update: { $set },
+          upsert: true,
+        },
+      };
+    });
     await MarketState.bulkWrite(ops, { ordered: false });
   } catch (err) {
     // Non-fatal: MarketState write failure degrades Phase 2 recovery but does
@@ -195,45 +191,75 @@ if (isRedisAvailable) {
       const stockHistoryPoints = []; // Phase 1 — intraday chart inserts
 
       // 4. Process each asset
+      const istToday = todayIST();
       for (const asset of assets) {
         const priceKey = `price:${asset.ticker}`;
 
         // ── Resolve previous price (three-tier chain) ──────────────────────
         const prevPrice = await resolvePrevPrice(asset.ticker, asset.basePrice);
 
-        // ── Mutual funds: NAV is fixed for the day ─────────────────────────
-        // Only write to Redis if the key is absent. MarketState is always updated
-        // so a Redis flush does not revert the MF NAV to the original seed price.
+        // ── Mutual funds: NAV walks once per IST day, then stable ──────────
         if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
+          // Read MarketState directly so we can gate the rollover on
+          // `lastNavDate`. resolvePrevPrice may have served `prevPrice` from
+          // Redis (faster, but missing the date marker we need here).
+          let mfState = null;
           try {
-            const existing = await redis.get(priceKey);
-            if (!existing) {
-              await redis.set(
-                priceKey,
-                JSON.stringify({
-                  ticker: asset.ticker,
-                  price: prevPrice,
-                  change: 0,
-                  changePercent: '+0.00%',
-                  up: true,
-                  timestamp,
-                })
-              );
-            }
+            mfState = await MarketState.findOne({ ticker: asset.ticker })
+              .select('lastPrice lastNavDate')
+              .lean();
+          } catch (_) {
+            /* non-fatal — fall through with mfState=null */
+          }
+
+          const needsRoll = !mfState?.lastNavDate || mfState.lastNavDate < istToday;
+          const navPrice = needsRoll ? nextDayPrice(prevPrice, asset.volatility) : prevPrice;
+          const change = parseFloat((navPrice - prevPrice).toFixed(2));
+          const changePercent = formatChangePercent(change, prevPrice);
+          const up = change >= 0;
+
+          const navPayload = {
+            ticker: asset.ticker,
+            price: navPrice,
+            change,
+            changePercent,
+            up,
+            timestamp,
+          };
+
+          // Always refresh Redis so quotes never fall back to the seed after
+          // a flush, and so the new NAV is visible immediately on rollover.
+          try {
+            await redis.set(priceKey, JSON.stringify(navPayload));
           } catch (_) {
             /* non-fatal */
           }
 
-          // Phase 2: keep MarketState current for MF NAV even without simulation
-          marketStateUpdates.push({ ticker: asset.ticker, price: prevPrice, updatedAt: tickTime });
+          // On rollover, broadcast the new NAV so connected clients refresh.
+          if (needsRoll) {
+            try {
+              broadcast(navPayload);
+            } catch (_) {
+              /* SSE map may be empty */
+            }
+          }
+
+          // Phase 2: persist NAV + the rollover date so subsequent ticks know
+          // today's roll has already happened (idempotent across restarts).
+          marketStateUpdates.push({
+            ticker: asset.ticker,
+            price: navPrice,
+            updatedAt: tickTime,
+            lastNavDate: istToday,
+          });
 
           tickResults.push({
             ticker: asset.ticker,
-            price: prevPrice,
+            price: navPrice,
             volatility: asset.volatility,
             assetType: asset.assetType,
           });
-          continue; // skip price simulation for mutual funds
+          continue; // MFs do not generate intraday history
         }
 
         // ── Stock: compute new price ───────────────────────────────────────

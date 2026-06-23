@@ -12,6 +12,16 @@
  * Usage with custom header slot (replaces "Price History" title):
  *   <PriceChart ticker="RELIANCE" assetType="STOCK" currentPrice={3200} header={<MyHeader />} />
  *
+ * The `header` prop also accepts a render function for callers that need the
+ * chart's baseline-anchored delta in their own header (e.g. to show the +/-
+ * vs. previous-day close beside a live-price label):
+ *   <PriceChart
+ *     ticker="RELIANCE"
+ *     assetType="STOCK"
+ *     currentPrice={3200}
+ *     header={({ baseline, delta, currentPrice }) => <MyHeader delta={delta} />}
+ *   />
+ *
  * Usage (mutual fund):
  *   <PriceChart ticker="120503" assetType="MUTUAL_FUND" currentPrice={98.5} />
  *
@@ -31,8 +41,8 @@ import { Alert } from '@/shared/ui/alert';
 import { LineChart } from '@/shared/ui/line-chart';
 import { formatCurrency } from '@/shared/utils';
 import { useGetChartQuery } from '../api/marketApi';
-import { ASSET_TYPES, CHART_RANGES } from '@/shared/constants';
-import { getPriceDelta } from '../utils/price';
+import { ASSET_TYPES, CHART_RANGES, CHART_BASELINE_LABELS } from '@/shared/constants';
+import { getPriceDelta, getBaselineDelta } from '../utils/price';
 
 // ─── Range options ────────────────────────────────────────────────────────────
 
@@ -52,10 +62,22 @@ const MF_RANGES = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const deriveColor = (points) => {
+/**
+ * Pick the chart's accent color.
+ * Prefers the latest-vs-baseline comparison when a baseline is provided so the
+ * 1D area reflects today's move vs. the previous-day close even when the
+ * intraday series itself is monotone or has only one point. Falls back to
+ * first-vs-last point comparison otherwise.
+ */
+const deriveColor = (points, baselinePrice) => {
+  const last = points?.length ? points[points.length - 1].price : null;
+  if (typeof baselinePrice === 'number' && typeof last === 'number') {
+    if (last > baselinePrice) return 'up';
+    if (last < baselinePrice) return 'down';
+    return 'neutral';
+  }
   if (!points || points.length < 2) return 'neutral';
   const first = points[0].price;
-  const last = points[points.length - 1].price;
   if (last > first) return 'up';
   if (last < first) return 'down';
   return 'neutral';
@@ -118,31 +140,56 @@ const ChartEmpty = ({ range, assetType }) => {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 /**
- * @param {string}      ticker
- * @param {string}      assetType   'STOCK' | 'MUTUAL_FUND'
- * @param {number}      currentPrice
- * @param {ReactNode}   [header]    Optional slot — replaces the default
- *                                  "Price History" title when provided.
- *                                  The range-tab strip is always rendered
- *                                  on the trailing edge regardless.
+ * @param {string}             ticker
+ * @param {string}             assetType   'STOCK' | 'MUTUAL_FUND'
+ * @param {number}             currentPrice
+ * @param {ReactNode|Function} [header]    Optional slot — replaces the default
+ *                                         "Price History" title when provided.
+ *                                         May be a ReactNode or a render
+ *                                         function that receives
+ *                                         `{ baseline, delta, currentPrice,
+ *                                            isLoading, isError }` so callers
+ *                                         can render baseline-anchored deltas
+ *                                         without re-fetching the chart.
+ *                                         The range-tab strip is always
+ *                                         rendered on the trailing edge.
  */
 export const PriceChart = ({ ticker, assetType, currentPrice, header }) => {
   const isMF = assetType === ASSET_TYPES.MUTUAL_FUND;
   const ranges = isMF ? MF_RANGES : STOCK_RANGES;
   const [range, setRange] = useState(isMF ? CHART_RANGES.ONE_WEEK : CHART_RANGES.ONE_DAY);
 
+  const pollingInterval = range === CHART_RANGES.ONE_DAY ? 30000 : 0;
+
   const {
     data: chart,
     isLoading,
     isError,
-    isFetching,
-  } = useGetChartQuery({ ticker, range }, { skip: !ticker });
+  } = useGetChartQuery({ ticker, range }, { skip: !ticker, pollingInterval });
 
   const points = chart?.points ?? [];
   const granularity = chart?.granularity ?? (range === '1D' ? '30s' : 'daily');
-  const color = deriveColor(points);
-  const delta = getPriceDelta(points);
+  const baseline = chart?.baseline ?? null;
+  const lastPoint = points.length ? points[points.length - 1].price : null;
+
+  // Anchor the +/- delta to the baseline (e.g. previous-day close for 1D).
+  // Use the live `currentPrice` when available so the badge reflects the price
+  // shown to the user; fall back to the last chart point and finally to the
+  // first-vs-last delta for assets with no baseline yet.
+  const referenceLatest =
+    typeof currentPrice === 'number' && isFinite(currentPrice) ? currentPrice : lastPoint;
+  const delta =
+    baseline && referenceLatest != null
+      ? getBaselineDelta(referenceLatest, baseline.price)
+      : getPriceDelta(points);
+
+  const color = deriveColor(points, baseline?.price);
   const hasData = points.length >= 2;
+
+  const renderedHeader =
+    typeof header === 'function'
+      ? header({ baseline, delta, currentPrice: referenceLatest, isLoading, isError })
+      : header;
 
   return (
     <Card>
@@ -150,7 +197,7 @@ export const PriceChart = ({ ticker, assetType, currentPrice, header }) => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           {/* Leading: custom header slot or fallback "Price History" + delta */}
           <div className="flex flex-col gap-0.5 min-w-0">
-            {header ?? (
+            {renderedHeader ?? (
               <>
                 <span className="text-base font-bold">Price History</span>
                 {!isLoading && !isError && delta && <DeltaBadge {...delta} />}
@@ -163,11 +210,18 @@ export const PriceChart = ({ ticker, assetType, currentPrice, header }) => {
       </CardHeader>
 
       <CardContent className="pt-2 pb-4">
-        {(isLoading || isFetching) && <ChartLoading />}
+        {isLoading && <ChartLoading />}
         {!isLoading && isError && <ChartError />}
         {!isLoading && !isError && !hasData && <ChartEmpty range={range} assetType={assetType} />}
         {!isLoading && !isError && hasData && (
-          <LineChart points={points} color={color} granularity={granularity} height={220} />
+          <LineChart
+            points={points}
+            color={color}
+            granularity={granularity}
+            height={220}
+            baseline={baseline?.price}
+            baselineLabel={CHART_BASELINE_LABELS[range]}
+          />
         )}
       </CardContent>
     </Card>

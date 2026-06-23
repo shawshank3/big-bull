@@ -13,20 +13,41 @@ import { AssetTransactionsTable } from '@/features/transaction/components/AssetT
 
 // ─── Chart header slot ────────────────────────────────────────────────────────
 
-const ChartHeader = ({ name, schemeCode, subtitle, price, currency, asOf }) => (
-  <div className="flex flex-col gap-0.5 min-w-0">
-    <p className="text-xs text-muted truncate">{subtitle}</p>
-    <h1 className="text-lg font-bold leading-tight truncate">{name}</h1>
-    {price != null && (
-      <div className="flex flex-wrap items-baseline gap-2 mt-0.5">
-        <span className="text-2xl font-black tabular-nums tracking-tight">
-          {formatCurrency(price, currency ?? 'INR')}
-        </span>
-        {asOf && <span className="text-xs text-muted">{asOf}</span>}
-      </div>
-    )}
-  </div>
-);
+/**
+ * Renders the NAV headline beside the chart. The +/- shown next to the NAV
+ * reflects the chart's baseline (close from N days ago for the active range).
+ * `delta` is supplied by PriceChart through the render-function header form
+ * so the displayed change always matches the chart's reference line.
+ */
+const ChartHeader = ({ name, subtitle, price, currency, asOf, delta }) => {
+  const up = delta != null && delta.up;
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <p className="text-xs text-muted truncate">{subtitle}</p>
+      <h1 className="text-lg font-bold leading-tight truncate">{name}</h1>
+      {price != null && (
+        <div className="flex flex-wrap items-baseline gap-2 mt-0.5">
+          <span className="text-2xl font-black tabular-nums tracking-tight">
+            {formatCurrency(price, currency ?? 'INR')}
+          </span>
+          {delta && (
+            <span
+              className={[
+                'text-sm font-semibold tabular-nums',
+                up ? 'text-success' : delta.delta === 0 ? 'text-muted' : 'text-danger',
+              ].join(' ')}
+            >
+              {up ? '▲' : delta.delta === 0 ? '•' : '▼'}{' '}
+              {formatCurrency(Math.abs(delta.delta), currency ?? 'INR')} ({up ? '+' : ''}
+              {delta.pct.toFixed(2)}%)
+            </span>
+          )}
+          {asOf && <span className="text-xs text-muted">{asOf}</span>}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -48,14 +69,14 @@ export const MutualDetailContent = () => {
     .filter(Boolean)
     .join(' · ');
 
-  const chartHeader = (
+  const chartHeader = ({ delta }) => (
     <ChartHeader
       name={title}
-      schemeCode={schemeCode}
       subtitle={subtitle || MARKET_ASSET_LABELS.mutual}
       price={quote?.price ?? asset?.basePrice}
       currency={quote?.currency}
       asOf={quote?.asOf}
+      delta={delta}
     />
   );
 

@@ -27,6 +27,16 @@ export const CHART_RANGE_FULL_LABELS = {
   [CHART_RANGES.ONE_YEAR]: '1 Year',
 };
 
+// Short label for the chart's horizontal baseline reference line, describing
+// what historical close the line represents per range.
+export const CHART_BASELINE_LABELS = {
+  [CHART_RANGES.ONE_DAY]: 'Prev close',
+  [CHART_RANGES.ONE_WEEK]: 'Wk ago',
+  [CHART_RANGES.ONE_MONTH]: 'Mo ago',
+  [CHART_RANGES.THREE_MONTHS]: '3M ago',
+  [CHART_RANGES.ONE_YEAR]: '1Y ago',
+};
+
 // Chart configuration for different ranges
 export const CHART_RANGE_CONFIG = {
   [CHART_RANGES.ONE_DAY]: {

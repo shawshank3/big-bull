@@ -1,11 +1,22 @@
 /**
  * Seed Script — Indian Assets + Demo User
  *
- * Populates the Assets collection with 20 NSE-listed stocks and 5 Indian mutual funds.
- * These serve as the tradeable universe for the BigBull simulation.
+ * Populates the Assets collection with 20 NSE-listed stocks and 5 Indian mutual
+ * funds. These serve as the tradeable universe for the BigBull simulation.
  * Prices are realistic INR base prices as of mid-2025.
  *
- * Run: node scripts/seed.js
+ * Also creates a demo user with a funded wallet for quick testing.
+ *
+ * ─── Collections written ────────────────────────────────────────────────────
+ *   assets          — 25 investable instruments (upserted, idempotent)
+ *   users           — demo user (created only if missing)
+ *   virtualwallets  — demo wallet (created only if missing)
+ *
+ * ─── Usage ──────────────────────────────────────────────────────────────────
+ *   pnpm seed
+ *   # or: node scripts/seed.js
+ *
+ * Safe to run multiple times — upserts assets and skips existing demo user.
  */
 require('dotenv').config();
 const mongoose = require('mongoose');
@@ -186,12 +197,16 @@ const MUTUAL_FUNDS = [
 
 const seedDatabase = async () => {
   const MONGO_URI = process.env.MONGODB_URI;
+  if (!MONGO_URI) {
+    console.error('✗ MONGODB_URI is not set in .env');
+    process.exit(1);
+  }
 
   try {
     await mongoose.connect(MONGO_URI);
     console.log('✓ Connected to MongoDB');
 
-    // ── Upsert Assets (don't wipe user data) ────────────────────────────────
+    // ── Upsert Assets (idempotent — never destroys user data) ───────────────
     let upserted = 0;
     for (const stock of STOCKS) {
       await Asset.findOneAndUpdate(
@@ -224,7 +239,7 @@ const seedDatabase = async () => {
       `✓ Upserted ${upserted} assets (${STOCKS.length} stocks + ${MUTUAL_FUNDS.length} mutual funds)`
     );
 
-    // ── Demo user (idempotent) ───────────────────────────────────────────────
+    // ── Demo user (idempotent — skips if exists) ─────────────────────────────
     let demoUser = await User.findOne({ email: 'demo@bigbull.com' });
     if (!demoUser) {
       demoUser = await User.create({
@@ -233,16 +248,21 @@ const seedDatabase = async () => {
         password: 'Demo@1234',
         role: USER_ROLES.CLIENT,
       });
-      await VirtualWallet.create({ userId: demoUser._id, balance: USER_DEFAULTS.INITIAL_BALANCE });
+      await VirtualWallet.create({
+        userId: demoUser._id,
+        balance: USER_DEFAULTS.INITIAL_BALANCE,
+      });
       console.log('✓ Created demo user: demo@bigbull.com / Demo@1234');
     } else {
       console.log('✓ Demo user already exists — skipped');
     }
 
-    console.log('\n✅ Seed complete!');
-    console.log('   Assets tradeable: 20 NSE stocks + 5 mutual funds');
-    console.log('   Demo login: demo@bigbull.com / Demo@1234');
-    console.log('   Starting wallet: ₹' + USER_DEFAULTS.INITIAL_BALANCE.toLocaleString('en-IN'));
+    console.log(`
+✅  Seed complete!
+    Assets tradeable:  ${STOCKS.length} NSE stocks + ${MUTUAL_FUNDS.length} mutual funds
+    Demo login:        demo@bigbull.com / Demo@1234
+    Starting wallet:   ₹${USER_DEFAULTS.INITIAL_BALANCE.toLocaleString('en-IN')}
+`);
   } catch (err) {
     console.error('✗ Seed failed:', err.message);
     process.exit(1);

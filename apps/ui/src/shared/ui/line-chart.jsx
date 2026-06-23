@@ -7,14 +7,19 @@
  * this surface so callers never import from recharts directly.
  *
  * Props:
- *   points        {Array<{ timestamp: string, price: number }>}  required
- *   color         'up' | 'down' | 'neutral'   default 'neutral'
- *   height        number                       default 220
- *   formatY       (value: number) => string    default plain number
- *   formatX       (iso: string) => string      default HH:MM for intraday,
- *                                              DD MMM for daily
- *   granularity   '30s' | 'daily'              drives default formatX
- *   className     string
+ *   points         {Array<{ timestamp: string, price: number }>}  required
+ *   color          'up' | 'down' | 'neutral'   default 'neutral'
+ *   height         number                       default 220
+ *   formatY        (value: number) => string    default plain number
+ *   formatX        (iso: string) => string      default HH:MM for intraday,
+ *                                               DD MMM for daily
+ *   granularity    '30s' | 'daily'              drives default formatX
+ *   baseline       number                       optional horizontal reference
+ *                                               line price; renders a dashed
+ *                                               muted line + label
+ *   baselineLabel  string                       short label for the baseline
+ *                                               line (e.g. "Prev close")
+ *   className      string
  */
 
 import * as React from 'react';
@@ -26,6 +31,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/shared/utils/format';
@@ -73,6 +79,8 @@ export const LineChart = React.forwardRef(
       granularity = '30s',
       formatY,
       formatX,
+      baseline,
+      baselineLabel,
       className,
       ...props
     },
@@ -85,10 +93,14 @@ export const LineChart = React.forwardRef(
     const xFormatter = formatX ?? defaultFormatX;
     const yFormatter = formatY ?? ((v) => formatCurrency(Math.round(v)));
 
-    // Compute y-axis domain with a small buffer so the line doesn't hug edges
+    const hasBaseline = typeof baseline === 'number' && isFinite(baseline);
+
+    // Compute y-axis domain with a small buffer so the line doesn't hug edges.
+    // Include the baseline value so the reference line is always visible.
     const prices = points.map((p) => p.price);
-    const minPrice = prices.length ? Math.min(...prices) : 0;
-    const maxPrice = prices.length ? Math.max(...prices) : 1;
+    const allValues = hasBaseline ? [...prices, baseline] : prices;
+    const minPrice = allValues.length ? Math.min(...allValues) : 0;
+    const maxPrice = allValues.length ? Math.max(...allValues) : 1;
     const buffer = (maxPrice - minPrice) * 0.08 || maxPrice * 0.05 || 1;
     const yMin = Math.max(0, minPrice - buffer);
     const yMax = maxPrice + buffer;
@@ -129,6 +141,25 @@ export const LineChart = React.forwardRef(
               content={<ChartTooltip labelFormatter={xFormatter} valueFormatter={formatCurrency} />}
               cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
             />
+
+            {hasBaseline && (
+              <ReferenceLine
+                y={baseline}
+                stroke="var(--muted)"
+                strokeDasharray="4 4"
+                strokeWidth={1}
+                ifOverflow="extendDomain"
+                label={{
+                  value: baselineLabel
+                    ? `${baselineLabel} ${formatCurrency(baseline)}`
+                    : formatCurrency(baseline),
+                  position: 'insideTopLeft',
+                  fill: 'var(--muted)',
+                  fontSize: 10,
+                  fontFamily: 'inherit',
+                }}
+              />
+            )}
 
             <Area
               type="monotone"

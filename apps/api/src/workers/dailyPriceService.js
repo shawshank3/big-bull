@@ -2,7 +2,7 @@
  * Daily Price Service
  *
  * Handles DailyPrice writes without BullMQ or a fixed cron schedule.
- * Two entry points:
+ * Three entry points:
  *
  *   writeTodayClose()
  *     Called on graceful shutdown (SIGTERM / SIGINT).
@@ -18,39 +18,43 @@
  *     random-walk price simulation (same Va × N formula as mseWorker).
  *     Today is NOT backfilled here — writeTodayClose() owns today on shutdown.
  *
+ *   backfillIntradayToday()
+ *     Called once on startup after connectDB() resolves.
+ *     Generates synthetic 30-second StockPriceHistory ticks from market open
+ *     (09:00 IST) to min(now, 15:30 IST) so the 1D chart is not empty while
+ *     the MSE worker starts accumulating real ticks. Skips if today already
+ *     has sufficient data.
+ *
  * Design rules:
- *   - Only writes to DailyPrice and MarketState. Never touches Asset.
+ *   - Only writes to DailyPrice, StockPriceHistory, and MarketState.
+ *     Never touches Asset.
  *   - Asset.basePrice is the seed / last-resort fallback — never written here.
  *   - Backfill uses only MarketState for the starting price (no Redis — on boot
  *     Redis may be empty).
- *   - All writes are bulk upserts — safe to re-run, no duplicates.
- *   - All errors are logged and swallowed — neither function should crash the
+ *   - All writes are bulk upserts/inserts — safe to re-run, no duplicates.
+ *   - All errors are logged and swallowed — no function should crash the
  *     server on failure.
  */
 
 const Asset = require('../modules/asset/asset.model');
 const MarketState = require('../modules/market/marketState.model');
 const DailyPrice = require('../modules/market/dailyPrice.model');
+const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
+const { ASSET_TYPES } = require('../shared/constants');
 const redis = require('../shared/redis');
+const { gaussianNoise, nextDayPrice, todayIST } = require('../utils/priceSimulation');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Box-Muller Gaussian sample (μ=0, σ=1) */
-const gaussian = () => {
-  const u1 = 1 - Math.random();
-  const u2 = Math.random();
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-};
-
-/** Advance price one day using the simplified MSE random-walk (no Sm/Ts). */
-const nextDayPrice = (prev, volatility) =>
-  Math.max(1, parseFloat((prev * (1 + volatility * gaussian())).toFixed(2)));
+/** Local alias retained for readability — same function as `gaussianNoise`. */
+const gaussian = gaussianNoise;
 
 /**
  * Returns a date N calendar days offset from now as YYYY-MM-DD in IST (UTC+5:30).
  * offset = 0 → today, offset = -1 → yesterday, offset = -7 → 7 days ago.
  */
 const dateIST = (offset = 0) => {
+  if (offset === 0) return todayIST();
   const now = new Date();
   const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000 + offset * 86400 * 1000);
   return ist.toISOString().slice(0, 10);
@@ -105,6 +109,71 @@ const resolvePrice = async (ticker, basePrice) => {
   return basePrice;
 };
 
+/**
+ * Resolve a mutual fund's NAV for "today's close".
+ *
+ * If MarketState already records a roll for today (`lastNavDate === today`),
+ * returns that NAV unchanged. Otherwise advances the previous NAV by one
+ * random-walk step, persists the new value + rollover marker, and returns it.
+ *
+ * Idempotent within a single IST day. Used by writeTodayClose() so that a
+ * boot-then-shutdown with no mseWorker ticks still produces a fresh NAV
+ * rather than copying yesterday's value forward.
+ */
+const resolveMutualFundClose = async (asset, today) => {
+  let state = null;
+  try {
+    state = await MarketState.findOne({ ticker: asset.ticker })
+      .select('lastPrice lastNavDate')
+      .lean();
+  } catch (_) {
+    /* fall through with state=null */
+  }
+
+  const prevNav =
+    state && typeof state.lastPrice === 'number' && state.lastPrice > 0
+      ? state.lastPrice
+      : await resolvePrice(asset.ticker, asset.basePrice);
+
+  if (state?.lastNavDate === today) {
+    // Already rolled today — return the recorded NAV without re-walking.
+    return prevNav;
+  }
+
+  // Apply the once-per-day random-walk step and persist the marker so we
+  // do not roll again today. Best-effort: NAV is still returned even if the
+  // persistence write fails.
+  const navPrice = nextDayPrice(prevNav, asset.volatility);
+  try {
+    await MarketState.updateOne(
+      { ticker: asset.ticker },
+      { $set: { lastPrice: navPrice, lastUpdatedAt: new Date(), lastNavDate: today } },
+      { upsert: true }
+    );
+  } catch (_) {
+    /* non-fatal */
+  }
+
+  // Refresh Redis so live quotes reflect the new NAV immediately.
+  try {
+    await redis.set(
+      `price:${asset.ticker}`,
+      JSON.stringify({
+        ticker: asset.ticker,
+        price: navPrice,
+        change: parseFloat((navPrice - prevNav).toFixed(2)),
+        changePercent: '+0.00%',
+        up: navPrice >= prevNav,
+        timestamp: new Date().toISOString(),
+      })
+    );
+  } catch (_) {
+    /* non-fatal */
+  }
+
+  return navPrice;
+};
+
 // ─── writeTodayClose ──────────────────────────────────────────────────────────
 
 /**
@@ -127,7 +196,13 @@ const writeTodayClose = async () => {
 
     const ops = await Promise.all(
       assets.map(async (asset) => {
-        const closePrice = await resolvePrice(asset.ticker, asset.basePrice);
+        // For mutual funds, ensure today's NAV has been rolled exactly once
+        // before snapshotting. This protects the boot-then-shutdown case where
+        // mseWorker never had a chance to tick today.
+        const closePrice =
+          asset.assetType === ASSET_TYPES.MUTUAL_FUND
+            ? await resolveMutualFundClose(asset, today)
+            : await resolvePrice(asset.ticker, asset.basePrice);
         return {
           updateOne: {
             filter: { ticker: asset.ticker, date: today },
@@ -262,4 +337,127 @@ const backfillMissingDays = async () => {
   }
 };
 
-module.exports = { writeTodayClose, backfillMissingDays };
+// ─── backfillIntradayToday ─────────────────────────────────────────────────────
+
+/**
+ * Generates synthetic 30-second intraday ticks for today (stocks only).
+ *
+ * Called on startup so the 1D chart is not empty while the MSE worker starts
+ * accumulating real ticks. Only runs if there are fewer than 10 existing
+ * StockPriceHistory documents for today — meaning the worker hasn't had time
+ * to build up meaningful data yet.
+ *
+ * Algorithm:
+ *   1. Compute today's IST market window: 09:00 → min(15:30, now).
+ *   2. For each stock, resolve a starting price from MarketState → basePrice.
+ *   3. Chain a random-walk at 30-second intervals with reduced volatility
+ *      (same 0.25× scaling the seed script uses for intraday).
+ *   4. Bulk-insert into StockPriceHistory.
+ *
+ * Idempotent: skips if today already has sufficient ticks.
+ * Non-fatal: logs errors but does not throw.
+ */
+const backfillIntradayToday = async () => {
+  const today = dateIST(0);
+  console.log(`[Intraday] Checking if 1D backfill is needed for ${today}…`);
+
+  try {
+    // IST day boundaries in UTC
+    const [y, m, d] = today.split('-').map(Number);
+    const istMidnightUTC = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - 5.5 * 60 * 60 * 1000);
+
+    // Check if we already have meaningful data for today
+    const existingCount = await StockPriceHistory.countDocuments({
+      timestamp: { $gte: istMidnightUTC },
+    });
+
+    if (existingCount >= 10) {
+      console.log(`[Intraday] ✓ Already ${existingCount} ticks today — skipping backfill`);
+      return;
+    }
+
+    const stocks = await Asset.find({ assetType: ASSET_TYPES.STOCK }).lean();
+    if (!stocks.length) {
+      console.log('[Intraday] No stock assets found — skipping');
+      return;
+    }
+
+    // Market window in seconds from IST midnight
+    const MARKET_OPEN_S = 9 * 3600; // 09:00 IST
+    const MARKET_CLOSE_S = 15.5 * 3600; // 15:30 IST
+    const TICK_INTERVAL_S = 30;
+
+    // Current IST time in seconds from midnight
+    const nowUTC = Date.now();
+    const nowIST = new Date(nowUTC + 5.5 * 60 * 60 * 1000);
+    const nowSecondsIST =
+      nowIST.getUTCHours() * 3600 + nowIST.getUTCMinutes() * 60 + nowIST.getUTCSeconds();
+
+    // End time is min(now, market close)
+    const endS = Math.min(nowSecondsIST, MARKET_CLOSE_S);
+
+    if (endS <= MARKET_OPEN_S) {
+      console.log('[Intraday] ✓ Market not yet open today — skipping backfill');
+      return;
+    }
+
+    const tickCount = Math.floor((endS - MARKET_OPEN_S) / TICK_INTERVAL_S);
+    if (tickCount <= 0) {
+      console.log('[Intraday] ✓ No ticks to generate — skipping');
+      return;
+    }
+
+    console.log(`[Intraday] Generating ~${tickCount} ticks per stock (${stocks.length} stocks)…`);
+
+    const intradayDocs = [];
+
+    for (const asset of stocks) {
+      // Resolve starting price: MarketState → basePrice
+      let price = asset.basePrice;
+      try {
+        const state = await MarketState.findOne({ ticker: asset.ticker }).lean();
+        if (state && state.lastPrice > 0) price = state.lastPrice;
+      } catch (_) {
+        /* use basePrice */
+      }
+
+      let prevPrice = price;
+
+      for (let i = 0; i < tickCount; i++) {
+        // Reduced intraday volatility (same as seed script)
+        const delta = asset.volatility * 0.25 * gaussian();
+        price = Math.max(1, parseFloat((price * (1 + delta)).toFixed(2)));
+
+        const change = parseFloat((price - prevPrice).toFixed(2));
+        const pct = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
+        const sign = pct >= 0 ? '+' : '';
+        const changePercent = `${sign}${pct.toFixed(2)}%`;
+
+        // Compute UTC timestamp for this tick
+        const tickOffsetS = MARKET_OPEN_S + i * TICK_INTERVAL_S;
+        const timestamp = new Date(istMidnightUTC.getTime() + tickOffsetS * 1000);
+
+        intradayDocs.push({
+          ticker: asset.ticker,
+          price,
+          change,
+          changePercent,
+          timestamp,
+        });
+
+        prevPrice = price;
+      }
+    }
+
+    if (intradayDocs.length) {
+      await StockPriceHistory.insertMany(intradayDocs, { ordered: false });
+      console.log(
+        `[Intraday] ✓ Backfill complete — ${intradayDocs.length} ticks inserted for ${stocks.length} stocks`
+      );
+    }
+  } catch (err) {
+    console.error('[Intraday] backfillIntradayToday failed:', err.message);
+  }
+};
+
+module.exports = { writeTodayClose, backfillMissingDays, backfillIntradayToday };

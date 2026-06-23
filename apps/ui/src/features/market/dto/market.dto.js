@@ -1,6 +1,10 @@
 import { str, num, bool, arr } from '@/shared/dto/helpers';
 
 export function toChartDTO(raw) {
+  const baseline =
+    raw?.baseline && typeof raw.baseline === 'object'
+      ? { price: num(raw.baseline.price), date: str(raw.baseline.date) }
+      : null;
   return {
     ticker: str(raw?.ticker),
     assetType: str(raw?.assetType),
@@ -12,6 +16,7 @@ export function toChartDTO(raw) {
       change: num(p?.change),
       changePercent: str(p?.changePercent),
     })),
+    baseline,
   };
 }
 
