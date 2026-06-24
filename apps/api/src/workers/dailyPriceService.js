@@ -311,14 +311,42 @@ const backfillMissingDays = async () => {
       // the end of the gap rather than the potentially stale pre-downtime value.
       // Only update if we actually simulated something.
       if (datesToFill.length > 0) {
+        // For mutual funds: set lastNavDate to yesterday (the last backfilled
+        // day) so the mseWorker knows it still needs to roll today's NAV from
+        // this correct baseline. Without this, the worker may pick up a stale
+        // Redis value or an older MarketState entry and lock in a wrong NAV.
+        const msUpdate = { lastPrice: price, lastUpdatedAt: new Date() };
+        if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
+          msUpdate.lastNavDate = yesterday;
+        }
+
         try {
           await MarketState.updateOne(
             { ticker: asset.ticker },
-            { $set: { lastPrice: price, lastUpdatedAt: new Date() } },
+            { $set: msUpdate },
             { upsert: true }
           );
         } catch (_) {
           /* non-fatal */
+        }
+
+        // Sync Redis with the backfilled price so the three-tier resolution
+        // chain returns this value immediately (prevents stale Redis reads
+        // from a previous session trumping the fresh MarketState write).
+        try {
+          await redis.set(
+            `price:${asset.ticker}`,
+            JSON.stringify({
+              ticker: asset.ticker,
+              price,
+              change: 0,
+              changePercent: '+0.00%',
+              up: true,
+              timestamp: new Date().toISOString(),
+            })
+          );
+        } catch (_) {
+          /* non-fatal — MarketState is the durable fallback */
         }
       }
     }

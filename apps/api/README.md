@@ -141,7 +141,7 @@ If any layer throws an `AppError` (or any uncaught error), the global `errorHand
 | `assets`              | asset         | Seed script only (`scripts/seed.js`)                                                              | Setup-only, never runtime             |
 | `virtualwallets`      | wallet        | `wallet.service.debit()`, `wallet.service.credit()`                                               | Atomic `$inc` within session          |
 | `transactions`        | transaction   | `transaction.service.executeOrder()`                                                              | Create (immutable, never updated)     |
-| `marketstates`        | market (MSE)  | `mseWorker` bulk-upsert, `dailyPriceService.backfillMissingDays()`                                | Upsert on every 30s tick              |
+| `marketstates`        | market (MSE)  | `mseWorker` bulk-upsert, `dailyPriceService.backfillMissingDays()` (+ Redis sync)                 | Upsert on every 30s tick + startup    |
 | `stockpricehistories` | market (MSE)  | `mseWorker` insertMany                                                                            | Append-only (48h TTL index)           |
 | `dailyprices`         | market (MSE)  | `dailyPriceService.writeTodayClose()`, `backfillMissingDays()`, `mseWorker.handleDayTransition()` | Upsert per ticker per day             |
 
@@ -178,8 +178,8 @@ Mutual fund NAVs are NOT simulated intraday — instead the mseWorker rolls each
 
 | Target                 | Writer                       | Trigger                                                  |
 | ---------------------- | ---------------------------- | -------------------------------------------------------- |
-| Redis `price:<ticker>` | mseWorker                    | Every 30s tick                                           |
-| MarketState            | mseWorker                    | Every 30s tick                                           |
+| Redis `price:<ticker>` | mseWorker, dailyPriceService | Every 30s tick; reseeded on startup backfill             |
+| MarketState            | mseWorker, dailyPriceService | Every 30s tick; updated on startup backfill              |
 | StockPriceHistory      | mseWorker                    | Every 30s tick (stocks)                                  |
 | DailyPrice             | dailyPriceService, mseWorker | Shutdown + startup backfill + day-transition on 30s tick |
 
