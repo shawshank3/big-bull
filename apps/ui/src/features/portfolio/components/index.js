@@ -6,3 +6,4 @@ export { HoldingsSectionHeader } from './HoldingsSectionHeader';
 export { HoldingsTable } from './HoldingsTable';
 export { PortfolioStatsGrid } from './PortfolioStatsGrid';
 export { PortfolioTotalValueCard } from './PortfolioTotalValueCard';
+export { TaxQuickAccess } from './TaxQuickAccess';

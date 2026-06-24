@@ -50,6 +50,9 @@ export const UserMenu = () => {
           <Link to={ROUTES.WALLET}>Wallet: {wallet ? formatCurrency(wallet.balance) : '—'}</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+          <Link to={ROUTES.TAX}>Tax Center</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link to={ROUTES.PROFILE}>Profile</Link>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={logout}>Logout</DropdownMenuItem>

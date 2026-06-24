@@ -8,6 +8,7 @@ import { HoldingsBreakdown } from './HoldingsBreakdown';
 import { AssetAllocationCard } from './AssetAllocationCard';
 import { PortfolioStatsGrid } from './PortfolioStatsGrid';
 import { PortfolioTotalValueCard } from './PortfolioTotalValueCard';
+import { TaxQuickAccess } from './TaxQuickAccess';
 
 export const DashboardContent = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -38,6 +39,7 @@ export const DashboardContent = () => {
         <PortfolioTotalValueCard summary={summary} allocation={allocation} />
       </div>
       <HoldingsBreakdown holdings={holdings} isLoading={isLoading} showNavigate />
+      <TaxQuickAccess />
     </>
   );
 };

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent } from '@/shared/components/card';
@@ -8,6 +8,8 @@ import { Spinner } from '@/shared/ui/spinner';
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { DataTable } from '@/shared/ui/data-table';
+import { Button } from '@/shared/ui/button';
+import { ROUTES } from '@/shared/constants/routes';
 import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../api/portfolioApi';
 import { formatCurrency } from '@/shared/utils/format';
 import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
@@ -123,6 +125,11 @@ export const HoldingsContent = () => {
       <PageHeader
         title="Portfolio"
         description="Holdings are derived from your transaction history in real time."
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link to={ROUTES.TAX}>Tax Center</Link>
+          </Button>
+        }
       />
       {summaryLoading ? null : <SummaryBar summary={summary} />}
       {error ? <Alert variant="danger">Unable to load holdings right now.</Alert> : null}

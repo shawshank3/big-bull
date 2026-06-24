@@ -16,6 +16,7 @@ const v1TransactionRoutes = require('./modules/transaction/transaction.routes');
 const { HTTP_STATUS } = require('./shared/constants');
 const v1PortfolioRoutes = require('./modules/portfolio/portfolio.routes');
 const v1MarketRoutes = require('./modules/market/market.routes');
+const v1TaxRoutes = require('./modules/tax/tax.routes');
 const v1ChatRoutes = require('./modules/chat/chat.routes');
 const errorHandler = require('./middleware/errorHandler');
 const { scheduleMseTick } = require('./workers/mseWorker');
@@ -98,6 +99,7 @@ app.use('/api/v1/wallet', v1WalletRoutes);
 app.use('/api/v1/transactions', v1TransactionRoutes);
 app.use('/api/v1/portfolio', v1PortfolioRoutes);
 app.use('/api/v1/market', v1MarketRoutes);
+app.use('/api/v1/tax', v1TaxRoutes);
 app.use('/api/v1/chat', chatLimiter, v1ChatRoutes);
 
 // SPA fallback for frontend routes

@@ -44,6 +44,7 @@ apps/api/
     │   ├── chat/               # AI Copilot (Gemini) conversation
     │   ├── market/             # Assets, quotes, search, SSE stream, charts
     │   ├── portfolio/          # Holdings aggregation, P&L summary
+    │   ├── tax/                # Capital gains (FIFO), tax-loss harvesting
     │   ├── transaction/        # Order execution, trade history
     │   ├── user/               # Profile CRUD, avatar
     │   └── wallet/             # Balance, debit/credit, wallet tx history
@@ -130,6 +131,7 @@ If any layer throws an `AppError` (or any uncaught error), the global `errorHand
 | **market**      | Asset catalog, quotes, search, SSE, charts    | `market.controller.js`, `market.routes.js`, `market.service.js`, `market.validator.js`, `chart.controller.js`, `chart.service.js`, `chart.validator.js`, `marketState.model.js`, `stockPriceHistory.model.js`, `dailyPrice.model.js` | `/api/v1/market`       |
 | **asset**       | Asset model + validator (catalog data)        | `asset.model.js`, `asset.validator.js`                                                                                                                                                                                               | None (reference data)  |
 | **chat**        | AI Copilot — Gemini conversation              | `chat.controller.js`, `chat.routes.js`, `chat.service.js`                                                                                                                                                                            | `/api/v1/chat`         |
+| **tax**         | Capital gains tracking, tax-loss harvesting   | `tax.controller.js`, `tax.routes.js`, `tax.service.js`, `tax.validator.js`                                                                                                                                                           | `/api/v1/tax`          |
 
 ---
 
@@ -393,6 +395,60 @@ All routes are prefixed with `/api/v1/` unless noted. Standard response envelope
 | Method | Path    | Auth     | Body / Params             | Response `data` |
 | ------ | ------- | -------- | ------------------------- | --------------- |
 | POST   | `/chat` | Required | `{ message }` — non-empty | `{ reply }`     |
+
+### Tax (`/api/v1/tax`)
+
+> **Educational only** — This module provides simulated capital gains tracking and tax-loss harvesting insights. It performs zero database writes and reads exclusively from existing `transactions` and `assets` collections.
+
+| Method | Path              | Auth     | Query Params                    | Response `data`                  |
+| ------ | ----------------- | -------- | ------------------------------- | -------------------------------- |
+| GET    | `/tax/gains`      | Required | `?taxYear=2025&page=1&limit=20` | `{ gains, summary, pagination }` |
+| GET    | `/tax/summary`    | Required | `?taxYear=2025`                 | `{ totalSTCG, totalLTCG, ... }`  |
+| GET    | `/tax/harvesting` | Required | `?taxYear=2025&minLoss=0`       | `{ opportunities, meta }`        |
+
+**Query Parameters:**
+
+| Param     | Type   | Default    | Description                                                 |
+| --------- | ------ | ---------- | ----------------------------------------------------------- |
+| `taxYear` | number | Current FY | Indian FY start year (e.g., 2025 = Apr 2025–Mar 2026)       |
+| `page`    | number | 1          | Page number (gains endpoint only)                           |
+| `limit`   | number | 20         | Items per page, max 100 (gains endpoint only)               |
+| `minLoss` | number | 0          | Minimum unrealized loss threshold for harvesting filter (₹) |
+
+**Response Shapes:**
+
+`GET /tax/gains` returns:
+
+```json
+{
+  "gains": [{ "assetId", "ticker", "name", "assetType", "buyDate", "sellDate", "quantity", "buyPrice", "sellPrice", "gain", "gainType", "holdingDays" }],
+  "summary": { "totalSTCG", "totalLTCG", "netRealizedGain" },
+  "pagination": { "page", "limit", "total", "totalPages" }
+}
+```
+
+`GET /tax/summary` returns:
+
+```json
+{ "totalSTCG", "totalLTCG", "netRealizedGain", "stcgTax", "ltcgTax", "estimatedTax", "harvestingCount", "taxYear" }
+```
+
+`GET /tax/harvesting` returns:
+
+```json
+{
+  "opportunities": [{ "assetId", "ticker", "name", "assetType", "sector", "unrealizedLoss", "currentPrice", "avgCostBasis", "quantity", "holdingDays", "lossType", "estimatedSaving", "offsetsGainType" }],
+  "meta": { "minLoss", "totalOpportunities" }
+}
+```
+
+**Key Design Notes:**
+
+- Uses FIFO lot matching to compute realized gains per BUY/SELL pair
+- Classifies gains as STCG (< 12 months) or LTCG (≥ 12 months)
+- Tax rates: STCG 20%, LTCG 12.5% above ₹1,25,000 exemption
+- Harvesting identifies current holdings with unrealized losses
+- Read-only — no writes to any collection
 
 ### Health (`/api/health`)
 

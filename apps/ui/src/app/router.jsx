@@ -8,6 +8,7 @@ import { Market, StockDetail, MutualDetail, Search } from '@/features/market';
 import { Profile } from '@/features/user';
 import { Wallet } from '@/features/wallet';
 import { Explore } from '@/features/explore';
+import { TaxCenter, TaxHarvesting } from '@/features/tax';
 import NotFound from './routes/NotFound';
 
 export const router = createBrowserRouter([
@@ -30,6 +31,8 @@ export const router = createBrowserRouter([
           { path: ROUTES.HOLDINGS, element: <Holdings /> },
           { path: ROUTES.PROFILE, element: <Profile /> },
           { path: ROUTES.WALLET, element: <Wallet /> },
+          { path: ROUTES.TAX, element: <TaxCenter /> },
+          { path: ROUTES.TAX_HARVESTING, element: <TaxHarvesting /> },
         ],
       },
       { path: ROUTES.MARKET, element: <Market /> },

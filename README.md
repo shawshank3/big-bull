@@ -14,7 +14,7 @@ BigBull is a full-stack stock market simulation platform where users trade virtu
 | AI Chat           | `apps/api/src/modules/chat`         | Done    |
 | Charts / History  | `apps/api/src/modules/market`       | Done    |
 | Search            | `apps/api/src/modules/market`       | Done    |
-| Capital Gains     | —                                   | Planned |
+| Capital Gains     | `apps/api/src/modules/tax`          | Done    |
 | AI Copilot v2     | —                                   | Planned |
 
 ## Architecture
@@ -185,7 +185,7 @@ The build step compiles the Vite UI into static files. At runtime, Express serve
 | [06-Data-Model-and-Source-of-Truth](../BigBull%20-%20Plan/06-Data-Model-and-Source-of-Truth.md) | MongoDB collections, price chain, transaction-as-SoT     |
 | [07-AI-Copilot](../BigBull%20-%20Plan/07-AI-Copilot.md)                                         | Gemini integration, context injection, boundaries        |
 | [08-API-Reference](../BigBull%20-%20Plan/08-API-Reference.md)                                   | Complete route table with params and responses           |
-| [09-Roadmap](../BigBull%20-%20Plan/09-Roadmap.md)                                               | Pending features: Capital Gains, AI Copilot v2           |
+| [09-Roadmap](../BigBull%20-%20Plan/09-Roadmap.md)                                               | Pending features: AI Copilot v2                          |
 
 ### App READMEs
 

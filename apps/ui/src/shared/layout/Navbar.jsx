@@ -15,7 +15,6 @@ import {
   SheetHeader,
   SheetBody,
 } from '@/shared/components/sheet';
-import { growingMarketIcon } from '@/assets';
 import { ROUTES } from '@/shared/constants/routes';
 import { useGetProfileQuery } from '@/features/user/api/userApi';
 import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
@@ -104,7 +103,7 @@ const MobileDrawer = () => {
         <SheetHeader>
           <span className="flex h-9 w-9 shrink-0 items-center justify-center sm:h-10 sm:w-10">
             <img
-              src={growingMarketIcon}
+              src="/growing-market-icon.png"
               alt="BigBull logo"
               className="h-9 w-9 rounded-lg object-cover sm:h-10 sm:w-10"
             />
@@ -149,6 +148,14 @@ const MobileDrawer = () => {
                       className="block rounded-md py-2.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-foreground"
                     >
                       Wallet: {wallet ? formatCurrency(wallet.balance) : '—'}
+                    </Link>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Link
+                      to={ROUTES.TAX}
+                      className="block rounded-md py-2.5 text-sm font-medium text-muted transition-colors hover:bg-muted/10 hover:text-foreground"
+                    >
+                      Tax Center
                     </Link>
                   </SheetClose>
                   <SheetClose asChild>

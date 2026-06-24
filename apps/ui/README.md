@@ -23,41 +23,41 @@
 ## Architecture
 
 ```
-apps/ui/src/
-├── app/                        # App-level wiring
-│   ├── store.js                # Redux store (apiSlice reducer + middleware only)
-│   ├── router.jsx              # createBrowserRouter route definitions
-│   └── routes/NotFound.jsx     # 404 page
-├── assets/                     # Static assets (images, icons)
-│   ├── icons/                  # App icons and brand images
-│   ├── images/                 # General images and illustrations
-│   └── index.js               # Barrel export for all assets
-├── features/                   # Feature modules (domain-sliced)
-│   ├── auth/                   # Login, register, session, route guards
-│   ├── market/                 # Asset listing, quotes, SSE stream, search
-│   ├── portfolio/              # Holdings, dashboard summary, P&L
-│   ├── transaction/            # Buy/sell order execution
-│   ├── wallet/                 # Balance display, wallet transaction history
-│   ├── chat/                   # AI copilot (Gemini)
-│   ├── explore/                # Asset discovery landing page
-│   └── user/                   # Profile management, avatar
-├── shared/                     # Cross-cutting concerns
-│   ├── api/apiSlice.js         # RTK Query base slice + reauth wrapper
-│   ├── components/             # Composite components (table, tabs, sheet, select, card)
-│   ├── constants/              # Routes, API URLs, asset types, validation rules
-│   ├── dto/helpers.js          # DTO primitives (str, num, bool, arr)
-│   ├── errors/                 # Error boundary, NotFoundCard
-│   ├── hooks/                  # useDebounce, useThemeMode
-│   ├── layout/                 # RootLayout, Navbar, PageShell, PageHeader
-│   ├── ui/                     # Design system primitives (see below)
-│   └── utils/                  # Formatters, localStorage, market/portfolio helpers
-├── lib/utils.js                # Tailwind cn() merge utility
-├── theme/                      # Theme constants + utilities
-├── App.jsx                     # Provider composition root
-└── main.jsx                    # Vite entry point
+apps/ui/
+├── public/                     # Static assets served at root URL (favicon, brand icon)
+├── src/
+│   ├── app/                    # App-level wiring
+│   │   ├── store.js            # Redux store (apiSlice reducer + middleware only)
+│   │   ├── router.jsx          # createBrowserRouter route definitions
+│   │   └── routes/NotFound.jsx # 404 page
+│   ├── features/               # Feature modules (domain-sliced)
+│   │   ├── auth/               # Login, register, session, route guards
+│   │   ├── market/             # Asset listing, quotes, SSE stream, search
+│   │   ├── portfolio/          # Holdings, dashboard summary, P&L
+│   │   ├── tax/                # Capital gains, tax-loss harvesting
+│   │   ├── transaction/        # Buy/sell order execution
+│   │   ├── wallet/             # Balance display, wallet transaction history
+│   │   ├── chat/               # AI copilot (Gemini)
+│   │   ├── explore/            # Asset discovery landing page
+│   │   └── user/               # Profile management, avatar
+│   ├── shared/                 # Cross-cutting concerns
+│   │   ├── api/apiSlice.js     # RTK Query base slice + reauth wrapper
+│   │   ├── components/         # Composite components (table, tabs, sheet, select, card)
+│   │   ├── constants/          # Routes, API URLs, asset types, validation rules
+│   │   ├── dto/helpers.js      # DTO primitives (str, num, bool, arr)
+│   │   ├── errors/             # Error boundary, NotFoundCard
+│   │   ├── hooks/              # useDebounce, useThemeMode
+│   │   ├── layout/             # RootLayout, Navbar, PageShell, PageHeader
+│   │   ├── ui/                 # Design system primitives (see below)
+│   │   └── utils/              # Formatters, localStorage, market/portfolio helpers
+│   ├── lib/utils.js            # Tailwind cn() merge utility
+│   ├── theme/                  # Theme constants + utilities
+│   ├── App.jsx                 # Provider composition root
+│   └── main.jsx                # Vite entry point
+└── index.html                  # Entry HTML (meta tags, favicon, font preloads)
 ```
 
-**Backend module mapping:** Each frontend feature module maps to a corresponding backend API module — `auth → /api/v1/auth`, `market → /api/v1/market`, `portfolio → /api/v1/portfolio`, `transaction → /api/v1/transactions`, `wallet → /api/v1/wallet`, `chat → /api/v1/chat`, `user → /api/v1/users`.
+**Backend module mapping:** Each frontend feature module maps to a corresponding backend API module — `auth → /api/v1/auth`, `market → /api/v1/market`, `portfolio → /api/v1/portfolio`, `tax → /api/v1/tax`, `transaction → /api/v1/transactions`, `wallet → /api/v1/wallet`, `chat → /api/v1/chat`, `user → /api/v1/users`.
 
 ### Feature Module Internal Structure
 
@@ -83,21 +83,23 @@ features/<module>/
 
 ## Pages
 
-| Route                         | Feature   | Auth       | Component      |
-| ----------------------------- | --------- | ---------- | -------------- |
-| `/`                           | auth      | Any        | `RootRedirect` |
-| `/login`                      | auth      | Guest only | `Login`        |
-| `/register`                   | auth      | Guest only | `Register`     |
-| `/dashboard`                  | portfolio | Protected  | `Dashboard`    |
-| `/holdings`                   | portfolio | Protected  | `Holdings`     |
-| `/profile`                    | user      | Protected  | `Profile`      |
-| `/wallet`                     | wallet    | Protected  | `Wallet`       |
-| `/market`                     | market    | Public     | `Market`       |
-| `/market/stocks/:symbol`      | market    | Public     | `StockDetail`  |
-| `/market/mutuals/:schemeCode` | market    | Public     | `MutualDetail` |
-| `/search`                     | market    | Public     | `Search`       |
-| `/explore`                    | explore   | Public     | `Explore`      |
-| `*`                           | app       | Any        | `NotFound`     |
+| Route                         | Feature   | Auth       | Component       |
+| ----------------------------- | --------- | ---------- | --------------- |
+| `/`                           | auth      | Any        | `RootRedirect`  |
+| `/login`                      | auth      | Guest only | `Login`         |
+| `/register`                   | auth      | Guest only | `Register`      |
+| `/dashboard`                  | portfolio | Protected  | `Dashboard`     |
+| `/holdings`                   | portfolio | Protected  | `Holdings`      |
+| `/profile`                    | user      | Protected  | `Profile`       |
+| `/wallet`                     | wallet    | Protected  | `Wallet`        |
+| `/tax`                        | tax       | Protected  | `TaxCenter`     |
+| `/tax/harvesting`             | tax       | Protected  | `TaxHarvesting` |
+| `/market`                     | market    | Public     | `Market`        |
+| `/market/stocks/:symbol`      | market    | Public     | `StockDetail`   |
+| `/market/mutuals/:schemeCode` | market    | Public     | `MutualDetail`  |
+| `/search`                     | market    | Public     | `Search`        |
+| `/explore`                    | explore   | Public     | `Explore`       |
+| `*`                           | app       | Any        | `NotFound`      |
 
 **Route guards:**
 
@@ -274,3 +276,62 @@ All primitives live in `src/shared/ui/` and are exported from `shared/ui/index.j
 | `SectionTitle`    | `<h2>` with section heading styles                                                             | Section headings within a page                                             |
 | `MutedText`       | Small muted text element                                                                       | Captions, helper text, timestamps                                          |
 | `StatValue`       | Large bold number with tone colouring (primary, success, danger)                               | Dashboard stat cards, KPI displays                                         |
+
+## Tax Center Feature
+
+> **Educational only** — This feature provides simulated Indian capital gains tracking and tax-loss harvesting insights. It does not constitute tax advice.
+
+### Pages
+
+| Route             | Component       | Description                                                         |
+| ----------------- | --------------- | ------------------------------------------------------------------- |
+| `/tax`            | `TaxCenter`     | FY capital gains summary, realized gains ledger, harvesting preview |
+| `/tax/harvesting` | `TaxHarvesting` | Full harvesting insights with metrics, charts, What-If simulator    |
+
+### Key Components
+
+| Component                    | Location                   | Purpose                                             |
+| ---------------------------- | -------------------------- | --------------------------------------------------- |
+| `TaxSummaryCard`             | `features/tax/components/` | STCG/LTCG/tax totals display                        |
+| `GainsTable`                 | `features/tax/components/` | Paginated realized gains ledger with filters        |
+| `HarvestingMetrics`          | `features/tax/components/` | Metric cards (total loss, savings, offsets)         |
+| `SectorHeatmap`              | `features/tax/components/` | Grid heatmap of losses by sector                    |
+| `GainsVsLossesChart`         | `features/tax/components/` | Recharts bar chart of gains vs losses               |
+| `EnhancedOpportunitiesTable` | `features/tax/components/` | Sortable/filterable table with selection checkboxes |
+| `WhatIfPanel`                | `features/tax/components/` | Sticky bottom panel showing simulated tax savings   |
+
+### Hooks
+
+| Hook                 | Purpose                                              |
+| -------------------- | ---------------------------------------------------- |
+| `useTaxYear`         | Indian FY selection state (default: current FY)      |
+| `useThreshold`       | localStorage-persisted minLoss threshold             |
+| `useWhatIfSimulator` | Multi-select state + savings computation for What-If |
+
+### API Layer
+
+RTK Query endpoints in `features/tax/api/taxApi.js`:
+
+- `useGetTaxSummaryQuery({ taxYear })` — FY tax summary with estimated tax
+- `useGetTaxGainsQuery({ taxYear, page, limit })` — paginated realized gains
+- `useGetTaxHarvestingQuery({ taxYear, minLoss })` — harvesting opportunities
+
+### Utils
+
+Feature-specific utilities in `features/tax/utils/`:
+
+| File                 | Contents                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| `taxCalculations.js` | Tax rate constants, `computeTax()`, `computeHarvestingMetrics()`, `computeLossPercent()`            |
+| `taxFormatters.js`   | `getCurrentFY()`, `formatFYLabel()`, `generateFYOptions()`, `groupBySector()`, `getLossIntensity()` |
+| `chartHelpers.js`    | `buildGainsVsLossesData()` for Recharts bar chart                                                   |
+
+### Navigation
+
+Users reach the Tax Center through:
+
+- **Desktop** — Profile dropdown menu (UserMenu) → "Tax Center"
+- **Mobile** — Hamburger drawer → "Tax Center"
+- **Dashboard** — Quick-access cards linking to both `/tax` and `/tax/harvesting`
+- **Portfolio/Holdings** — "Tax Center" button in page header
+- **Tax Center page** — "Harvesting Opportunities" stat card links to `/tax/harvesting`; `HarvestingPreview` table has "View All Insights →" link
