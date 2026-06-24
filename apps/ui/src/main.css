@@ -47,7 +47,7 @@
   }
 
   .page-header {
-    @apply space-y-1;
+    @apply gap-y-1;
   }
 
   .auth-shell {

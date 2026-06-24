@@ -15,7 +15,7 @@ export const WhatIfPanel = ({
   onReset,
 }) => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface shadow-[0_-4px_12px_rgba(0,0,0,0.25)]">
       <div className="mx-auto max-w-7xl px-4 py-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Metrics */}

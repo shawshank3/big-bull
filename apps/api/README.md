@@ -364,11 +364,11 @@ All routes are prefixed with `/api/v1/` unless noted. Standard response envelope
 
 ### Transactions (`/api/v1/transactions`)
 
-| Method | Path                  | Auth     | Body / Params                                                                                       | Response `data`                   |
-| ------ | --------------------- | -------- | --------------------------------------------------------------------------------------------------- | --------------------------------- |
-| POST   | `/transactions/order` | Required | `{ assetId, transactionType: "BUY"\|"SELL", quantity, fees?, notes? }` — price resolved server-side | `{ transaction }`                 |
-| POST   | `/transactions/list`  | Required | `{ pagination: { page, limit }, filters?: { assetId?, transactionType? }, search?, sort? }`         | Paginated `{ items, pagination }` |
-| GET    | `/transactions`       | Required | Query: `?page=1&limit=20&assetId=` (legacy)                                                         | `{ transactions, pagination }`    |
+| Method | Path                  | Auth     | Body / Params                                                                                                                                                                             | Response `data`                   |
+| ------ | --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| POST   | `/transactions/order` | Required | `{ assetId, transactionType: "BUY"\|"SELL", quantity, fees?, notes? }` — price resolved server-side. STOCK `quantity` must be an integer; MUTUAL_FUND allows fractional units (min 0.001) | `{ transaction }`                 |
+| POST   | `/transactions/list`  | Required | `{ pagination: { page, limit }, filters?: { assetId?, transactionType? }, search?, sort? }`                                                                                               | Paginated `{ items, pagination }` |
+| GET    | `/transactions`       | Required | Query: `?page=1&limit=20&assetId=` (legacy)                                                                                                                                               | `{ transactions, pagination }`    |
 
 ### Portfolio (`/api/v1/portfolio`)
 
@@ -510,4 +510,5 @@ To add a new feature module (e.g., `watchlist`):
 - **Module isolation** — Each module owns its routes, controller, service, and model. Cross-module calls go through the service layer only. Never import another module's model directly.
 - **Server-resolved execution price** — `transaction.service.executeOrder()` discards any client-supplied price. Price is resolved server-side via the three-tier chain. Prevents client-side price manipulation.
 - **Atomic order execution** — Every BUY/SELL wraps Transaction creation + wallet update in a single MongoDB session. No partial states.
+- **Asset-type quantity rules** — `transaction.service.executeOrder()` enforces that STOCK quantities are whole integers (`Number.isInteger`); MUTUAL_FUND allows fractional units (min 0.001). The check runs after asset resolution and rejects fractional stock orders with HTTP 400.
 - **INR-only virtual currency** — All monetary values in ₹. No multi-currency support.

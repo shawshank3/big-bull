@@ -59,7 +59,7 @@ const TaxHarvestingContent = () => {
       {isLoading ? (
         <Spinner label="Loading harvesting insights…" />
       ) : (
-        <div className={`flex flex-col gap-6 ${hasSelection ? 'pb-32' : ''}`}>
+        <div className={`flex flex-col gap-6 ${hasSelection ? 'pb-56' : ''}`}>
           <HarvestingMetrics opportunities={opportunities} />
           <GainsVsLossesChart summary={summary} opportunities={opportunities} />
           <SectorHeatmap opportunities={opportunities} />

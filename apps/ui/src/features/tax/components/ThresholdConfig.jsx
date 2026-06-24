@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Settings } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
@@ -12,6 +12,7 @@ export const ThresholdConfig = () => {
   const { threshold, setThreshold } = useThreshold();
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(String(threshold));
+  const [popoverStyle, setPopoverStyle] = useState({});
   const popoverRef = useRef(null);
   const buttonRef = useRef(null);
 
@@ -19,6 +20,42 @@ export const ThresholdConfig = () => {
   useEffect(() => {
     if (!open) setInputValue(String(threshold));
   }, [threshold, open]);
+
+  // Position the popover within viewport bounds
+  const updatePosition = useCallback(() => {
+    if (!open || !buttonRef.current || !popoverRef.current) return;
+
+    const btnRect = buttonRef.current.getBoundingClientRect();
+    const popover = popoverRef.current;
+    const popoverWidth = popover.offsetWidth;
+    const viewportWidth = window.innerWidth;
+    const gap = 8; // mt-2 equivalent
+
+    // Default: align right edge of popover with right edge of button
+    let right = 0;
+
+    // Check if popover overflows left side of viewport
+    const popoverLeft = btnRect.right - popoverWidth;
+    if (popoverLeft < 16) {
+      // Shift popover so its left edge is at least 16px from viewport left
+      right = popoverLeft - 16;
+    }
+
+    // Check if popover overflows right side of viewport
+    const popoverRight = btnRect.right - right;
+    if (popoverRight > viewportWidth - 16) {
+      right = btnRect.right - (viewportWidth - 16);
+    }
+
+    setPopoverStyle({ right: `${right}px`, top: `calc(100% + ${gap}px)` });
+  }, [open]);
+
+  useEffect(() => {
+    updatePosition();
+    if (!open) return;
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, [open, updatePosition]);
 
   // Close popover when clicking outside
   useEffect(() => {
@@ -67,7 +104,8 @@ export const ThresholdConfig = () => {
       {open && (
         <div
           ref={popoverRef}
-          className="absolute right-0 top-full z-[100] mt-2 w-64 rounded-lg border border-border bg-surface p-4 shadow-lg"
+          className="absolute z-[100] w-64 rounded-lg border border-border bg-surface p-4 shadow-lg"
+          style={popoverStyle}
         >
           <p className="text-sm font-medium mb-2">Min Loss Threshold</p>
           <p className="text-xs text-muted-foreground mb-3">

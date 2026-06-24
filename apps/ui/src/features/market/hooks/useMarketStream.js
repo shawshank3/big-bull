@@ -8,10 +8,16 @@
  *   - getStockQuote / getMutualQuote  → StockDetailContent / MutualDetailContent
  *   - getTickerQuotes                 → TickerStrip
  *   - getAssets                       → MarketContent
+ *   - listAssets                      → Paginated market listing
  *
  * Authenticated-only patches (skipped when logged out):
  *   - getPortfolioHoldings            → HoldingsContent
  *   - getPortfolioSummary             → Dashboard stat cards
+ *   - getTaxHarvesting                → Tax-loss harvesting opportunities
+ *
+ * Realised gains (`getTaxGains`, `getTaxSummary`) are deliberately NOT patched
+ * because their values are derived from historical SELL transactions and do not
+ * move with live market prices.
  *
  * Mounted once at RootLayout level. Cleans up on unmount.
  */
@@ -20,6 +26,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { apiSlice } from '@/shared/api/apiSlice';
 import { API_URLS } from '@/shared/constants/apiUrls';
 import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
+import { STCG_RATE, LTCG_RATE } from '@/features/tax/utils/taxCalculations';
 
 export const useMarketStream = () => {
   const dispatch = useDispatch();
@@ -161,6 +168,58 @@ export const useMarketStream = () => {
           })
         );
       }
+
+      // Patch ALL existing getTaxHarvesting cache entries (keyed by { taxYear, minLoss }).
+      // For each opportunity matching the streamed ticker, recompute price-derived
+      // fields (currentPrice, unrealizedLoss, estimatedSaving), drop opportunities
+      // whose loss has fallen at or below the threshold, then re-sort by
+      // estimatedSaving desc to mirror the backend ordering.
+      dispatch((dispatch2, getState) => {
+        const state = getState();
+        const queries = state?.api?.queries;
+        if (!queries) return;
+        const argsToUpdate = [];
+        for (const key of Object.keys(queries)) {
+          if (!key.startsWith('getTaxHarvesting(')) continue;
+          const entry = queries[key];
+          if (!entry?.data?.opportunities || entry.status !== 'fulfilled') continue;
+          argsToUpdate.push(entry.originalArgs);
+        }
+        for (const args of argsToUpdate) {
+          dispatch2(
+            apiSlice.util.updateQueryData('getTaxHarvesting', args, (draft) => {
+              if (!draft?.opportunities?.length) return;
+              const minLoss = draft.meta?.minLoss ?? 0;
+              let mutated = false;
+
+              for (const opp of draft.opportunities) {
+                if (opp.ticker !== ticker) continue;
+                const qty = opp.quantity ?? 0;
+                const totalCost = qty * (opp.avgCostBasis ?? 0);
+                const currentValue = qty * price;
+                const unrealizedLoss = Math.max(0, totalCost - currentValue);
+                const rate = opp.lossType === 'STCG' ? STCG_RATE : LTCG_RATE;
+
+                opp.currentPrice = price;
+                opp.unrealizedLoss = unrealizedLoss;
+                opp.estimatedSaving = unrealizedLoss * rate;
+                mutated = true;
+              }
+
+              if (!mutated) return;
+
+              // Mirror backend filter: drop opportunities below the active threshold
+              // (including positions whose price recovered into a gain).
+              draft.opportunities = draft.opportunities.filter((o) => o.unrealizedLoss > minLoss);
+              // Mirror backend sort: estimatedSaving desc
+              draft.opportunities.sort((a, b) => b.estimatedSaving - a.estimatedSaving);
+              if (draft.meta) {
+                draft.meta.totalOpportunities = draft.opportunities.length;
+              }
+            })
+          );
+        }
+      });
     });
 
     es.onerror = () => {

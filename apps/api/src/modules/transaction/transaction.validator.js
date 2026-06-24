@@ -12,7 +12,9 @@ const { TRANSACTION_TYPE_VALUES } = require('../../shared/constants');
  * Fields:
  *  - assetId        : MongoDB ObjectId string for the asset being traded
  *  - transactionType: 'BUY' or 'SELL'
- *  - quantity       : Positive number (supports fractional shares)
+ *  - quantity       : Positive number. Must be a whole integer for STOCK
+ *                     assets (enforced server-side in transaction.service after
+ *                     asset resolution); fractional units allowed for MUTUAL_FUND.
  *  - pricePerUnit   : Ignored by the server — execution price is resolved from Redis
  *  - fees           : Non-negative number (brokerage fees in ₹); defaults to 0
  *  - notes          : Optional free-text note, max 500 chars

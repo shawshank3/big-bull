@@ -112,11 +112,11 @@ export const EnhancedOpportunitiesTable = ({ opportunities, selectedIds, onToggl
   }
 
   return (
-    <Card>
+    <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Harvesting Opportunities</CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="p-0 overflow-x-auto">
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 px-4 pb-3 border-b border-border">
           <Select
@@ -275,7 +275,7 @@ const OpportunityRow = ({
         </TableCell>
         <TableCell className="text-muted-foreground">{opp.sector || '—'}</TableCell>
         <TableCell>
-          <span className="text-xs px-1.5 py-0.5 rounded bg-muted font-medium">
+          <span className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold border border-primary/30">
             {opp.assetType === 'MUTUAL_FUND' ? 'MF' : 'Stock'}
           </span>
         </TableCell>

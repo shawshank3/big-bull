@@ -49,7 +49,7 @@ apps/ui/
 │   │   ├── hooks/              # useDebounce, useThemeMode
 │   │   ├── layout/             # RootLayout, Navbar, PageShell, PageHeader
 │   │   ├── ui/                 # Design system primitives (see below)
-│   │   └── utils/              # Formatters, localStorage, market/portfolio helpers
+│   │   └── utils/              # Formatters, localStorage, market/portfolio helpers, input filters
 │   ├── lib/utils.js            # Tailwind cn() merge utility
 │   ├── theme/                  # Theme constants + utilities
 │   ├── App.jsx                 # Provider composition root
@@ -221,9 +221,18 @@ useMarketStream (features/market/hooks/useMarketStream.js)
     └── Authenticated patches (when logged in):
           • getPortfolioHoldings()   → Recalculates currentValue, unrealisedPnL, portfolioWeight
           • getPortfolioSummary()    → Updates currentValue, totalPnL, totalPnLPercent
+          • getTaxHarvesting(*)      → Recomputes unrealizedLoss/estimatedSaving per opportunity,
+                                       drops below-threshold rows, re-sorts by savings desc
 ```
 
-Uses `apiSlice.util.updateQueryData()` (Immer-based draft patches) to mutate cached data in-place. Portfolio derived values (unrealised P&L, portfolio weight) are recomputed on every tick. Auto-reconnects via native `EventSource` reconnection on error.
+Uses `apiSlice.util.updateQueryData()` (Immer-based draft patches) to mutate cached data in-place. Portfolio derived values (unrealised P&L, portfolio weight) are recomputed on every tick. Tax harvesting opportunities recompute `currentPrice`, `unrealizedLoss`, and `estimatedSaving` per matching ticker, then drop entries that fell at or below the active `minLoss` threshold and re-sort by savings desc — mirroring the backend filter and ordering. Realised gains (`getTaxGains`, `getTaxSummary`) are deliberately not patched because their values come from historical SELL transactions. Auto-reconnects via native `EventSource` reconnection on error.
+
+### Order Form
+
+`features/market/components/OrderForm.jsx` hosts the BUY/SELL tabs and renders `BuyForm` / `SellForm`. Both forms render an asset-type-aware quantity input:
+
+- **STOCK** — integer-only input (`step="1"`, `min="1"`, `inputMode="numeric"`). Decimal-producing keys (`.`, `,`, `e`, `E`, `+`, `-`) are blocked at keydown via `blockDecimalKeys` in `shared/utils/inputFilters.js`. Submit value is parsed with `parseInt`. Mirrors the server-side rule enforced by `transaction.service.executeOrder()`.
+- **MUTUAL_FUND** — fractional input (`step="0.001"`, `min="0.001"`, `inputMode="decimal"`). Submit value is parsed with `parseFloat`.
 
 ### State Ownership
 
@@ -315,6 +324,10 @@ RTK Query endpoints in `features/tax/api/taxApi.js`:
 - `useGetTaxSummaryQuery({ taxYear })` — FY tax summary with estimated tax
 - `useGetTaxGainsQuery({ taxYear, page, limit })` — paginated realized gains
 - `useGetTaxHarvestingQuery({ taxYear, minLoss })` — harvesting opportunities
+
+### Live Price Updates
+
+The harvesting screen (and the harvesting preview on `/tax`) updates in real time as the SSE market stream broadcasts `price_update` events. `useMarketStream` patches every cached `getTaxHarvesting` entry — recomputing `currentPrice`, `unrealizedLoss`, and `estimatedSaving` per matched ticker, dropping rows that fell at or below the active `minLoss` threshold, and re-sorting by savings desc. All consumers (`HarvestingMetrics`, `EnhancedOpportunitiesTable`, `SectorHeatmap`, `GainsVsLossesChart`, `WhatIfPanel`, `HarvestingPreview`) re-render automatically. Realized gains (`getTaxGains`, `getTaxSummary`) are deliberately not patched because they are historical.
 
 ### Utils
 

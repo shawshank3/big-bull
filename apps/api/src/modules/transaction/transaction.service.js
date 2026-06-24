@@ -187,6 +187,15 @@ const executeOrder = async (userId, orderData) => {
       ? (asset?.name ?? asset?.ticker ?? assetId)
       : (asset?.ticker ?? asset?.name ?? assetId);
 
+  // ── Asset-type-specific quantity rules ────────────────────────────────
+  // Stocks trade in whole units only; mutual funds support fractional units.
+  if (asset?.assetType === ASSET_TYPES.STOCK && !Number.isInteger(quantity)) {
+    throw new AppError(
+      `Stock quantity must be a whole number. ${assetDisplayName} cannot be traded in fractional units.`,
+      400
+    );
+  }
+
   // ── Pre-flight checks ──────────────────────────────────────────────────
   if (transactionType === TRANSACTION_TYPES.SELL) {
     // Ensure the user actually holds enough of this asset

@@ -5,11 +5,14 @@ import { Button } from '@/shared/ui/button';
 import { FormInput } from '@/shared/components/FormInput';
 import { useExecuteOrderMutation } from '@/features/transaction/api/transactionApi';
 import { formatCurrency } from '@/shared/utils/format';
+import { blockDecimalKeys } from '@/shared/utils/inputFilters';
 import { ROUTES } from '@/shared/constants/routes';
+import { ASSET_TYPES } from '@/shared/constants/assetTypes';
 
 const SellForm = ({ asset, price, heldQty, displayLabel }) => {
   const navigate = useNavigate();
   const [executeOrder, { isLoading, error: orderError, isSuccess }] = useExecuteOrderMutation();
+  const isStock = asset?.assetType === ASSET_TYPES.STOCK;
   const {
     register,
     handleSubmit,
@@ -22,10 +25,11 @@ const SellForm = ({ asset, price, heldQty, displayLabel }) => {
   const canSell = heldQty >= quantity;
 
   const onSubmit = async ({ quantity }) => {
+    const parsedQty = isStock ? parseInt(quantity, 10) : parseFloat(quantity);
     const result = await executeOrder({
       assetId: asset.id ?? asset._id,
       transactionType: 'SELL',
-      quantity: parseFloat(quantity),
+      quantity: parsedQty,
     });
     if (!result.error) {
       navigate(ROUTES.HOLDINGS);
@@ -47,16 +51,24 @@ const SellForm = ({ asset, price, heldQty, displayLabel }) => {
       <FormInput
         label="Quantity"
         type="number"
-        step="0.001"
-        min="0.001"
-        placeholder="e.g. 10"
+        step={isStock ? '1' : '0.001'}
+        min={isStock ? '1' : '0.001'}
+        inputMode={isStock ? 'numeric' : 'decimal'}
+        placeholder={isStock ? 'e.g. 10' : 'e.g. 10.5'}
+        onKeyDown={isStock ? blockDecimalKeys : undefined}
         error={errors.quantity?.message}
         {...register('quantity', {
           required: 'Quantity is required',
-          min: { value: 0.001, message: 'Minimum quantity is 0.001' },
+          min: {
+            value: isStock ? 1 : 0.001,
+            message: isStock ? 'Minimum quantity is 1' : 'Minimum quantity is 0.001',
+          },
           validate: (v) => {
             const parsed = parseFloat(v);
             if (isNaN(parsed)) return 'Enter a valid number';
+            if (isStock && !Number.isInteger(parsed)) {
+              return 'Stock quantity must be a whole number (no decimals)';
+            }
             if (parsed > heldQty) {
               const shortBy = +(parsed - heldQty).toFixed(3);
               return `Insufficient holdings for ${displayLabel}. You are ${shortBy} units short.`;

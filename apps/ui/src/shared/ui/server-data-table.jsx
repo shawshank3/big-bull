@@ -52,6 +52,7 @@ export function ServerDataTable({
   toolbar,
 }) {
   const [searchInput, setSearchInput] = useState('');
+  const [sorting, setSorting] = useState([]);
   const debouncedSearch = useDebounce(searchInput, 400);
 
   // Notify parent when debounced search value changes
@@ -69,11 +70,13 @@ export function ServerDataTable({
     manualSorting: true,
     pageCount: pagination?.totalPages ?? 1,
     state: {
+      sorting,
       pagination: {
         pageIndex: (pagination?.page ?? 1) - 1,
         pageSize: pagination?.limit ?? 5,
       },
     },
+    onSortingChange: setSorting,
   });
 
   const handleSearchChange = (value) => {
@@ -89,10 +92,13 @@ export function ServerDataTable({
       if (!column.getCanSort() || !onSortChange) return;
       const currentSort = column.getIsSorted();
       if (!currentSort) {
+        setSorting([{ id: column.id, desc: false }]);
         onSortChange({ field: column.id, order: 'asc' });
       } else if (currentSort === 'asc') {
+        setSorting([{ id: column.id, desc: true }]);
         onSortChange({ field: column.id, order: 'desc' });
       } else {
+        setSorting([]);
         onSortChange(undefined); // clear sort
       }
     },

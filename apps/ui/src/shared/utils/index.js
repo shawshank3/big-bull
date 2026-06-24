@@ -19,6 +19,8 @@ export {
 
 export { formatMarketDate } from './market';
 
+export { blockDecimalKeys } from './inputFilters';
+
 export {
   getHoldingValue,
   getHoldingInvestedValue,
