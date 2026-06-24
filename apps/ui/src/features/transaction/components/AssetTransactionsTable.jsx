@@ -117,12 +117,12 @@ export const AssetTransactionsTable = ({ assetId }) => {
             <Alert variant="danger">Unable to load transactions.</Alert>
           </div>
         )}
-        {!isLoading && !isError && pagination.total === 0 && !isFetching && (
+        {!isLoading && !isError && pagination.total === 0 && !isFetching && !search && (
           <div className="py-10 text-center">
             <MutedText>No transactions</MutedText>
           </div>
         )}
-        {(transactions.length > 0 || isFetching) && !isError && (
+        {(transactions.length > 0 || isFetching || search) && !isError && (
           <ServerDataTable
             columns={tableColumns}
             data={transactions}

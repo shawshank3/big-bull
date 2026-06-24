@@ -157,7 +157,7 @@ export const WalletContent = () => {
           <Alert variant="danger">Unable to load transactions.</Alert>
         ) : historyLoading && transactions.length === 0 ? (
           <Spinner label="Loading transactions…" />
-        ) : transactions.length === 0 && !isFetching ? (
+        ) : transactions.length === 0 && !isFetching && !search ? (
           <Card>
             <CardContent className="py-16 text-center text-muted">
               No transactions yet. Start trading from the Market page.

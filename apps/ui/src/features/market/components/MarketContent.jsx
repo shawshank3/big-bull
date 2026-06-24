@@ -146,7 +146,7 @@ export const MarketContent = () => {
       {isError && <Alert variant="danger">Unable to load assets right now.</Alert>}
       {isLoading && assets.length === 0 ? (
         <Spinner label="Loading market…" />
-      ) : !isLoading && assets.length === 0 && !isFetching ? (
+      ) : !isLoading && assets.length === 0 && !isFetching && !search ? (
         <Card>
           <CardContent className="py-16 text-center text-muted">
             No assets found. Run the seed script to populate the market catalog.
