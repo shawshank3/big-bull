@@ -43,7 +43,7 @@ export const GainsVsLossesChart = ({ summary = {}, opportunities = [] }) => {
               tick={{ fontSize: 12 }}
               className="fill-muted"
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(96, 165, 250, 0.08)' }} />
             <Legend />
             <Bar dataKey="value" name="Amount" radius={[4, 4, 0, 0]}>
               {chartData.map((entry, index) => (

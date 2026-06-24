@@ -120,6 +120,8 @@ export const HoldingsContent = () => {
     navigate(path, { state: { name: holding.asset?.name } });
   };
 
+  const pageLoading = isLoading || summaryLoading;
+
   return (
     <>
       <PageHeader
@@ -131,29 +133,33 @@ export const HoldingsContent = () => {
           </Button>
         }
       />
-      {summaryLoading ? null : <SummaryBar summary={summary} />}
-      {error ? <Alert variant="danger">Unable to load holdings right now.</Alert> : null}
-      {isLoading ? (
-        <Spinner label="Loading holdings…" />
-      ) : holdings.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-muted">
-            No holdings yet. Buy some assets from the Market page to get started.
-          </CardContent>
-        </Card>
+      {pageLoading ? (
+        <Spinner label="Loading portfolio…" />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <DataTable
-              columns={tableColumns}
-              data={holdings}
-              searchPlaceholder="Search holdings…"
-              searchKey="ticker"
-              onRowClick={handleRowClick}
-              pageSize={10}
-            />
-          </CardContent>
-        </Card>
+        <>
+          <SummaryBar summary={summary} />
+          {error ? <Alert variant="danger">Unable to load holdings right now.</Alert> : null}
+          {holdings.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center text-muted">
+                No holdings yet. Buy some assets from the Market page to get started.
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <DataTable
+                  columns={tableColumns}
+                  data={holdings}
+                  searchPlaceholder="Search holdings…"
+                  searchKey="ticker"
+                  onRowClick={handleRowClick}
+                  pageSize={10}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </>
   );

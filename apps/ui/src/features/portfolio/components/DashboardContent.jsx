@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { Alert } from '@/shared/ui/alert';
+import { Spinner } from '@/shared/ui/spinner';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../api/portfolioApi';
 import { getAllocation } from '@/shared/utils';
@@ -14,17 +15,31 @@ export const DashboardContent = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const {
     data: holdings = [],
-    isLoading,
+    isLoading: holdingsLoading,
     error,
   } = useGetPortfolioHoldingsQuery(undefined, {
     skip: !isAuthenticated,
     refetchOnMountOrArgChange: true,
   });
-  const { data: summary = {} } = useGetPortfolioSummaryQuery(undefined, {
+  const { data: summary = {}, isLoading: summaryLoading } = useGetPortfolioSummaryQuery(undefined, {
     skip: !isAuthenticated,
     refetchOnMountOrArgChange: true,
   });
   const allocation = getAllocation(holdings);
+
+  const isLoading = holdingsLoading || summaryLoading;
+
+  if (isLoading) {
+    return (
+      <>
+        <PageHeader
+          title="Dashboard"
+          description="A quick view of your portfolio health, allocation, and holdings breakdown."
+        />
+        <Spinner label="Loading portfolio…" />
+      </>
+    );
+  }
 
   return (
     <>
@@ -38,7 +53,7 @@ export const DashboardContent = () => {
         <AssetAllocationCard allocation={allocation} />
         <PortfolioTotalValueCard summary={summary} allocation={allocation} />
       </div>
-      <HoldingsBreakdown holdings={holdings} isLoading={isLoading} showNavigate />
+      <HoldingsBreakdown holdings={holdings} isLoading={false} showNavigate />
       <TaxQuickAccess />
     </>
   );

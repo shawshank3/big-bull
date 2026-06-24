@@ -51,7 +51,7 @@ export const transactionApi = apiSlice.injectEndpoints({
         body: orderData,
       }),
       transformResponse: (res) => toOrderResultDTO(res?.data),
-      invalidatesTags: ['Wallet', 'Transactions'],
+      invalidatesTags: ['Wallet', 'Transactions', 'Holdings', 'Portfolio', 'Tax'],
     }),
   }),
   overrideExisting: false,

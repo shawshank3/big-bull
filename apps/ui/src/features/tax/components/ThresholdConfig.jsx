@@ -67,7 +67,7 @@ export const ThresholdConfig = () => {
       {open && (
         <div
           ref={popoverRef}
-          className="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-border bg-popover p-4 shadow-md"
+          className="absolute right-0 top-full z-[100] mt-2 w-64 rounded-lg border border-border bg-surface p-4 shadow-lg"
         >
           <p className="text-sm font-medium mb-2">Min Loss Threshold</p>
           <p className="text-xs text-muted-foreground mb-3">
