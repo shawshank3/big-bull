@@ -107,7 +107,7 @@ export const ThresholdConfig = () => {
           className="absolute z-[100] w-64 rounded-lg border border-border bg-surface p-4 shadow-lg"
           style={popoverStyle}
         >
-          <p className="text-sm font-medium mb-2">Min Loss Threshold</p>
+          <p className="text-sm font-medium mb-2">Minimum Loss Threshold</p>
           <p className="text-xs text-muted-foreground mb-3">
             Only show opportunities with unrealized loss above this amount.
           </p>
