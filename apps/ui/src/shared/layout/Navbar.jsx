@@ -15,7 +15,7 @@ import {
   SheetHeader,
   SheetBody,
 } from '@/shared/components/sheet';
-import { GrowingMarketIcon } from '@/shared/ui/GrowingMarketIcon';
+import { growingMarketIcon } from '@/assets';
 import { ROUTES } from '@/shared/constants/routes';
 import { useGetProfileQuery } from '@/features/user/api/userApi';
 import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
@@ -102,8 +102,12 @@ const MobileDrawer = () => {
       </SheetTrigger>
       <SheetContent>
         <SheetHeader>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center text-primary sm:h-10 sm:w-10">
-            <GrowingMarketIcon size={36} />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center sm:h-10 sm:w-10">
+            <img
+              src={growingMarketIcon}
+              alt="BigBull logo"
+              className="h-9 w-9 rounded-lg object-cover sm:h-10 sm:w-10"
+            />
           </span>
           {profileReady && (
             <div className="flex items-center gap-3 py-2">

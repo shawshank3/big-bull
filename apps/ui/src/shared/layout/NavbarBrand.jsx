@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/shared/constants/routes';
 import { Button } from '@/shared/ui/button';
-import { GrowingMarketIcon } from '@/shared/ui/GrowingMarketIcon';
+import { growingMarketIcon } from '@/assets';
 
 export const NavbarBrand = () => (
   <Button
@@ -10,8 +10,12 @@ export const NavbarBrand = () => (
     asChild
   >
     <Link to={ROUTES.ROOT}>
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center text-primary sm:h-10 sm:w-10">
-        <GrowingMarketIcon size={36} />
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center sm:h-10 sm:w-10">
+        <img
+          src={growingMarketIcon}
+          alt="BigBull logo"
+          className="h-9 w-9 rounded-lg object-cover sm:h-10 sm:w-10"
+        />
       </span>
       <span className="truncate text-lg font-bold tracking-tight text-foreground sm:text-xl">
         BigBull

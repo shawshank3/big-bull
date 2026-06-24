@@ -2,7 +2,6 @@ export { Alert, AlertTitle, AlertDescription, alertVariants } from './alert';
 export { Avatar, AvatarImage, AvatarFallback } from './avatar';
 export { Badge, badgeVariants } from './badge';
 export { Button, buttonVariants } from './button';
-export { GrowingMarketIcon } from './GrowingMarketIcon';
 export { Input } from './input';
 export { Label } from './label';
 export { LineChart } from './line-chart';
