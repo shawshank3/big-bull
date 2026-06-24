@@ -252,22 +252,24 @@ cp apps/api/.env.example apps/api/.env
 
 ```bash
 cd apps/api
-pnpm seed
+pnpm seed          # upsert 100 stocks + 15 mutual funds + demo user (idempotent)
+pnpm seed:force    # drop all assets first, then re-seed from scratch
 ```
 
-Seeds 20 NSE stocks + 5 mutual funds into the `assets` collection and creates a demo user.
+Seeds 100 NSE stocks + 15 mutual funds into the `assets` collection and creates a demo user.
 
 | What                    | Value                            |
 | ----------------------- | -------------------------------- |
 | Demo login              | `demo@bigbull.com` / `Demo@1234` |
 | Starting wallet balance | ₹10,00,000                       |
-| Stocks seeded           | 20 (NSE-listed companies)        |
-| Mutual funds seeded     | 5 (Indian direct-growth funds)   |
+| Stocks seeded           | 100 (NSE-listed companies)       |
+| Mutual funds seeded     | 15 (Indian direct-growth funds)  |
 
 For historical chart data:
 
 ```bash
-pnpm seed:history
+pnpm seed:history          # requires empty collections
+pnpm seed:history-force    # drops & re-seeds
 ```
 
 ---

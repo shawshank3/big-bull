@@ -28,8 +28,13 @@
  *   where N ~ N(0,1) and V_a is the asset's volatility.
  *   The simulation produces realistic random-walk price series.
  *
+ * ─── Asset universe ─────────────────────────────────────────────────────────
+ *   Reads all assets from DB (seeded by seed.js). Currently supports:
+ *     100 NSE stocks + 15 mutual funds = 115 instruments
+ *
  * ─── Usage ──────────────────────────────────────────────────────────────────
- *   node scripts/seedHistoricalData.js
+ *   pnpm seed:history                             # requires empty collections
+ *   pnpm seed:history-force                       # drops & re-seeds
  *   node scripts/seedHistoricalData.js --force    # skip non-empty guard
  *   node scripts/seedHistoricalData.js --days 60  # seed more days
  */

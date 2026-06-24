@@ -6,6 +6,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node scripts/seed.js",
+    "seed:force": "node scripts/seed.js --force",
     "seed:history": "node scripts/seedHistoricalData.js",
     "seed:history-force": "node scripts/seedHistoricalData.js --force",
     "test": "jest --runInBand"

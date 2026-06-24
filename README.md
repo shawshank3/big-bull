@@ -120,15 +120,17 @@ For full data model details, see [06-Data-Model-and-Source-of-Truth](../BigBull%
 3. **Seed the database**
 
    ```bash
-   pnpm --filter api seed
+   pnpm --filter api seed          # upsert assets + demo user (idempotent)
+   pnpm --filter api seed:force    # drop all assets first, then re-seed
    ```
 
-   Seeds 20 NSE stocks + 5 mutual funds into the `assets` collection and creates a demo user (`demo@bigbull.com` / `Demo@1234`). Each user gets a ₹10,00,000 virtual wallet on registration.
+   Seeds 100 NSE stocks + 15 mutual funds into the `assets` collection and creates a demo user (`demo@bigbull.com` / `Demo@1234`). Each user gets a ₹10,00,000 virtual wallet on registration.
 
    For historical chart data (30 days of daily prices + intraday ticks):
 
    ```bash
-   pnpm --filter api seed:history
+   pnpm --filter api seed:history          # requires empty collections
+   pnpm --filter api seed:history-force    # drops & re-seeds
    ```
 
 4. **Start development servers**
