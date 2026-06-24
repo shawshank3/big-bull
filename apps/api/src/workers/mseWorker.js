@@ -1,8 +1,13 @@
 /**
  * MSE Worker  (Market Simulation Engine — 30-second authoritative tick)
  *
- * Responsibilities per tick:
- *   1. Read all assets from MongoDB.
+ * Owns the simulation of STOCK prices.  Mutual funds are NOT simulated here —
+ * they have a single NAV per IST day, owned by `dailyPriceService.ensureMfDailyPrices()`.
+ * On IST day rollover this worker calls `ensureMfDailyPrices()` so today's MF
+ * NAV is generated immediately at midnight without requiring a server restart.
+ *
+ * Responsibilities per tick (stocks only):
+ *   1. Read all STOCK assets from MongoDB.
  *   2. Resolve previous price via three-tier chain:
  *        Redis `price:<ticker>`  →  MarketState.lastPrice  →  Asset.basePrice
  *   3. Compute new price using the MSE formula.
@@ -10,16 +15,19 @@
  *   5. Broadcast SSE price_update / volatility_alert events.
  *   6. Seed the 1s live-ticker in-memory cache (mseLiveTicker.seedPriceCache).
  *   7. Persist the new price to MarketState (upsert) — Phase 2 recovery.
- *   8. Append a StockPriceHistory document for STOCK assets — Phase 1 charting.
- *   9. Decay MarketSentiment and SectorTrends toward 0.
+ *   8. Append a StockPriceHistory document — intraday charting.
+ *   9. Upsert today's DailyPrice (continuous live snapshot — last tick before
+ *      IST midnight becomes the day's official close).
+ *  10. Decay MarketSentiment and SectorTrends toward 0.
  *
  * Architectural constraints (do not break):
- *   - Mutual fund NAVs are NOT simulated intraday; only written to Redis/MarketState
- *     once per tick if the key is absent.
+ *   - Mutual funds are NEVER touched here.  Their source of truth is DailyPrice.
  *   - No writes to Asset.basePrice — it is pure reference/seed data.
  *   - StockPriceHistory is written here and nowhere else.
- *   - MarketState is written here and nowhere else.
- *   - SSE behaviour is unchanged.
+ *   - MarketState (stocks) is written here and (on backfill) by dailyPriceService.
+ *   - Today's DailyPrice (stocks) is written here on every tick; the same
+ *     collection is also written by writeTodayClose (shutdown safety net) and
+ *     backfillMissingDays (downtime gap recovery for past days only).
  */
 
 const { Worker } = require('bullmq');
@@ -30,17 +38,18 @@ const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
 const DailyPrice = require('../modules/market/dailyPrice.model');
 const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
 const { ASSET_TYPES } = require('../shared/constants');
-const { gaussianNoise, nextDayPrice, todayIST } = require('../utils/priceSimulation');
+const { gaussianNoise, todayIST } = require('../utils/priceSimulation');
 
 // Lazy-require to avoid circular dependency issues at startup
 const getBroadcast = () => require('../modules/market/market.controller').broadcastPriceUpdate;
 const getSeedCache = () => require('./mseLiveTicker').seedPriceCache;
+const getEnsureMfDailyPrices = () => require('./dailyPriceService').ensureMfDailyPrices;
 
 const isRedisAvailable = isRedisConfigured;
 
 // ─── Day-transition tracking ──────────────────────────────────────────────────
 // Tracks the last IST date seen by the worker so we can detect midnight
-// crossings and persist yesterday's DailyPrice automatically.
+// crossings and persist yesterday's stock close + roll today's MF NAVs.
 let lastSeenDay = null;
 
 // ─── Redis keys ───────────────────────────────────────────────────────────────
@@ -80,7 +89,7 @@ const formatChangePercent = (change, prevPrice) => {
 };
 
 /**
- * Resolve the previous price for an asset using the three-tier chain:
+ * Resolve the previous STOCK price using the three-tier chain:
  *   1. Redis `price:<ticker>` (TTL 60s — most recent authoritative tick)
  *   2. MarketState.lastPrice  (survived across restarts and Redis flushes)
  *   3. Asset.basePrice        (seed/reference value — last resort only)
@@ -117,25 +126,21 @@ const resolvePrevPrice = async (ticker, basePrice) => {
 };
 
 /**
- * Bulk-upsert MarketState records for all assets processed in this tick.
- * Uses bulkWrite for efficiency — one round-trip for all assets.
+ * Bulk-upsert MarketState records for all stocks processed in this tick.
+ * Uses bulkWrite for efficiency — one round-trip for all stocks.
  *
- * @param {Array<{ ticker: string, price: number, updatedAt: Date, lastNavDate?: string }>} updates
+ * @param {Array<{ ticker: string, price: number, updatedAt: Date }>} updates
  */
 const persistMarketState = async (updates) => {
   if (!updates.length) return;
   try {
-    const ops = updates.map(({ ticker, price, updatedAt, lastNavDate }) => {
-      const $set = { lastPrice: price, lastUpdatedAt: updatedAt };
-      if (lastNavDate) $set.lastNavDate = lastNavDate;
-      return {
-        updateOne: {
-          filter: { ticker },
-          update: { $set },
-          upsert: true,
-        },
-      };
-    });
+    const ops = updates.map(({ ticker, price, updatedAt }) => ({
+      updateOne: {
+        filter: { ticker },
+        update: { $set: { lastPrice: price, lastUpdatedAt: updatedAt } },
+        upsert: true,
+      },
+    }));
     await MarketState.bulkWrite(ops, { ordered: false });
   } catch (err) {
     // Non-fatal: MarketState write failure degrades Phase 2 recovery but does
@@ -145,10 +150,8 @@ const persistMarketState = async (updates) => {
 };
 
 /**
- * Bulk-insert StockPriceHistory records for all STOCK assets in this tick.
+ * Bulk-insert StockPriceHistory records for this tick.
  * ordered:false lets Mongo insert as many as possible even if one fails.
- *
- * @param {Array<{ ticker: string, price: number, change: number, changePercent: string, timestamp: Date }>} points
  */
 const persistStockHistory = async (points) => {
   if (!points.length) return;
@@ -161,14 +164,52 @@ const persistStockHistory = async (points) => {
 };
 
 /**
- * Detects an IST day transition (midnight crossing) and snapshots the previous
- * day's closing price into DailyPrice for all assets.
+ * Bulk-upsert today's DailyPrice records for all stocks ticked this round.
  *
- * Called once per 30s tick. On the first tick after IST midnight, writes
- * yesterday's DailyPrice using the current MarketState prices (which represent
- * the last authoritative prices from the previous day).
+ * Each 30s tick rewrites today's `DailyPrice.closePrice` with the latest
+ * computed value — the last tick before IST midnight is the day's official
+ * close.  This keeps the multi-day chart (1W / 1M / 3M / 1Y) always ending
+ * on today's current price (matching the quote API), instead of yesterday's
+ * close.
  *
- * Idempotent: uses upsert so re-runs for the same date are safe.
+ * Idempotent: upsert on (ticker, date).  Non-fatal: errors are logged.
+ */
+const persistStockDailyPrice = async (today, points) => {
+  if (!points.length) return;
+  try {
+    const ops = points.map((p) => ({
+      updateOne: {
+        filter: { ticker: p.ticker, date: today },
+        update: {
+          $set: {
+            ticker: p.ticker,
+            assetType: ASSET_TYPES.STOCK,
+            date: today,
+            closePrice: p.price,
+          },
+        },
+        upsert: true,
+      },
+    }));
+    await DailyPrice.bulkWrite(ops, { ordered: false });
+  } catch (err) {
+    // Non-fatal: chart staleness is the only consequence; live simulation is unaffected.
+    console.error('[MSE] Stock DailyPrice today-snapshot error:', err.message);
+  }
+};
+
+/**
+ * Detects an IST day transition (midnight crossing) and triggers the per-day
+ * actions for assets that don't have continuous tick coverage:
+ *
+ *   - STOCKS: nothing extra needed — the last 30s tick before midnight
+ *     already wrote yesterday's `DailyPrice` via `persistStockDailyPrice()`,
+ *     and the first tick after midnight will overwrite today's record.
+ *
+ *   - MUTUAL FUNDS: trigger `ensureMfDailyPrices()` so today's NAV is
+ *     generated immediately at midnight rather than waiting for some other
+ *     event.  Idempotent — safe even if called again on a later tick.
+ *
  * Non-fatal: logs errors but does not throw.
  */
 const handleDayTransition = async (currentDay) => {
@@ -181,41 +222,16 @@ const handleDayTransition = async (currentDay) => {
   // Same day — nothing to do
   if (currentDay === lastSeenDay) return;
 
-  // Day changed! Snapshot the previous day's closing prices
   const previousDay = lastSeenDay;
   lastSeenDay = currentDay;
 
-  console.log(`[MSE] Day transition detected: ${previousDay} → ${currentDay}. Writing DailyPrice…`);
+  console.log(`[MSE] Day transition: ${previousDay} → ${currentDay}`);
 
+  // Mutual funds: roll today's NAV via the dedicated MF service
   try {
-    const assets = await Asset.find({}).lean();
-    if (!assets.length) return;
-
-    // Resolve actual closing prices from MarketState (most accurate source)
-    const ops = await Promise.all(
-      assets.map(async (asset) => {
-        const price = await resolvePrevPrice(asset.ticker, asset.basePrice);
-        return {
-          updateOne: {
-            filter: { ticker: asset.ticker, date: previousDay },
-            update: {
-              $set: {
-                ticker: asset.ticker,
-                assetType: asset.assetType,
-                date: previousDay,
-                closePrice: price,
-              },
-            },
-            upsert: true,
-          },
-        };
-      })
-    );
-
-    await DailyPrice.bulkWrite(ops, { ordered: false });
-    console.log(`[MSE] ✓ DailyPrice: ${ops.length} closing records written for ${previousDay}`);
+    await getEnsureMfDailyPrices()();
   } catch (err) {
-    console.error('[MSE] DailyPrice day-transition write failed:', err.message);
+    console.error('[MSE] MF NAV rollover failed:', err.message);
   }
 };
 
@@ -229,18 +245,23 @@ if (isRedisAvailable) {
     async (job) => {
       console.log(`[MSE] Price tick job #${job.id} — processing`);
 
-      // 1. Fetch all active assets
-      const assets = await Asset.find({}).lean();
-      if (!assets.length) {
-        console.warn('[MSE] No assets found — skipping tick');
+      // 1. Fetch all STOCK assets — mutual funds are not simulated here
+      const stocks = await Asset.find({ assetType: ASSET_TYPES.STOCK }).lean();
+
+      // 2. Day-transition check runs regardless of stock count so MF NAVs roll
+      const istToday = todayIST();
+      await handleDayTransition(istToday);
+
+      if (!stocks.length) {
+        console.warn('[MSE] No stock assets — skipping price computation');
         return;
       }
 
-      // 2. Read global MarketSentiment
+      // 3. Read global MarketSentiment
       const sentiment = await getFloat(SENTIMENT_KEY, 0);
 
-      // 3. Collect unique sectors for batch Redis reads
-      const sectors = [...new Set(assets.map((a) => a.sector).filter(Boolean))];
+      // 4. Collect unique sectors for batch Redis reads
+      const sectors = [...new Set(stocks.map((a) => a.sector).filter(Boolean))];
       const sectorTrends = {};
       for (const sector of sectors) {
         sectorTrends[sector] = await getFloat(sectorTrendKey(sector), 0);
@@ -255,83 +276,13 @@ if (isRedisAvailable) {
       const marketStateUpdates = []; // Phase 2 — MarketState upserts
       const stockHistoryPoints = []; // Phase 1 — intraday chart inserts
 
-      // 4. Process each asset
-      const istToday = todayIST();
-
-      // 4a. Detect IST day transition — snapshot yesterday's close to DailyPrice
-      await handleDayTransition(istToday);
-
-      for (const asset of assets) {
+      for (const asset of stocks) {
         const priceKey = `price:${asset.ticker}`;
 
         // ── Resolve previous price (three-tier chain) ──────────────────────
         const prevPrice = await resolvePrevPrice(asset.ticker, asset.basePrice);
 
-        // ── Mutual funds: NAV walks once per IST day, then stable ──────────
-        if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
-          // Read MarketState directly so we can gate the rollover on
-          // `lastNavDate`. resolvePrevPrice may have served `prevPrice` from
-          // Redis (faster, but missing the date marker we need here).
-          let mfState = null;
-          try {
-            mfState = await MarketState.findOne({ ticker: asset.ticker })
-              .select('lastPrice lastNavDate')
-              .lean();
-          } catch (_) {
-            /* non-fatal — fall through with mfState=null */
-          }
-
-          const needsRoll = !mfState?.lastNavDate || mfState.lastNavDate < istToday;
-          const navPrice = needsRoll ? nextDayPrice(prevPrice, asset.volatility) : prevPrice;
-          const change = parseFloat((navPrice - prevPrice).toFixed(2));
-          const changePercent = formatChangePercent(change, prevPrice);
-          const up = change >= 0;
-
-          const navPayload = {
-            ticker: asset.ticker,
-            price: navPrice,
-            change,
-            changePercent,
-            up,
-            timestamp,
-          };
-
-          // Always refresh Redis so quotes never fall back to the seed after
-          // a flush, and so the new NAV is visible immediately on rollover.
-          try {
-            await redis.set(priceKey, JSON.stringify(navPayload));
-          } catch (_) {
-            /* non-fatal */
-          }
-
-          // On rollover, broadcast the new NAV so connected clients refresh.
-          if (needsRoll) {
-            try {
-              broadcast(navPayload);
-            } catch (_) {
-              /* SSE map may be empty */
-            }
-          }
-
-          // Phase 2: persist NAV + the rollover date so subsequent ticks know
-          // today's roll has already happened (idempotent across restarts).
-          marketStateUpdates.push({
-            ticker: asset.ticker,
-            price: navPrice,
-            updatedAt: tickTime,
-            lastNavDate: istToday,
-          });
-
-          tickResults.push({
-            ticker: asset.ticker,
-            price: navPrice,
-            volatility: asset.volatility,
-            assetType: asset.assetType,
-          });
-          continue; // MFs do not generate intraday history
-        }
-
-        // ── Stock: compute new price ───────────────────────────────────────
+        // ── Compute new price ──────────────────────────────────────────────
         const sectorTrend = asset.sector ? (sectorTrends[asset.sector] ?? 0) : 0;
         const newPrice = computeNewPrice(prevPrice, sentiment, sectorTrend, asset.volatility);
         const change = parseFloat((newPrice - prevPrice).toFixed(2));
@@ -354,14 +305,14 @@ if (isRedisAvailable) {
           /* non-fatal */
         }
 
-        // 6. Broadcast SSE price_update to all connected clients (unchanged)
+        // 6. Broadcast SSE price_update to all connected clients
         try {
           broadcast(pricePayload);
         } catch (_) {
           /* SSE map may be empty */
         }
 
-        // 7. Emit volatility_alert if single-tick swing > 3% (unchanged)
+        // 7. Emit volatility_alert if single-tick swing > 3%
         const swingPct = prevPrice > 0 ? Math.abs(change / prevPrice) : 0;
         if (swingPct > 0.03) {
           try {
@@ -390,7 +341,7 @@ if (isRedisAvailable) {
         // Phase 2: queue MarketState upsert
         marketStateUpdates.push({ ticker: asset.ticker, price: newPrice, updatedAt: tickTime });
 
-        // Phase 1: queue StockPriceHistory insert (stocks only)
+        // Phase 1: queue StockPriceHistory insert
         stockHistoryPoints.push({
           ticker: asset.ticker,
           price: newPrice,
@@ -426,8 +377,13 @@ if (isRedisAvailable) {
       // 11. Persist StockPriceHistory (Phase 1) — non-blocking, non-fatal
       await persistStockHistory(stockHistoryPoints);
 
+      // 12. Upsert today's DailyPrice — keeps multi-day stock charts ending
+      //     on today's current price (matching the quote API).  The last tick
+      //     before IST midnight becomes the day's official close.
+      await persistStockDailyPrice(istToday, stockHistoryPoints);
+
       console.log(
-        `[MSE] Tick complete — ${assets.length} assets updated` +
+        `[MSE] Tick complete — ${stocks.length} stocks updated` +
           ` (${stockHistoryPoints.length} history points written)`
       );
     },

@@ -4,36 +4,30 @@
  * Populates MongoDB with synthetic historical price data so the chart UI has
  * something to render immediately after a fresh install.
  *
+ * ─── Asset-aware seeding ────────────────────────────────────────────────────
+ *
+ * STOCKS:
+ *   - DailyPrice: oldest day → TODAY (inclusive).  Today's record is the
+ *                 last intraday tick; mseWorker overwrites it every 30s once
+ *                 the server is running.
+ *   - StockPriceHistory: synthetic 30s ticks for today.
+ *   - MarketState: tier-2 record for stock recovery.
+ *
+ * MUTUAL FUNDS:
+ *   - DailyPrice: oldest day → TODAY (inclusive).  The most recent DailyPrice
+ *                 record IS the current NAV — it's what the chart's last point
+ *                 shows and what the quote API returns.  No separate MarketState
+ *                 record is needed; MF prices are not part of the three-tier chain.
+ *
  * ─── Collections written ────────────────────────────────────────────────────
- *   dailyprices         — one document per (ticker, date) for all N days
- *   stockpricehistories — 30-second intraday ticks for TODAY only (stocks)
- *   marketstates        — latest price per ticker (Tier 2 runtime recovery)
+ *   dailyprices         — daily history for both stocks and MFs through today
+ *   stockpricehistories — 30-second intraday ticks for TODAY (stocks only)
+ *   marketstates        — latest price per stock (tier-2 runtime recovery)
  *
  * ─── Collections you MUST clear before running ──────────────────────────────
  *   The script will print a warning and exit if the target collections are
  *   non-empty, unless you pass --force.
  *
- *   Run once to clear then seed:
- *     node scripts/seedHistoricalData.js --force
- *
- *   Or manually in Mongo shell / Compass before running the script:
- *     db.dailyprices.deleteMany({})
- *     db.stockpricehistories.deleteMany({})
- *     db.marketstates.deleteMany({})
- *
- * ─── Price simulation ───────────────────────────────────────────────────────
- *   Uses the same MSE formula as the live worker (via shared priceSimulation
- *   utilities):
- *     Price_t = Price_{t-1} × (1 + V_a × N)
- *   where N ~ N(0,1) and V_a is the asset's volatility.
- *   The simulation produces realistic random-walk price series.
- *
- * ─── Asset universe ─────────────────────────────────────────────────────────
- *   Reads all assets from DB (seeded by seed.js). Currently supports:
- *     100 NSE stocks + 15 mutual funds = 115 instruments
- *
- * ─── Usage ──────────────────────────────────────────────────────────────────
- *   pnpm seed:history                             # requires empty collections
  *   pnpm seed:history-force                       # drops & re-seeds
  *   node scripts/seedHistoricalData.js --force    # skip non-empty guard
  *   node scripts/seedHistoricalData.js --days 60  # seed more days
@@ -118,29 +112,31 @@ const seed = async () => {
     console.error('✗ No assets found. Run `pnpm seed` first.');
     process.exit(1);
   }
-  console.log(`✓ Found ${assets.length} assets\n`);
+  const stocks = assets.filter((a) => a.assetType === ASSET_TYPES.STOCK);
+  const mutualFunds = assets.filter((a) => a.assetType === ASSET_TYPES.MUTUAL_FUND);
+  console.log(`✓ Found ${stocks.length} stocks + ${mutualFunds.length} mutual funds\n`);
 
   await guardEmpty();
 
-  // Build date list: [oldest … yesterday] — today is excluded as per DailyPrice design
-  // (writeTodayClose() owns today on shutdown)
-  const dates = Array.from({ length: DAYS }, (_, i) => dateIST(DAYS - i));
   const today = todayIST();
+  // Stock daily-close dates: [oldest … yesterday].  Today's DailyPrice is
+  // written separately below using the last intraday tick price; it will be
+  // overwritten by the mseWorker on every 30s tick once the server is up.
+  const stockDates = Array.from({ length: DAYS }, (_, i) => dateIST(DAYS - i));
+  // MF dates: [oldest … TODAY] — DailyPrice IS the source of truth for MF NAV.
+  const mfDates = Array.from({ length: DAYS + 1 }, (_, i) => dateIST(DAYS - i));
 
-  // ── Phase 1: simulate daily prices for all DAYS ──────────────────────────
+  // ── Phase 1a: simulate stock daily closes ──────────────────────────────
 
-  console.log(`Simulating ${DAYS} days of daily closes…`);
-  const dailyOps = [];
-  const finalPrices = {}; // ticker → last simulated price (used for MarketState + intraday)
+  console.log(`Simulating ${DAYS} days of stock daily closes…`);
+  const stockOps = [];
+  const stockFinalPrices = {}; // ticker → last simulated daily close
 
-  for (const asset of assets) {
+  for (const asset of stocks) {
     let price = asset.basePrice;
-
-    for (const date of dates) {
-      // One random-walk step per day using shared utility
+    for (const date of stockDates) {
       price = nextDayPrice(price, asset.volatility);
-
-      dailyOps.push({
+      stockOps.push({
         updateOne: {
           filter: { ticker: asset.ticker, date },
           update: {
@@ -155,13 +151,46 @@ const seed = async () => {
         },
       });
     }
-
-    finalPrices[asset.ticker] = price;
+    stockFinalPrices[asset.ticker] = price;
   }
 
-  const bulkResult = await DailyPrice.bulkWrite(dailyOps, { ordered: false });
-  const dailyWritten = (bulkResult.upsertedCount || 0) + (bulkResult.modifiedCount || 0);
-  console.log(`✓ DailyPrice: ${dailyWritten} / ${dailyOps.length} records written`);
+  if (stockOps.length) {
+    const r = await DailyPrice.bulkWrite(stockOps, { ordered: false });
+    const written = (r.upsertedCount || 0) + (r.modifiedCount || 0);
+    console.log(`✓ DailyPrice (stocks): ${written} / ${stockOps.length} records written`);
+  }
+
+  // ── Phase 1b: simulate MF daily NAVs through TODAY ─────────────────────
+
+  console.log(`\nSimulating ${DAYS + 1} days of MF NAVs (through today)…`);
+  const mfOps = [];
+
+  for (const asset of mutualFunds) {
+    let price = asset.basePrice;
+    for (const date of mfDates) {
+      price = nextDayPrice(price, asset.volatility);
+      mfOps.push({
+        updateOne: {
+          filter: { ticker: asset.ticker, date },
+          update: {
+            $set: {
+              ticker: asset.ticker,
+              assetType: asset.assetType,
+              date,
+              closePrice: price,
+            },
+          },
+          upsert: true,
+        },
+      });
+    }
+  }
+
+  if (mfOps.length) {
+    const r = await DailyPrice.bulkWrite(mfOps, { ordered: false });
+    const written = (r.upsertedCount || 0) + (r.modifiedCount || 0);
+    console.log(`✓ DailyPrice (MFs):    ${written} / ${mfOps.length} records written`);
+  }
 
   // ── Phase 2: simulate today's 30-second intraday ticks (stocks only) ────
 
@@ -173,21 +202,16 @@ const seed = async () => {
   const MARKET_OPEN_OFFSET_S = 0; // 00:00 IST
   const TICK_INTERVAL_S = 30;
 
-  // Current IST time in seconds from midnight
   const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
   const nowSecondsIST =
     nowIST.getUTCHours() * 3600 + nowIST.getUTCMinutes() * 60 + nowIST.getUTCSeconds();
   const tickCount = Math.floor((nowSecondsIST - MARKET_OPEN_OFFSET_S) / TICK_INTERVAL_S);
 
-  const stocks = assets.filter((a) => a.assetType === ASSET_TYPES.STOCK);
-
   for (const asset of stocks) {
-    // Start intraday from the last simulated daily price
-    let price = finalPrices[asset.ticker] ?? asset.basePrice;
+    let price = stockFinalPrices[asset.ticker] ?? asset.basePrice;
     let prevPrice = price;
 
     for (let i = 0; i < tickCount; i++) {
-      // Smaller intraday volatility (same 0.25× scaling as dailyPriceService)
       const delta = asset.volatility * 0.25 * gaussianNoise();
       price = Math.max(1, parseFloat((price * (1 + delta)).toFixed(2)));
 
@@ -196,7 +220,6 @@ const seed = async () => {
       const sign = pct >= 0 ? '+' : '';
       const changePercent = `${sign}${pct.toFixed(2)}%`;
 
-      // Compute UTC timestamp: IST midnight (UTC) + market open offset + tick offset
       const timestamp = new Date(
         dayStartUTC.getTime() + (MARKET_OPEN_OFFSET_S + i * TICK_INTERVAL_S) * 1000
       );
@@ -210,9 +233,7 @@ const seed = async () => {
       });
 
       prevPrice = price;
-
-      // Update the "end of day" price for MarketState to today's last intraday tick
-      finalPrices[asset.ticker] = price;
+      stockFinalPrices[asset.ticker] = price; // update for MarketState
     }
   }
 
@@ -223,42 +244,62 @@ const seed = async () => {
     console.log('  (no intraday ticks — no stock assets found)');
   }
 
-  // ── Phase 3: upsert MarketState for all assets ───────────────────────────
+  // ── Phase 2b: today's DailyPrice for stocks ─────────────────────────────
+  // Use the last intraday tick price as today's "live snapshot".  The mseWorker
+  // will overwrite this on its first tick once the server starts.
 
-  console.log('\nWriting MarketState (Tier 2 runtime recovery)…');
-  const now = new Date();
-  const stateOps = assets.map((asset) => {
-    const updateFields = {
-      lastPrice: finalPrices[asset.ticker] ?? asset.basePrice,
-      lastUpdatedAt: now,
-    };
-
-    // For mutual funds, set lastNavDate to today so the mseWorker does not
-    // re-roll the NAV on its first tick after seeding.
-    if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
-      updateFields.lastNavDate = today;
-    }
-
-    return {
-      updateOne: {
-        filter: { ticker: asset.ticker },
-        update: { $set: updateFields },
-        upsert: true,
+  const stockTodayOps = stocks.map((asset) => ({
+    updateOne: {
+      filter: { ticker: asset.ticker, date: today },
+      update: {
+        $set: {
+          ticker: asset.ticker,
+          assetType: asset.assetType,
+          date: today,
+          closePrice: stockFinalPrices[asset.ticker] ?? asset.basePrice,
+        },
       },
-    };
-  });
-  await MarketState.bulkWrite(stateOps, { ordered: false });
-  console.log(`✓ MarketState: ${stateOps.length} records upserted`);
+      upsert: true,
+    },
+  }));
+  if (stockTodayOps.length) {
+    await DailyPrice.bulkWrite(stockTodayOps, { ordered: false });
+    console.log(
+      `✓ DailyPrice (stocks today): ${stockTodayOps.length} records written for ${today}`
+    );
+  }
+
+  // ── Phase 3: upsert MarketState for STOCKS only ─────────────────────────
+
+  console.log('\nWriting MarketState for stocks (tier-2 runtime recovery)…');
+  const now = new Date();
+  const stateOps = stocks.map((asset) => ({
+    updateOne: {
+      filter: { ticker: asset.ticker },
+      update: {
+        $set: {
+          lastPrice: stockFinalPrices[asset.ticker] ?? asset.basePrice,
+          lastUpdatedAt: now,
+        },
+      },
+      upsert: true,
+    },
+  }));
+  if (stateOps.length) {
+    await MarketState.bulkWrite(stateOps, { ordered: false });
+    console.log(`✓ MarketState (stocks): ${stateOps.length} records upserted`);
+  }
+  console.log(`  (mutual funds intentionally skipped — DailyPrice is their source of truth)`);
 
   // ── Summary ──────────────────────────────────────────────────────────────
 
   console.log(`
 ✅  Seed complete!
-    Days seeded:       ${DAYS}  (${dates[0]} → ${dates[dates.length - 1]})
-    Assets:            ${assets.length}  (${stocks.length} stocks + ${assets.length - stocks.length} mutual funds)
-    DailyPrice docs:   ${dailyOps.length}
-    Intraday ticks:    ${intradayDocs.length}
-    MarketState docs:  ${stateOps.length}
+    Stocks:          ${stocks.length}    (${stockDates[0]} → ${stockDates[stockDates.length - 1]})
+    Mutual Funds:    ${mutualFunds.length}    (${mfDates[0]} → ${mfDates[mfDates.length - 1]})
+    DailyPrice:      ${stockOps.length + mfOps.length}
+    Intraday ticks:  ${intradayDocs.length}
+    MarketState:     ${stateOps.length}  (stocks only)
 `);
 };
 

@@ -99,7 +99,7 @@ HTTP Request
     │
     ▼
 ┌─ Service: transaction.service.executeOrder ───────────┐
-│  • Resolves execution price (Redis → MarketState → …) │
+│  • Resolves execution price (asset-aware: stock 3-tier / MF DailyPrice) │
 │  • Pre-flight checks (balance / holdings)             │
 │  • Opens MongoDB session                              │
 │  • Creates Transaction document                       │
@@ -135,59 +135,77 @@ If any layer throws an `AppError` (or any uncaught error), the global `errorHand
 
 ## Database Ownership
 
-| Collection            | Owning Module | Authorised Writer(s)                                                                              | Write Conditions                      |
-| --------------------- | ------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `users`               | auth / user   | `auth.service.register()`, `user.service.update*()`                                               | Create on register; update on profile |
-| `assets`              | asset         | Seed script only (`scripts/seed.js`)                                                              | Setup-only, never runtime             |
-| `virtualwallets`      | wallet        | `wallet.service.debit()`, `wallet.service.credit()`                                               | Atomic `$inc` within session          |
-| `transactions`        | transaction   | `transaction.service.executeOrder()`                                                              | Create (immutable, never updated)     |
-| `marketstates`        | market (MSE)  | `mseWorker` bulk-upsert, `dailyPriceService.backfillMissingDays()` (+ Redis sync)                 | Upsert on every 30s tick + startup    |
-| `stockpricehistories` | market (MSE)  | `mseWorker` insertMany                                                                            | Append-only (48h TTL index)           |
-| `dailyprices`         | market (MSE)  | `dailyPriceService.writeTodayClose()`, `backfillMissingDays()`, `mseWorker.handleDayTransition()` | Upsert per ticker per day             |
+| Collection            | Owning Module | Authorised Writer(s)                                                                                                                                               | Write Conditions                      |
+| --------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `users`               | auth / user   | `auth.service.register()`, `user.service.update*()`                                                                                                                | Create on register; update on profile |
+| `assets`              | asset         | Seed script only (`scripts/seed.js`)                                                                                                                               | Setup-only, never runtime             |
+| `virtualwallets`      | wallet        | `wallet.service.debit()`, `wallet.service.credit()`                                                                                                                | Atomic `$inc` within session          |
+| `transactions`        | transaction   | `transaction.service.executeOrder()`                                                                                                                               | Create (immutable, never updated)     |
+| `marketstates`        | market (MSE)  | `mseWorker` bulk-upsert (stocks only), `dailyPriceService.backfillMissingDays()` (stocks only)                                                                     | Upsert on every 30s tick + startup    |
+| `stockpricehistories` | market (MSE)  | `mseWorker` insertMany, `dailyPriceService.backfillIntradayToday()`                                                                                                | Append-only (48h TTL index)           |
+| `dailyprices` (stock) | market (MSE)  | `mseWorker` per-tick upsert of today's record, `dailyPriceService.writeTodayClose()` (shutdown safety net), `backfillMissingDays()` (past-day gap fill on startup) | Upsert per ticker per day             |
+| `dailyprices` (MF)    | market (MSE)  | `dailyPriceService.ensureMfDailyPrices()` — sole writer (startup + day rollover)                                                                                   | Upsert per ticker per day             |
 
 ---
 
 ## Market Simulation Flow
 
-The Market Simulation Engine (MSE) operates as a two-layer system:
+The system uses **two distinct pricing pipelines** depending on asset type.
+
+### Stocks: continuous intraday simulation (two layers)
 
 **Layer 1 — Authoritative Tick (mseWorker, every 30s via BullMQ)**
 
-Per-tick operations in order:
+Per-tick operations in order (stocks only):
 
-1. Fetch all assets from MongoDB
-2. Read global MarketSentiment and SectorTrend values from Redis
-3. For each stock: resolve previous price (three-tier chain), compute new price using formula `Price_t = Price_{t-1} × (1 + Sm + Ts + Va × N)` where N is Gaussian noise
-4. Write updated price to Redis (`price:<ticker>`, TTL 60s)
-5. Broadcast SSE `price_update` event to all connected clients
-6. Emit `volatility_alert` if single-tick swing > 3%
-7. Seed the live ticker in-memory cache
-8. Persist MarketState (bulk upsert) — recovery tier
-9. Append StockPriceHistory documents — charting data
-10. Decay MarketSentiment and SectorTrends by 10% toward zero
-
-Mutual fund NAVs are NOT simulated intraday — instead the mseWorker rolls each MF's NAV by one random-walk step the first tick after a new IST day (gated by `MarketState.lastNavDate`), then keeps it stable for the rest of the day.
+1. Fetch all STOCK assets from MongoDB
+2. Detect IST day transition; on rollover trigger MF NAV refresh (stocks need no extra action — see step 12 below)
+3. Read global MarketSentiment and SectorTrend values from Redis
+4. Resolve previous price (three-tier chain), compute new price using `Price_t = Price_{t-1} × (1 + Sm + Ts + Va × N)` where N is Gaussian noise
+5. Write updated price to Redis (`price:<ticker>`, TTL 60s)
+6. Broadcast SSE `price_update` event to all connected clients
+7. Emit `volatility_alert` if single-tick swing > 3%
+8. Seed the live ticker in-memory cache
+9. Persist MarketState (bulk upsert) — recovery tier
+10. Append StockPriceHistory documents — intraday charting
+11. Decay MarketSentiment and SectorTrends by 10% toward zero
+12. Bulk-upsert today's DailyPrice with the latest computed price — keeps multi-day charts ending on the current price; the last tick before IST midnight becomes the day's official close
 
 **Layer 2 — Live Ticker (mseLiveTicker, every 1s via setInterval)**
 
-- Applies micro-noise (scaled to 1/√30 of volatility) to in-memory cached prices
+- Applies micro-noise (scaled to 1/√30 of volatility) to in-memory cached stock prices
 - Broadcasts SSE `price_update` per stock to all clients
 - No database reads, no Redis writes — pure in-process interpolation
 
-**Persistence Targets**
+### Mutual funds: one NAV per IST day
 
-| Target                 | Writer                       | Trigger                                                  |
-| ---------------------- | ---------------------------- | -------------------------------------------------------- |
-| Redis `price:<ticker>` | mseWorker, dailyPriceService | Every 30s tick; reseeded on startup backfill             |
-| MarketState            | mseWorker, dailyPriceService | Every 30s tick; updated on startup backfill              |
-| StockPriceHistory      | mseWorker                    | Every 30s tick (stocks)                                  |
-| DailyPrice             | dailyPriceService, mseWorker | Shutdown + startup backfill + day-transition on 30s tick |
+Mutual funds change exactly once per IST day. They have **no Redis, no MarketState, no SSE** — the most recent `DailyPrice` record IS the current NAV.
+
+`dailyPriceService.ensureMfDailyPrices()` is the sole writer of MF DailyPrice records:
+
+- For each MF, finds the most recent DailyPrice and chain-simulates a random walk forward to today (inclusive).
+- Idempotent: if today already exists, the function is a no-op.
+- Called on **startup** (fills any offline days plus today) and on **IST midnight rollover** (from `mseWorker.handleDayTransition()`).
+
+The chart's last point and the quote's `price` for an MF are guaranteed identical because both read today's `DailyPrice.closePrice`.
+
+### Persistence Targets
+
+| Target                 | Writer                       | Trigger                                                                       |
+| ---------------------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| Redis `price:<ticker>` | mseWorker, dailyPriceService | Every 30s tick (stocks); reseeded on stock backfill                           |
+| MarketState            | mseWorker, dailyPriceService | Every 30s tick (stocks); updated on stock backfill                            |
+| StockPriceHistory      | mseWorker, dailyPriceService | Every 30s tick (stocks); intraday backfill on startup                         |
+| DailyPrice (stock)     | mseWorker, dailyPriceService | Per-tick upsert of today; shutdown safety net; startup gap-fill for past days |
+| DailyPrice (MF)        | dailyPriceService            | `ensureMfDailyPrices()` on startup + IST midnight rollover                    |
 
 ---
 
 ## Price Resolution Chain
 
-When the system needs the current price for an asset (order execution, portfolio valuation), it uses this priority chain:
+When the system needs the current price for an asset (order execution, portfolio valuation, quote API), it dispatches by asset type via `market.service.resolveAssetPrice(asset)`.
+
+### Stocks — three-tier chain
 
 ```
 Tier 1: Redis  →  price:<ticker> (JSON, TTL 60s)
@@ -203,7 +221,17 @@ Tier 3: Asset.basePrice  →  seed/reference value, never written at runtime
 | 2    | MarketState (Mongo) | Until next tick  | Used after Redis flush or server restart        |
 | 3    | Asset.basePrice     | Permanent seed   | Last resort — only on first-ever boot           |
 
-`Asset.basePrice` is never written at runtime. It serves purely as the original seed value.
+### Mutual funds — single source
+
+```
+Tier 1: Today's DailyPrice.closePrice  →  the chart's last point
+        ↓ briefly missing during cold-start
+Tier 2: Most recent DailyPrice.closePrice
+        ↓ no DailyPrice exists at all (fresh install before ensure ran)
+Tier 3: Asset.basePrice
+```
+
+`Asset.basePrice` is never written at runtime in either chain. It serves purely as the original seed value.
 
 ---
 
@@ -287,11 +315,13 @@ pnpm start
 Server starts at `http://localhost:4000`. On startup:
 
 1. Connects to MongoDB
-2. Backfills any missing DailyPrice records from downtime days
-3. Starts BullMQ mse-price-tick scheduler (30s interval)
-4. Starts live ticker (1s SSE broadcast)
+2. Ensures all mutual-fund DailyPrice records are current (through today)
+3. Backfills any missing stock DailyPrice records from downtime days
+4. Backfills today's intraday StockPriceHistory ticks so the 1D chart is not empty
+5. Starts BullMQ mse-price-tick scheduler (30s interval)
+6. Starts live ticker (1s SSE broadcast)
 
-On graceful shutdown (SIGTERM/SIGINT): writes today's closing prices to DailyPrice before exiting.
+On graceful shutdown (SIGTERM/SIGINT): writes today's stock closing prices to DailyPrice before exiting. Mutual fund NAVs are already persisted by `ensureMfDailyPrices()` and need no shutdown action.
 
 ---
 

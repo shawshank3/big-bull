@@ -1,33 +1,44 @@
 /**
  * Market Service
  *
- * All prices and search results come from the internal Asset catalog and Redis
- * price cache (populated by the MSE BullMQ worker).
- *
+ * All prices and search results come from the internal Asset catalog.
  * No external API calls (Alpha Vantage / MFAPI) exist in this module.
  * All monetary values are in ₹ (Indian Rupees).
  *
- * Phase 2: price resolution uses a three-tier chain:
+ * ─── Asset-aware price resolution ───────────────────────────────────────────
+ *
+ * STOCKS — three-tier chain (intraday simulation):
  *   1. Redis `price:<ticker>` (TTL 60s — live MSE tick)
  *   2. MarketState.lastPrice  (durable MongoDB record)
  *   3. Asset.basePrice        (seed value — last resort)
+ *
+ * MUTUAL FUNDS — single source of truth (one NAV per IST day):
+ *   1. DailyPrice for today (this IS the current NAV)
+ *   2. Most recent DailyPrice (graceful degradation if today is missing)
+ *   3. Asset.basePrice        (last resort, only on a brand-new install)
+ *
+ * Use `resolveAssetPrice(asset)` for any code path that needs the current
+ * price of an arbitrary asset.  The legacy `resolvePrice(ticker, basePrice)`
+ * helper is retained for stock-only call sites.
  */
 const redis = require('../../shared/redis');
 const Asset = require('../asset/asset.model');
 const MarketState = require('./marketState.model');
+const DailyPrice = require('./dailyPrice.model');
 const { ASSET_TYPES, PRICE_LABELS } = require('../../shared/constants');
+const { todayIST } = require('../../utils/priceSimulation');
 
 /**
- * resolvePrice(ticker, basePrice)
+ * resolveStockPrice(ticker, basePrice)
  *
- * Three-tier price resolution used consistently across all market queries.
- * Mirrors the same chain used in mseWorker, transaction.service, and portfolio.service.
+ * Three-tier price resolution for STOCKS only.  Mutual funds must use
+ * `resolveMfPrice()` instead — DailyPrice is their source of truth.
  *
  * @param {string} ticker
  * @param {number} basePrice
  * @returns {Promise<number>}
  */
-const resolvePrice = async (ticker, basePrice) => {
+const resolveStockPrice = async (ticker, basePrice) => {
   // Tier 1 — Redis
   try {
     const cached = await redis.get(`price:${ticker}`);
@@ -52,6 +63,93 @@ const resolvePrice = async (ticker, basePrice) => {
 
   // Tier 3 — seed price
   return basePrice;
+};
+
+/**
+ * resolveMfPrice(ticker, basePrice)
+ *
+ * Returns the current NAV for a mutual fund:
+ *   1. Today's DailyPrice (the chart's last point — same record)
+ *   2. Most recent DailyPrice (gracefully degrades if today is briefly missing)
+ *   3. Asset.basePrice (only on a brand-new install before the first ensureMf run)
+ *
+ * @param {string} ticker
+ * @param {number} basePrice
+ * @returns {Promise<number>}
+ */
+const resolveMfPrice = async (ticker, basePrice) => {
+  const today = todayIST();
+  try {
+    const todayDoc = await DailyPrice.findOne({ ticker, date: today }).lean();
+    if (todayDoc && todayDoc.closePrice > 0) return todayDoc.closePrice;
+
+    const latest = await DailyPrice.findOne({ ticker }).sort({ date: -1 }).lean();
+    if (latest && latest.closePrice > 0) return latest.closePrice;
+  } catch (_) {
+    /* fall through to basePrice */
+  }
+  return basePrice;
+};
+
+/**
+ * resolveAssetPrice(asset)
+ *
+ * Asset-type-aware price resolution.  Use this in any code path that needs
+ * a current price without caring about the asset type.
+ *
+ * @param {{ ticker: string, basePrice: number, assetType: string }} asset
+ * @returns {Promise<number>}
+ */
+const resolveAssetPrice = async (asset) => {
+  if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
+    return resolveMfPrice(asset.ticker, asset.basePrice);
+  }
+  return resolveStockPrice(asset.ticker, asset.basePrice);
+};
+
+/**
+ * resolvePrice(ticker, basePrice)  [DEPRECATED — stocks-only chain]
+ *
+ * Retained for backwards compatibility with existing call sites that already
+ * know the asset is a stock (e.g. tickers list).  New code should prefer
+ * `resolveAssetPrice(asset)`.
+ */
+const resolvePrice = resolveStockPrice;
+
+/**
+ * Returns yesterday's IST date as YYYY-MM-DD.
+ */
+const yesterdayIST = () => {
+  const now = new Date();
+  const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000 - 86400 * 1000);
+  return ist.toISOString().slice(0, 10);
+};
+
+/**
+ * Compute day-over-day change for a mutual fund from yesterday's vs today's
+ * DailyPrice.  Returns `{ change, changePercent }`.  Falls back to zero deltas
+ * when yesterday's record is missing (cold-start).
+ */
+const computeMfDayDelta = async (ticker, currentPrice) => {
+  try {
+    const yesterday = yesterdayIST();
+    const yDoc = await DailyPrice.findOne({
+      ticker,
+      date: { $lte: yesterday },
+    })
+      .sort({ date: -1 })
+      .lean();
+
+    if (yDoc && yDoc.closePrice > 0) {
+      const change = parseFloat((currentPrice - yDoc.closePrice).toFixed(2));
+      const pct = (change / yDoc.closePrice) * 100;
+      const sign = pct >= 0 ? '+' : '';
+      return { change, changePercent: `${sign}${pct.toFixed(2)}%` };
+    }
+  } catch (_) {
+    /* fall through */
+  }
+  return { change: 0, changePercent: '+0.00%' };
 };
 
 /**
@@ -82,7 +180,7 @@ const searchAssets = async (query) => {
 
   const enriched = await Promise.all(
     assets.map(async (asset) => {
-      const livePrice = await resolvePrice(asset.ticker, asset.basePrice).catch(() => null);
+      const livePrice = await resolveAssetPrice(asset).catch(() => null);
       return formatAssetResult(asset, livePrice);
     })
   );
@@ -104,38 +202,47 @@ const searchAssets = async (query) => {
  * getQuote(ticker)
  *
  * Returns the current simulated price for an asset.
- * Priority: Redis live price (set by MSE worker) → Asset.basePrice fallback.
- * Result is cached for 60 seconds.
+ *
+ * STOCK: resolved via three-tier chain. change/changePercent are read from
+ * the Redis payload (set by mseWorker on each tick).
+ *
+ * MUTUAL_FUND: resolved from today's DailyPrice. change/changePercent are
+ * computed day-over-day from yesterday's vs today's DailyPrice.  This guarantees
+ * the chart's last point and the quote price are the same value (both come
+ * from today's DailyPrice record).
  *
  * @param {string} ticker - NSE ticker or MF scheme code
  */
 const getQuote = async (ticker) => {
-  const cacheKey = `price:${ticker}`;
-
-  // Load asset metadata from catalog
-  const asset = await Asset.findOne({ ticker: ticker.toUpperCase() }).lean();
-
+  const upperTicker = ticker.toUpperCase();
+  const asset = await Asset.findOne({ ticker: upperTicker }).lean();
   if (!asset) {
     const err = new Error(`Asset not found: ${ticker}`);
     err.status = 404;
     throw err;
   }
 
-  // Resolve price via three-tier chain (Redis → MarketState → basePrice)
-  const price = await resolvePrice(asset.ticker, asset.basePrice);
+  const price = await resolveAssetPrice(asset);
 
-  // Attempt to read change metadata from Redis (best-effort; may not exist)
   let change = 0;
   let changePercent = '+0.00%';
-  try {
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (typeof parsed.change === 'number') change = parsed.change;
-      if (typeof parsed.changePercent === 'string') changePercent = parsed.changePercent;
+
+  if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
+    const delta = await computeMfDayDelta(asset.ticker, price);
+    change = delta.change;
+    changePercent = delta.changePercent;
+  } else {
+    // Stocks — read change metadata from the Redis payload set by mseWorker
+    try {
+      const cached = await redis.get(`price:${asset.ticker}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (typeof parsed.change === 'number') change = parsed.change;
+        if (typeof parsed.changePercent === 'string') changePercent = parsed.changePercent;
+      }
+    } catch (_) {
+      /* non-fatal */
     }
-  } catch (_) {
-    /* non-fatal */
   }
 
   const quote = {
@@ -157,15 +264,8 @@ const getQuote = async (ticker) => {
       schemeCategory: asset.sector,
       schemeType: ASSET_TYPES.MUTUAL_FUND,
     }),
-    asOf: new Date().toISOString().split('T')[0],
+    asOf: todayIST(),
   };
-
-  // Cache the response for 60s
-  try {
-    await redis.setex(cacheKey, 60, JSON.stringify(quote));
-  } catch (_) {
-    /* non-fatal */
-  }
 
   return quote;
 };
@@ -174,7 +274,7 @@ const getQuote = async (ticker) => {
  * getTicker()
  *
  * Returns live prices for a curated list of top NSE stocks from the catalog.
- * Used by the UI ticker strip.
+ * Used by the UI ticker strip (stocks only — MFs do not appear in the strip).
  */
 const TICKER_SYMBOLS = [
   'RELIANCE',
@@ -194,10 +294,8 @@ const getTicker = async () => {
 
   const quotes = await Promise.all(
     assets.map(async (asset) => {
-      // Resolve price via three-tier chain
-      const price = await resolvePrice(asset.ticker, asset.basePrice);
+      const price = await resolveAssetPrice(asset);
 
-      // Read change metadata from Redis (best-effort)
       let change = 0;
       let changePercent = '+0.00%';
       let up = true;
@@ -247,4 +345,12 @@ const formatAssetResult = (asset, livePrice) => ({
   currency: 'INR',
 });
 
-module.exports = { searchAssets, getQuote, getTicker, resolvePrice };
+module.exports = {
+  searchAssets,
+  getQuote,
+  getTicker,
+  resolvePrice,
+  resolveAssetPrice,
+  resolveStockPrice,
+  resolveMfPrice,
+};

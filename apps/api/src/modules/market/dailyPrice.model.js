@@ -6,19 +6,26 @@
  * Covers both asset types:
  *   - STOCK       → end-of-day closing price computed from the last mseWorker
  *                   tick before market close (or the last tick of the day).
- *   - MUTUAL_FUND → daily NAV value persisted once per day by the
- *                   dailyCloseWorker.
+ *   - MUTUAL_FUND → daily NAV value.  Single source of truth for MF prices —
+ *                   the most recent DailyPrice record IS the current NAV.
  *
  * Used for all multi-day chart ranges: 1W / 1M / 3M / 1Y for stocks, and
  * all chart ranges for mutual funds (MFs have no intraday history).
  *
  * Design rules:
- *   - Written ONLY by the dailyCloseWorker BullMQ job.
+ *   - Written by:
+ *       STOCK:  dailyPriceService.writeTodayClose (shutdown),
+ *               dailyPriceService.backfillMissingDays (startup),
+ *               mseWorker handleDayTransition (IST midnight rollover)
+ *       MF:     dailyPriceService.ensureMfDailyPrices (startup +
+ *               mseWorker day transition) — the SOLE writer of MF records.
  *   - One document per (ticker, date) pair — enforced by a unique index.
  *   - `date` is stored as a plain YYYY-MM-DD string for simple range queries
  *     without timezone arithmetic on the DB side.
- *   - Historical chart collections are READ-ONLY for all API query paths;
- *     runtime price resolution never touches this collection.
+ *   - For STOCKS this collection is read-only at runtime.
+ *   - For MUTUAL FUNDS this collection IS the runtime price source — the
+ *     quote API, chart API, transaction execution, and portfolio valuation
+ *     all read today's DailyPrice for MFs.
  */
 const mongoose = require('mongoose');
 const { ASSET_TYPE_VALUES } = require('../../shared/constants');

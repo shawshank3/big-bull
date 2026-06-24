@@ -1,39 +1,57 @@
 /**
  * Daily Price Service
  *
- * Handles DailyPrice writes without BullMQ or a fixed cron schedule.
- * Three entry points:
+ * Owns writes to the DailyPrice and StockPriceHistory collections that the
+ * mseWorker does not handle on each tick.
+ *
+ * ─── Architectural split: STOCK vs MUTUAL_FUND ──────────────────────────────
+ *
+ * STOCKS:
+ *   The mseWorker is the primary writer.  On every 30s tick it upserts
+ *   today's DailyPrice with the latest computed price; the last tick before
+ *   IST midnight becomes the day's official close.  This module covers two
+ *   adjacent responsibilities:
+ *     - `writeTodayClose()`   — final upsert on graceful shutdown (safety net).
+ *     - `backfillMissingDays()` — downtime recovery: chains a random walk
+ *                                 over past days the server was offline.
+ *
+ * MUTUAL FUNDS:
+ *   Change exactly once per IST day.  The most recent DailyPrice record IS
+ *   the current NAV — there is no separate Redis/MarketState layer for MFs.
+ *   The single writer of MF DailyPrice is `ensureMfDailyPrices()`.
+ *
+ * ─── Public entry points ────────────────────────────────────────────────────
+ *
+ *   ensureMfDailyPrices()
+ *     STOCK:  no-op (stocks are not MFs).
+ *     MF:     for every mutual fund, find the most recent DailyPrice and chain
+ *             a random-walk simulation forward to TODAY (inclusive).  Idempotent
+ *             — running twice the same day produces no extra records.  Called:
+ *               - on startup (after connectDB)
+ *               - on IST day transition from the mseWorker
  *
  *   writeTodayClose()
- *     Called on graceful shutdown (SIGTERM / SIGINT).
- *     Upserts one DailyPrice record per asset for today using the current
- *     MarketState price (three-tier chain).  This captures "last known price
- *     before the server went down" as the day's closing value.
- *     Safe to call multiple times — upsert is idempotent.
+ *     STOCK:  upserts today's DailyPrice using the resolved live price.  This
+ *             is a safety net — the mseWorker already wrote today's record on
+ *             the last tick.  Useful when the server crashes between ticks
+ *             then receives SIGTERM cleanly.
+ *     MF:     skipped — `ensureMfDailyPrices()` already owns today's MF NAV.
  *
  *   backfillMissingDays()
- *     Called once on startup after connectDB() resolves.
- *     Finds the most recent DailyPrice date across all assets, then fills
- *     every calendar day between that date and yesterday by chaining a
- *     random-walk price simulation (same Va × N formula as mseWorker).
- *     Today is NOT backfilled here — writeTodayClose() owns today on shutdown.
+ *     STOCK:  fills any gap between the last DailyPrice and yesterday by
+ *             chaining a random walk from the last known close.  Called on
+ *             startup.  Today is excluded — owned by the live mseWorker tick.
+ *     MF:     skipped — `ensureMfDailyPrices()` handles MFs end-to-end.
  *
  *   backfillIntradayToday()
- *     Called once on startup after connectDB() resolves.
- *     Generates synthetic 30-second StockPriceHistory ticks from market open
- *     (09:00 IST) to min(now, 15:30 IST) so the 1D chart is not empty while
- *     the MSE worker starts accumulating real ticks. Skips if today already
- *     has sufficient data.
+ *     STOCK:  generates synthetic 30-second StockPriceHistory ticks for today
+ *             so the 1D chart is not empty on cold start.
+ *     MF:     skipped (no intraday history for mutual funds).
  *
  * Design rules:
- *   - Only writes to DailyPrice, StockPriceHistory, and MarketState.
- *     Never touches Asset.
- *   - Asset.basePrice is the seed / last-resort fallback — never written here.
- *   - Backfill uses only MarketState for the starting price (no Redis — on boot
- *     Redis may be empty).
+ *   - Asset.basePrice is reference data only — never written here.
+ *   - All errors are logged and swallowed.  No function crashes the server.
  *   - All writes are bulk upserts/inserts — safe to re-run, no duplicates.
- *   - All errors are logged and swallowed — no function should crash the
- *     server on failure.
  */
 
 const Asset = require('../modules/asset/asset.model');
@@ -48,6 +66,9 @@ const { gaussianNoise, nextDayPrice, todayIST } = require('../utils/priceSimulat
 
 /** Local alias retained for readability — same function as `gaussianNoise`. */
 const gaussian = gaussianNoise;
+
+/** Default number of days of MF history to seed when no DailyPrice exists. */
+const MF_INITIAL_HISTORY_DAYS = 30;
 
 /**
  * Returns a date N calendar days offset from now as YYYY-MM-DD in IST (UTC+5:30).
@@ -78,11 +99,15 @@ const gapDates = (startDateStr, endDateStr) => {
 };
 
 /**
- * Resolve the current price for an asset.
- * On shutdown: Redis may still be warm → check Redis first.
- * On startup:  Redis is likely empty → falls straight through to MarketState.
+ * Resolve the current price for a STOCK asset using the three-tier chain.
+ *  1. Redis `price:<ticker>` (TTL 60s)
+ *  2. MarketState.lastPrice
+ *  3. Asset.basePrice
+ *
+ * NOTE: do not call for mutual funds — MFs use DailyPrice as their source of
+ * truth.  Use `ensureMfDailyPrices()` to read today's MF NAV.
  */
-const resolvePrice = async (ticker, basePrice) => {
+const resolveStockPrice = async (ticker, basePrice) => {
   // Tier 1 — Redis
   try {
     const cached = await redis.get(`price:${ticker}`);
@@ -109,100 +134,123 @@ const resolvePrice = async (ticker, basePrice) => {
   return basePrice;
 };
 
+// ─── ensureMfDailyPrices ──────────────────────────────────────────────────────
+
 /**
- * Resolve a mutual fund's NAV for "today's close".
+ * Single source of truth for mutual-fund NAVs.
  *
- * If MarketState already records a roll for today (`lastNavDate === today`),
- * returns that NAV unchanged. Otherwise advances the previous NAV by one
- * random-walk step, persists the new value + rollover marker, and returns it.
+ * For each MUTUAL_FUND asset:
+ *   1. Find the most recent DailyPrice record.
+ *   2. If `latest.date >= today` → already up to date, skip.
+ *   3. If `latest.date < today` → chain a random walk day-by-day from
+ *      `latest.closePrice` up to AND INCLUDING today.
+ *   4. If no DailyPrice exists at all → seed `MF_INITIAL_HISTORY_DAYS` days
+ *      ending today, starting from `Asset.basePrice`.
  *
- * Idempotent within a single IST day. Used by writeTodayClose() so that a
- * boot-then-shutdown with no mseWorker ticks still produces a fresh NAV
- * rather than copying yesterday's value forward.
+ * The most recent DailyPrice record after this function returns equals today's
+ * NAV.  This is THE current price for the MF; it is what the chart's last point
+ * shows, what the quote API returns, and what BUY/SELL orders execute against.
+ *
+ * Idempotent: safe to call multiple times the same IST day.
+ * Non-fatal: logs errors but does not throw.
  */
-const resolveMutualFundClose = async (asset, today) => {
-  let state = null;
+const ensureMfDailyPrices = async () => {
+  const today = dateIST(0);
+  console.log(`[MF NAV] Ensuring daily NAVs are up to date for ${today}…`);
+
   try {
-    state = await MarketState.findOne({ ticker: asset.ticker })
-      .select('lastPrice lastNavDate')
-      .lean();
-  } catch (_) {
-    /* fall through with state=null */
-  }
+    const mfAssets = await Asset.find({ assetType: ASSET_TYPES.MUTUAL_FUND }).lean();
+    if (!mfAssets.length) {
+      console.log('[MF NAV] No mutual-fund assets — skipping');
+      return;
+    }
 
-  const prevNav =
-    state && typeof state.lastPrice === 'number' && state.lastPrice > 0
-      ? state.lastPrice
-      : await resolvePrice(asset.ticker, asset.basePrice);
+    const ops = [];
+    let totalNew = 0;
 
-  if (state?.lastNavDate === today) {
-    // Already rolled today — return the recorded NAV without re-walking.
-    return prevNav;
-  }
+    for (const asset of mfAssets) {
+      const latest = await DailyPrice.findOne({ ticker: asset.ticker }).sort({ date: -1 }).lean();
 
-  // Apply the once-per-day random-walk step and persist the marker so we
-  // do not roll again today. Best-effort: NAV is still returned even if the
-  // persistence write fails.
-  const navPrice = nextDayPrice(prevNav, asset.volatility);
-  try {
-    await MarketState.updateOne(
-      { ticker: asset.ticker },
-      { $set: { lastPrice: navPrice, lastUpdatedAt: new Date(), lastNavDate: today } },
-      { upsert: true }
+      let startDate;
+      let startPrice;
+
+      if (latest) {
+        if (latest.date >= today) continue; // already up to date
+        startDate = latest.date;
+        startPrice = latest.closePrice;
+      } else {
+        // No history at all — seed N days back through today
+        startDate = dateIST(-MF_INITIAL_HISTORY_DAYS);
+        startPrice = asset.basePrice;
+      }
+
+      const datesToFill = gapDates(startDate, today);
+      if (!datesToFill.length) continue;
+
+      let price = startPrice;
+      for (const date of datesToFill) {
+        price = nextDayPrice(price, asset.volatility);
+        ops.push({
+          updateOne: {
+            filter: { ticker: asset.ticker, date },
+            update: {
+              $set: {
+                ticker: asset.ticker,
+                assetType: asset.assetType,
+                date,
+                closePrice: price,
+              },
+            },
+            upsert: true,
+          },
+        });
+        totalNew++;
+      }
+    }
+
+    if (ops.length) {
+      await DailyPrice.bulkWrite(ops, { ordered: false });
+    }
+
+    console.log(
+      totalNew > 0
+        ? `[MF NAV] ✓ Wrote ${totalNew} NAV records (through ${today})`
+        : `[MF NAV] ✓ All MFs already current — no writes needed`
     );
-  } catch (_) {
-    /* non-fatal */
+  } catch (err) {
+    console.error('[MF NAV] ensureMfDailyPrices failed:', err.message);
   }
-
-  // Refresh Redis so live quotes reflect the new NAV immediately.
-  try {
-    await redis.set(
-      `price:${asset.ticker}`,
-      JSON.stringify({
-        ticker: asset.ticker,
-        price: navPrice,
-        change: parseFloat((navPrice - prevNav).toFixed(2)),
-        changePercent: '+0.00%',
-        up: navPrice >= prevNav,
-        timestamp: new Date().toISOString(),
-      })
-    );
-  } catch (_) {
-    /* non-fatal */
-  }
-
-  return navPrice;
 };
 
 // ─── writeTodayClose ──────────────────────────────────────────────────────────
 
 /**
- * Upserts one DailyPrice record per asset for today (IST).
- * Intended to be called on graceful shutdown so every day the server ran
- * has at least one DailyPrice record — the last price before shutdown.
+ * Final safety-net snapshot of today's STOCK closing prices on graceful shutdown.
+ *
+ * The mseWorker already upserts today's DailyPrice on every 30s tick, so under
+ * normal operation today's record is already up-to-date when this runs.  This
+ * function exists for the edge case where the server is shutting down between
+ * ticks — it forces one last upsert so the most recent computed price is
+ * preserved as the day's close.
+ *
+ * Mutual funds are skipped — `ensureMfDailyPrices()` already manages MF NAVs.
  *
  * Non-fatal: logs errors but does not throw.
  */
 const writeTodayClose = async () => {
   const today = dateIST(0);
-  console.log(`[DailyPrice] Writing today's close (${today})…`);
+  console.log(`[DailyPrice] Writing today's stock close (${today})…`);
 
   try {
-    const assets = await Asset.find({}).lean();
-    if (!assets.length) {
-      console.warn('[DailyPrice] No assets found — skipping writeTodayClose');
+    const stocks = await Asset.find({ assetType: ASSET_TYPES.STOCK }).lean();
+    if (!stocks.length) {
+      console.warn('[DailyPrice] No stock assets — skipping writeTodayClose');
       return;
     }
 
     const ops = await Promise.all(
-      assets.map(async (asset) => {
-        // For mutual funds, ensure today's NAV has been rolled exactly once
-        // before snapshotting. This protects the boot-then-shutdown case where
-        // mseWorker never had a chance to tick today.
-        const closePrice =
-          asset.assetType === ASSET_TYPES.MUTUAL_FUND
-            ? await resolveMutualFundClose(asset, today)
-            : await resolvePrice(asset.ticker, asset.basePrice);
+      stocks.map(async (asset) => {
+        const closePrice = await resolveStockPrice(asset.ticker, asset.basePrice);
         return {
           updateOne: {
             filter: { ticker: asset.ticker, date: today },
@@ -221,7 +269,7 @@ const writeTodayClose = async () => {
     );
 
     await DailyPrice.bulkWrite(ops, { ordered: false });
-    console.log(`[DailyPrice] ✓ ${ops.length} closing prices written for ${today}`);
+    console.log(`[DailyPrice] ✓ ${ops.length} stock closing prices written for ${today}`);
   } catch (err) {
     console.error('[DailyPrice] writeTodayClose failed:', err.message);
   }
@@ -230,45 +278,49 @@ const writeTodayClose = async () => {
 // ─── backfillMissingDays ──────────────────────────────────────────────────────
 
 /**
- * Fills any DailyPrice gap between the last recorded date and yesterday.
+ * Fills any STOCK DailyPrice gap between the last recorded date and yesterday.
  *
- * Algorithm per asset:
+ * Mutual funds are skipped — `ensureMfDailyPrices()` handles MFs end-to-end
+ * (including today, which this function deliberately excludes for stocks).
+ *
+ * Today is owned by the live mseWorker tick (`persistStockDailyPrice`), so
+ * this function only catches up days the server was offline.
+ *
+ * Per stock:
  *   1. Find the most recent DailyPrice for this ticker.
- *   2. If it exists and is already yesterday → nothing to do.
+ *   2. If it exists and is already at or past yesterday → nothing to do.
  *   3. If it exists and is older than yesterday → simulate the gap days by
- *      chaining the random-walk from that last known close price.
- *   4. If no DailyPrice exists at all → use MarketState.lastPrice as the
+ *      chaining a random walk from that last known close price.
+ *   4. If no DailyPrice exists at all → use `MarketState.lastPrice` as the
  *      starting price and fill from 30 days ago up to yesterday.
  *
- * Today is deliberately excluded — writeTodayClose() handles today on shutdown.
+ * After backfilling, MarketState and Redis are updated with the end-of-chain
+ * price so the live simulation resumes from a consistent baseline.
  *
  * Non-fatal: logs errors but does not throw.
  */
 const backfillMissingDays = async () => {
   const yesterday = dateIST(-1);
-  console.log(`[DailyPrice] Running startup backfill (target: up to ${yesterday})…`);
+  console.log(`[DailyPrice] Running stock backfill (target: up to ${yesterday})…`);
 
   try {
-    const assets = await Asset.find({}).lean();
-    if (!assets.length) {
-      console.warn('[DailyPrice] No assets found — skipping backfill');
+    const stocks = await Asset.find({ assetType: ASSET_TYPES.STOCK }).lean();
+    if (!stocks.length) {
+      console.warn('[DailyPrice] No stock assets — skipping backfill');
       return;
     }
 
     let totalFilled = 0;
     const ops = [];
 
-    for (const asset of assets) {
-      // Find the most recent DailyPrice for this asset
+    for (const asset of stocks) {
       const latest = await DailyPrice.findOne({ ticker: asset.ticker }).sort({ date: -1 }).lean();
 
       let startDate;
       let startPrice;
 
       if (latest) {
-        // Already up to date — nothing to fill
         if (latest.date >= yesterday) continue;
-
         startDate = latest.date;
         startPrice = latest.closePrice;
       } else {
@@ -282,7 +334,6 @@ const backfillMissingDays = async () => {
         }
       }
 
-      // Build the list of dates to fill: (startDate, yesterday]
       const datesToFill = gapDates(startDate, yesterday);
       if (!datesToFill.length) continue;
 
@@ -307,47 +358,34 @@ const backfillMissingDays = async () => {
         totalFilled++;
       }
 
-      // Update MarketState with the last simulated price so it reflects
-      // the end of the gap rather than the potentially stale pre-downtime value.
-      // Only update if we actually simulated something.
-      if (datesToFill.length > 0) {
-        // For mutual funds: set lastNavDate to yesterday (the last backfilled
-        // day) so the mseWorker knows it still needs to roll today's NAV from
-        // this correct baseline. Without this, the worker may pick up a stale
-        // Redis value or an older MarketState entry and lock in a wrong NAV.
-        const msUpdate = { lastPrice: price, lastUpdatedAt: new Date() };
-        if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
-          msUpdate.lastNavDate = yesterday;
-        }
+      // Update MarketState with the last simulated price so the live
+      // simulation resumes from this baseline rather than the pre-downtime
+      // stale value.  Sync Redis so the three-tier chain returns it
+      // immediately on the next quote.
+      try {
+        await MarketState.updateOne(
+          { ticker: asset.ticker },
+          { $set: { lastPrice: price, lastUpdatedAt: new Date() } },
+          { upsert: true }
+        );
+      } catch (_) {
+        /* non-fatal */
+      }
 
-        try {
-          await MarketState.updateOne(
-            { ticker: asset.ticker },
-            { $set: msUpdate },
-            { upsert: true }
-          );
-        } catch (_) {
-          /* non-fatal */
-        }
-
-        // Sync Redis with the backfilled price so the three-tier resolution
-        // chain returns this value immediately (prevents stale Redis reads
-        // from a previous session trumping the fresh MarketState write).
-        try {
-          await redis.set(
-            `price:${asset.ticker}`,
-            JSON.stringify({
-              ticker: asset.ticker,
-              price,
-              change: 0,
-              changePercent: '+0.00%',
-              up: true,
-              timestamp: new Date().toISOString(),
-            })
-          );
-        } catch (_) {
-          /* non-fatal — MarketState is the durable fallback */
-        }
+      try {
+        await redis.set(
+          `price:${asset.ticker}`,
+          JSON.stringify({
+            ticker: asset.ticker,
+            price,
+            change: 0,
+            changePercent: '+0.00%',
+            up: true,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } catch (_) {
+        /* non-fatal — MarketState is the durable fallback */
       }
     }
 
@@ -357,8 +395,8 @@ const backfillMissingDays = async () => {
 
     console.log(
       totalFilled > 0
-        ? `[DailyPrice] ✓ Backfill complete — ${totalFilled} missing daily records written`
-        : `[DailyPrice] ✓ No backfill needed — DailyPrice is up to date`
+        ? `[DailyPrice] ✓ Stock backfill complete — ${totalFilled} records written`
+        : `[DailyPrice] ✓ Stock backfill — no gap to fill`
     );
   } catch (err) {
     console.error('[DailyPrice] backfillMissingDays failed:', err.message);
@@ -371,7 +409,7 @@ const backfillMissingDays = async () => {
  * Generates synthetic 30-second intraday ticks for today (stocks only).
  *
  * Called on startup so the 1D chart is not empty while the MSE worker starts
- * accumulating real ticks. Only runs if there are fewer than 10 existing
+ * accumulating real ticks.  Only runs if there are fewer than 10 existing
  * StockPriceHistory documents for today — meaning the worker hasn't had time
  * to build up meaningful data yet.
  *
@@ -414,13 +452,10 @@ const backfillIntradayToday = async () => {
     const MARKET_OPEN_S = 0; // 00:00 IST (market is always open)
     const TICK_INTERVAL_S = 30;
 
-    // Current IST time in seconds from midnight
     const nowUTC = Date.now();
     const nowIST = new Date(nowUTC + 5.5 * 60 * 60 * 1000);
     const nowSecondsIST =
       nowIST.getUTCHours() * 3600 + nowIST.getUTCMinutes() * 60 + nowIST.getUTCSeconds();
-
-    // End time is current IST time (market never closes)
     const endS = nowSecondsIST;
 
     if (endS <= MARKET_OPEN_S) {
@@ -439,7 +474,6 @@ const backfillIntradayToday = async () => {
     const intradayDocs = [];
 
     for (const asset of stocks) {
-      // Resolve starting price: MarketState → basePrice
       let price = asset.basePrice;
       try {
         const state = await MarketState.findOne({ ticker: asset.ticker }).lean();
@@ -451,7 +485,6 @@ const backfillIntradayToday = async () => {
       let prevPrice = price;
 
       for (let i = 0; i < tickCount; i++) {
-        // Reduced intraday volatility (same as seed script)
         const delta = asset.volatility * 0.25 * gaussian();
         price = Math.max(1, parseFloat((price * (1 + delta)).toFixed(2)));
 
@@ -460,7 +493,6 @@ const backfillIntradayToday = async () => {
         const sign = pct >= 0 ? '+' : '';
         const changePercent = `${sign}${pct.toFixed(2)}%`;
 
-        // Compute UTC timestamp for this tick
         const tickOffsetS = MARKET_OPEN_S + i * TICK_INTERVAL_S;
         const timestamp = new Date(istMidnightUTC.getTime() + tickOffsetS * 1000);
 
@@ -487,4 +519,9 @@ const backfillIntradayToday = async () => {
   }
 };
 
-module.exports = { writeTodayClose, backfillMissingDays, backfillIntradayToday };
+module.exports = {
+  ensureMfDailyPrices,
+  writeTodayClose,
+  backfillMissingDays,
+  backfillIntradayToday,
+};

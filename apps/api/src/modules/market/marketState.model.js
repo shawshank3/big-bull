@@ -22,10 +22,10 @@
  *     exclusively a runtime recovery mechanism.
  *   - One document per ticker — upserted on every tick to avoid unbounded growth.
  *
- * Mutual funds are included: even though MF NAVs do not change intraday, we
- * still persist them here so that a Redis flush does not cause MF price quotes
- * to fall back to the original seed price. The `lastNavDate` field gates the
- * once-per-day NAV rollover so it is idempotent across restarts and ticks.
+ * Mutual funds are NOT included anymore: their source of truth is the
+ * DailyPrice collection (one record per IST day).  The `lastNavDate` field
+ * below is retained for backwards compatibility with older deployments but
+ * is no longer written by any code path.
  */
 const mongoose = require('mongoose');
 
@@ -55,11 +55,11 @@ const marketStateSchema = new mongoose.Schema(
       default: Date.now,
     },
 
-    // IST date (YYYY-MM-DD) of the most recent NAV rollover for mutual funds.
-    // Stocks leave this field unset — they get a fresh price every 30s tick.
-    // The MF branch of mseWorker / writeTodayClose checks this before applying
-    // a one-step random-walk so a NAV is rolled at most once per IST calendar
-    // day, regardless of restart or tick frequency.
+    // [DEPRECATED] IST date (YYYY-MM-DD) of the most recent NAV rollover for
+    // mutual funds.  Previously used to gate the per-day NAV rollover in
+    // mseWorker.  Mutual funds now use DailyPrice as their source of truth so
+    // this field is no longer written.  Retained on the schema only so older
+    // documents continue to load without validation errors.
     lastNavDate: {
       type: String,
       match: [/^\d{4}-\d{2}-\d{2}$/, 'lastNavDate must be in YYYY-MM-DD format'],

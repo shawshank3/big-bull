@@ -11,21 +11,21 @@
 const mongoose = require('mongoose');
 const Transaction = require('./transaction.model');
 const Asset = require('../asset/asset.model');
-const MarketState = require('../market/marketState.model');
 const AppError = require('../../shared/AppError');
 const walletService = require('../wallet/wallet.service');
-const redis = require('../../shared/redis');
+const { resolveAssetPrice } = require('../market/market.service');
 const { TRANSACTION_TYPES, ASSET_TYPES } = require('../../shared/constants');
 
 /**
  * resolveExecutionPrice(assetId)
  *
- * Resolves the server-side execution price for an asset.
+ * Resolves the server-side execution price for an asset using the
+ * asset-aware resolver in `market.service`:
  *
- * Priority (three-tier chain — Phase 2):
- *   1. Redis `price:<ticker>` — written by the MSE BullMQ worker every 30s (TTL 60s)
- *   2. MarketState.lastPrice  — durable MongoDB record; survives restarts / Redis flushes
- *   3. Asset.basePrice        — seed value used only when no runtime price exists yet
+ *   STOCK:        three-tier chain → Redis `price:<ticker>` (TTL 60s) →
+ *                 MarketState.lastPrice → Asset.basePrice
+ *   MUTUAL_FUND:  today's DailyPrice (chart's last point) → most recent
+ *                 DailyPrice → Asset.basePrice
  *
  * @param {string|import('mongoose').Types.ObjectId} assetId
  * @returns {Promise<{ asset: object, pricePerUnit: number }>}
@@ -37,33 +37,7 @@ const resolveExecutionPrice = async (assetId) => {
     throw new AppError(`Asset not found: ${assetId}`, 404);
   }
 
-  // Start with seed price as last-resort fallback
-  let pricePerUnit = asset.basePrice;
-
-  // Tier 1 — Redis (fastest, most current)
-  try {
-    const cached = await redis.get(`price:${asset.ticker}`);
-    if (cached !== null) {
-      const parsed = JSON.parse(cached);
-      const redisPrice = parsed.price ?? parsed;
-      if (typeof redisPrice === 'number' && redisPrice > 0) {
-        return { asset, pricePerUnit: redisPrice };
-      }
-    }
-  } catch (_) {
-    /* Redis unavailable — continue to next tier */
-  }
-
-  // Tier 2 — MarketState (durable, survives Redis flush / server restart)
-  try {
-    const state = await MarketState.findOne({ ticker: asset.ticker }).lean();
-    if (state && typeof state.lastPrice === 'number' && state.lastPrice > 0) {
-      pricePerUnit = state.lastPrice;
-    }
-  } catch (_) {
-    /* MongoDB unavailable — basePrice fallback already set */
-  }
-
+  const pricePerUnit = await resolveAssetPrice(asset);
   return { asset, pricePerUnit };
 };
 
