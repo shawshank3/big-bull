@@ -89,6 +89,7 @@ export function DataTable({
       getFilteredRowModel: getFilteredRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
       getSortedRowModel: getSortedRowModel(),
+      autoResetPageIndex: false,
       initialState: {
         pagination: { pageSize },
       },
