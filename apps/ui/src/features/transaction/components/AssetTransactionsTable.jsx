@@ -5,10 +5,11 @@ import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';
 import { MutedText } from '@/shared/ui/typography';
 import { ServerDataTable } from '@/shared/ui/server-data-table';
+import { DateRangePicker } from '@/shared/components/date-range-picker';
 import { formatCurrency, formatDateTime } from '@/shared/utils/format';
 import { useListTransactionsQuery } from '../api/transactionApi';
 
-const columns = [
+const buildColumns = (qtyHeader = 'Qty') => [
   {
     accessorKey: 'transactionType',
     header: 'Type',
@@ -19,7 +20,7 @@ const columns = [
   },
   {
     accessorKey: 'quantity',
-    header: 'Qty',
+    header: qtyHeader,
     meta: { className: 'text-right tabular-nums' },
     enableSorting: true,
   },
@@ -58,13 +59,25 @@ const columns = [
  * AssetTransactionsTable
  *
  * Renders a server-paginated data table for a specific asset's transactions.
+ * Includes a date range filter rendered to the right of the search input via
+ * the ServerDataTable `toolbar` slot.
  *
  * @param {string} assetId - MongoDB ObjectId of the asset
+ * @param {string} [assetType] - 'STOCK' | 'MUTUAL_FUND' — drives column header label
  */
-export const AssetTransactionsTable = ({ assetId }) => {
+export const AssetTransactionsTable = ({ assetId, assetType }) => {
   const [paginationParams, setPaginationParams] = useState({ page: 1, limit: 5 });
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState(undefined);
+  // Date range filter — { from?: Date, to?: Date } | undefined
+  const [dateRange, setDateRange] = useState(undefined);
+
+  const filters = useMemo(() => {
+    const f = { assetId };
+    if (dateRange?.from) f.dateFrom = dateRange.from.toISOString();
+    if (dateRange?.to) f.dateTo = dateRange.to.toISOString();
+    return f;
+  }, [assetId, dateRange]);
 
   const {
     data: listData,
@@ -74,7 +87,7 @@ export const AssetTransactionsTable = ({ assetId }) => {
   } = useListTransactionsQuery(
     {
       pagination: paginationParams,
-      filters: { assetId },
+      filters,
       search,
       sort,
     },
@@ -90,7 +103,10 @@ export const AssetTransactionsTable = ({ assetId }) => {
     hasNextPage: false,
     hasPrevPage: false,
   };
-  const tableColumns = useMemo(() => columns, []);
+  const tableColumns = useMemo(
+    () => buildColumns(assetType === 'MUTUAL_FUND' ? 'Units' : 'Qty'),
+    [assetType]
+  );
 
   const handlePaginationChange = useCallback(({ page, limit }) => {
     setPaginationParams({ page, limit });
@@ -105,6 +121,21 @@ export const AssetTransactionsTable = ({ assetId }) => {
     setSort(newSort);
   }, []);
 
+  const handleDateRangeChange = useCallback((range) => {
+    setDateRange(range);
+    // Reset to page 1 whenever the date filter changes so users always see
+    // the first page of the new result set.
+    setPaginationParams((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const hasDateFilter = Boolean(dateRange?.from);
+
+  const dateRangeToolbar = (
+    <div className="ml-auto">
+      <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
+    </div>
+  );
+
   return (
     <Card className="w-full">
       <CardHeader className="py-3 px-6">
@@ -117,12 +148,17 @@ export const AssetTransactionsTable = ({ assetId }) => {
             <Alert variant="danger">Unable to load transactions.</Alert>
           </div>
         )}
-        {!isLoading && !isError && pagination.total === 0 && !isFetching && !search && (
-          <div className="py-10 text-center">
-            <MutedText>No transactions</MutedText>
-          </div>
-        )}
-        {(transactions.length > 0 || isFetching || search) && !isError && (
+        {!isLoading &&
+          !isError &&
+          pagination.total === 0 &&
+          !isFetching &&
+          !search &&
+          !hasDateFilter && (
+            <div className="py-10 text-center">
+              <MutedText>No transactions</MutedText>
+            </div>
+          )}
+        {(transactions.length > 0 || isFetching || search || hasDateFilter) && !isError && (
           <ServerDataTable
             columns={tableColumns}
             data={transactions}
@@ -131,7 +167,7 @@ export const AssetTransactionsTable = ({ assetId }) => {
             onSearchChange={handleSearchChange}
             onSortChange={handleSortChange}
             searchPlaceholder="Filter transactions…"
-            showSearch={pagination.total > 5}
+            toolbar={dateRangeToolbar}
             isLoading={isFetching}
           />
         )}

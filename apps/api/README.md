@@ -358,19 +358,19 @@ All routes are prefixed with `/api/v1/` unless noted. Standard response envelope
 
 ### Wallet (`/api/v1/wallet`)
 
-| Method | Path                        | Auth     | Body / Params                                                                    | Response `data`                   |
-| ------ | --------------------------- | -------- | -------------------------------------------------------------------------------- | --------------------------------- |
-| GET    | `/wallet`                   | Required | None                                                                             | `{ balance, currency }`           |
-| POST   | `/wallet/transactions/list` | Required | `{ pagination: { page, limit }, filters?: { type?: "DEBIT"\|"CREDIT" }, sort? }` | Paginated `{ items, pagination }` |
-| GET    | `/wallet/transactions`      | Required | Query: `?page=1&limit=20` (legacy)                                               | `{ transactions, pagination }`    |
+| Method | Path                        | Auth     | Body / Params                                                                                        | Response `data`                   |
+| ------ | --------------------------- | -------- | ---------------------------------------------------------------------------------------------------- | --------------------------------- |
+| GET    | `/wallet`                   | Required | None                                                                                                 | `{ balance, currency }`           |
+| POST   | `/wallet/transactions/list` | Required | `{ pagination: { page, limit }, filters?: { type?: "DEBIT"\|"CREDIT", dateFrom?, dateTo? }, sort? }` | Paginated `{ items, pagination }` |
+| GET    | `/wallet/transactions`      | Required | Query: `?page=1&limit=20` (legacy)                                                                   | `{ transactions, pagination }`    |
 
 ### Transactions (`/api/v1/transactions`)
 
-| Method | Path                  | Auth     | Body / Params                                                                                                                                                                             | Response `data`                   |
-| ------ | --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| POST   | `/transactions/order` | Required | `{ assetId, transactionType: "BUY"\|"SELL", quantity, fees?, notes? }` — price resolved server-side. STOCK `quantity` must be an integer; MUTUAL_FUND allows fractional units (min 0.001) | `{ transaction }`                 |
-| POST   | `/transactions/list`  | Required | `{ pagination: { page, limit }, filters?: { assetId?, transactionType? }, search?, sort? }`                                                                                               | Paginated `{ items, pagination }` |
-| GET    | `/transactions`       | Required | Query: `?page=1&limit=20&assetId=` (legacy)                                                                                                                                               | `{ transactions, pagination }`    |
+| Method | Path                  | Auth     | Body / Params                                                                                                                                                                                                                 | Response `data`                   |
+| ------ | --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| POST   | `/transactions/order` | Required | `{ assetId, transactionType: "BUY"\|"SELL", quantity, fees?, notes? }` — price resolved server-side. STOCK `quantity` must be an integer; MUTUAL_FUND allows fractional units (min 0.001)                                     | `{ transaction }`                 |
+| POST   | `/transactions/list`  | Required | `{ pagination: { page, limit }, filters?: { assetId?, transactionType?, dateFrom?, dateTo? }, search?, sort? }` — `dateFrom`/`dateTo` are ISO date strings filtering `executedAt` (inclusive; `dateTo` rounded to end of day) | Paginated `{ items, pagination }` |
+| GET    | `/transactions`       | Required | Query: `?page=1&limit=20&assetId=` (legacy)                                                                                                                                                                                   | `{ transactions, pagination }`    |
 
 ### Portfolio (`/api/v1/portfolio`)
 

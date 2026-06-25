@@ -125,7 +125,9 @@ export const MutualDetailContent = () => {
       </div>
 
       {/* ── Transactions table (full width, auth-gated) ── */}
-      {isAuthenticated && asset && <AssetTransactionsTable assetId={asset.id ?? asset._id} />}
+      {isAuthenticated && asset && (
+        <AssetTransactionsTable assetId={asset.id ?? asset._id} assetType="MUTUAL_FUND" />
+      )}
     </div>
   );
 };

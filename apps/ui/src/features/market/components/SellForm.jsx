@@ -13,6 +13,8 @@ const SellForm = ({ asset, price, heldQty, displayLabel }) => {
   const navigate = useNavigate();
   const [executeOrder, { isLoading, error: orderError, isSuccess }] = useExecuteOrderMutation();
   const isStock = asset?.assetType === ASSET_TYPES.STOCK;
+  const isMF = asset?.assetType === ASSET_TYPES.MUTUAL_FUND;
+  const inputLabel = isMF ? 'Units' : 'Quantity';
   const {
     register,
     handleSubmit,
@@ -49,7 +51,7 @@ const SellForm = ({ asset, price, heldQty, displayLabel }) => {
   return (
     <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
       <FormInput
-        label="Quantity"
+        label={inputLabel}
         type="number"
         step={isStock ? '1' : '0.001'}
         min={isStock ? '1' : '0.001'}
@@ -58,10 +60,10 @@ const SellForm = ({ asset, price, heldQty, displayLabel }) => {
         onKeyDown={isStock ? blockDecimalKeys : undefined}
         error={errors.quantity?.message}
         {...register('quantity', {
-          required: 'Quantity is required',
+          required: `${inputLabel} is required`,
           min: {
             value: isStock ? 1 : 0.001,
-            message: isStock ? 'Minimum quantity is 1' : 'Minimum quantity is 0.001',
+            message: isStock ? 'Minimum quantity is 1' : 'Minimum units is 0.001',
           },
           validate: (v) => {
             const parsed = parseFloat(v);

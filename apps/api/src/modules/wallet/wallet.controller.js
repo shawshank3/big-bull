@@ -12,10 +12,17 @@ const { z } = require('zod');
 /**
  * Zod schema for POST /wallet/transactions/list body.
  */
+const isoDateString = z
+  .string()
+  .refine((v) => !Number.isNaN(Date.parse(v)), { message: 'must be a valid ISO date string' });
+
 const walletTransactionListSchema = baseListQuerySchema.extend({
   filters: z
     .object({
       type: z.enum(['DEBIT', 'CREDIT']).optional(),
+      // ISO date strings (inclusive). Filter applies to executedAt.
+      dateFrom: isoDateString.optional(),
+      dateTo: isoDateString.optional(),
     })
     .optional()
     .default({}),

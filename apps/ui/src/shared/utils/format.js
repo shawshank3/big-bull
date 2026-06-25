@@ -19,6 +19,17 @@ export const formatNumber = (value, decimals = 2) => {
   return Number(value).toFixed(decimals);
 };
 
+/**
+ * Humanize an UPPER_SNAKE_CASE code for display.
+ * Replaces underscores with spaces (e.g. "OIL_GAS" → "OIL GAS",
+ * "MUTUAL_FUND" → "MUTUAL FUND"). Returns the fallback (default "—")
+ * for nullish/empty input.
+ */
+export const humanize = (value, fallback = '—') => {
+  if (value == null || value === '') return fallback;
+  return String(value).replace(/_/g, ' ');
+};
+
 export const formatDate = (date) => {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('en-IN');

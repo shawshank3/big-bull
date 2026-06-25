@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent } from '@/shared/components/card';
@@ -8,8 +9,11 @@ import { Badge } from '@/shared/ui/badge';
 import { MutedText } from '@/shared/ui/typography';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { ServerDataTable } from '@/shared/ui/server-data-table';
+import { DateRangePicker } from '@/shared/components/date-range-picker';
 import { useGetWalletQuery, useListWalletTransactionsQuery } from '@/features/wallet/api/walletApi';
 import { formatCurrency, formatDateTime } from '@/shared/utils/format';
+import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
+import { ASSET_TYPES } from '@/shared/constants/assetTypes';
 
 const WalletBalanceCard = ({ balance, isLoading }) => (
   <Card>
@@ -24,7 +28,12 @@ const WalletBalanceCard = ({ balance, isLoading }) => (
   </Card>
 );
 
-const columns = [
+/**
+ * Build the table columns. The Stock column uses a parent-supplied click
+ * handler so the asset ticker/name navigates to the asset detail page —
+ * matching the behaviour of the Market table.
+ */
+const buildColumns = (onAssetClick) => [
   {
     accessorKey: 'type',
     header: 'Type',
@@ -38,19 +47,43 @@ const columns = [
     accessorFn: (row) => row.asset?.ticker ?? '',
     id: 'stock',
     header: 'Stock',
-    cell: ({ row }) => (
-      <div>
-        <p className="font-semibold">{row.original.asset?.ticker ?? '—'}</p>
-        <MutedText className="text-xs truncate max-w-[160px]">
-          {row.original.asset?.name ?? ''}
-        </MutedText>
-      </div>
-    ),
+    cell: ({ row }) => {
+      const asset = row.original.asset;
+      if (!asset) {
+        return (
+          <div>
+            <p className="font-semibold">—</p>
+          </div>
+        );
+      }
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAssetClick?.(asset);
+          }}
+          className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded"
+        >
+          <p className="font-semibold text-primary">{asset.ticker ?? '—'}</p>
+          <MutedText className="text-xs truncate max-w-[160px]">{asset.name ?? ''}</MutedText>
+        </button>
+      );
+    },
     enableSorting: false,
   },
   {
     accessorKey: 'quantity',
-    header: 'Qty',
+    header: 'Qty / Units',
+    cell: ({ row }) => {
+      const isMF = row.original.asset?.assetType === 'MUTUAL_FUND';
+      return (
+        <span>
+          {row.original.quantity}
+          {isMF && <span className="text-xs text-muted ml-1">units</span>}
+        </span>
+      );
+    },
     meta: { className: 'tabular-nums' },
     enableSorting: true,
   },
@@ -86,11 +119,21 @@ const columns = [
 
 export const WalletContent = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const navigate = useNavigate();
 
   // Server-side pagination state
   const [paginationParams, setPaginationParams] = useState({ page: 1, limit: 5 });
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState(undefined);
+  // Date range filter — { from?: Date, to?: Date } | undefined
+  const [dateRange, setDateRange] = useState(undefined);
+
+  const filters = useMemo(() => {
+    const f = {};
+    if (dateRange?.from) f.dateFrom = dateRange.from.toISOString();
+    if (dateRange?.to) f.dateTo = dateRange.to.toISOString();
+    return f;
+  }, [dateRange]);
 
   const {
     data: wallet,
@@ -108,7 +151,7 @@ export const WalletContent = () => {
       pagination: paginationParams,
       search,
       sort,
-      filters: {},
+      filters,
     },
     { skip: !isAuthenticated }
   );
@@ -122,7 +165,20 @@ export const WalletContent = () => {
     hasNextPage: false,
     hasPrevPage: false,
   };
-  const tableColumns = useMemo(() => columns, []);
+
+  const handleAssetClick = useCallback(
+    (asset) => {
+      if (!asset?.ticker) return;
+      const path =
+        asset.assetType === ASSET_TYPES.MUTUAL_FUND
+          ? buildMutualDetailPath(asset.ticker)
+          : buildStockDetailPath(asset.ticker);
+      navigate(path, { state: { name: asset.name } });
+    },
+    [navigate]
+  );
+
+  const tableColumns = useMemo(() => buildColumns(handleAssetClick), [handleAssetClick]);
 
   const handlePaginationChange = useCallback(({ page, limit }) => {
     setPaginationParams({ page, limit });
@@ -136,6 +192,19 @@ export const WalletContent = () => {
   const handleSortChange = useCallback((newSort) => {
     setSort(newSort);
   }, []);
+
+  const handleDateRangeChange = useCallback((range) => {
+    setDateRange(range);
+    setPaginationParams((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const hasDateFilter = Boolean(dateRange?.from);
+
+  const dateRangeToolbar = (
+    <div className="ml-auto">
+      <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
+    </div>
+  );
 
   return (
     <>
@@ -157,7 +226,7 @@ export const WalletContent = () => {
           <Alert variant="danger">Unable to load transactions.</Alert>
         ) : historyLoading && transactions.length === 0 ? (
           <Spinner label="Loading transactions…" />
-        ) : transactions.length === 0 && !isFetching && !search ? (
+        ) : transactions.length === 0 && !isFetching && !search && !hasDateFilter ? (
           <Card>
             <CardContent className="py-16 text-center text-muted">
               No transactions yet. Start trading from the Market page.
@@ -174,6 +243,7 @@ export const WalletContent = () => {
                 onSearchChange={handleSearchChange}
                 onSortChange={handleSortChange}
                 searchPlaceholder="Search by stock name or ticker…"
+                toolbar={dateRangeToolbar}
                 isLoading={isFetching}
               />
             </CardContent>

@@ -21,6 +21,8 @@ export function useWhatIfSimulator(summary, opportunities) {
     });
   };
 
+  const selectAll = (ids) => setSelectedIds(new Set(ids));
+
   const resetSelection = () => setSelectedIds(new Set());
 
   const computed = useMemo(() => {
@@ -63,6 +65,7 @@ export function useWhatIfSimulator(summary, opportunities) {
   return {
     selectedIds,
     toggleSelection,
+    selectAll,
     resetSelection,
     hasSelection: selectedIds.size > 0,
     ...computed,

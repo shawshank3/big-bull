@@ -6,7 +6,7 @@ import { Badge } from '@/shared/ui/badge';
 import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';
 import { ServerDataTable } from '@/shared/ui/server-data-table';
-import { formatCurrency } from '@/shared/utils/format';
+import { formatCurrency, humanize } from '@/shared/utils/format';
 import { useListAssetsQuery } from '../api/marketApi';
 import { buildStockDetailPath, buildMutualDetailPath } from '../constants/market';
 import { ASSET_TYPES } from '@/shared/constants/assetTypes';
@@ -42,9 +42,7 @@ const columns = [
   {
     accessorKey: 'sector',
     header: 'Sector',
-    cell: ({ getValue }) => (
-      <span className="text-sm text-muted">{getValue()?.replace(/_/g, ' ') ?? '—'}</span>
-    ),
+    cell: ({ getValue }) => <span className="text-sm text-muted">{humanize(getValue())}</span>,
     enableSorting: true,
   },
   {

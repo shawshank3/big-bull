@@ -34,3 +34,6 @@ export {
   SheetBody,
 } from './sheet';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from './popover';
+export { Calendar } from './calendar';
+export { DateRangePicker } from './date-range-picker';

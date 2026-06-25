@@ -176,6 +176,27 @@ const listWalletTransactions = async (
     query.transactionType = TRANSACTION_TYPES.SELL;
   }
 
+  // Date range filter on executedAt (inclusive). dateTo is treated as the
+  // end of that calendar day so a single-day or [from, to] range from the
+  // UI calendar produces an intuitive result.
+  if (filters.dateFrom || filters.dateTo) {
+    const range = {};
+    if (filters.dateFrom) {
+      const from = new Date(filters.dateFrom);
+      if (!Number.isNaN(from.getTime())) range.$gte = from;
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo);
+      if (!Number.isNaN(to.getTime())) {
+        to.setHours(23, 59, 59, 999);
+        range.$lte = to;
+      }
+    }
+    if (Object.keys(range).length > 0) {
+      query.executedAt = range;
+    }
+  }
+
   // Build sort
   const allowedSortFields = ['executedAt', 'quantity', 'pricePerUnit'];
   let sortObj = { executedAt: -1 }; // default

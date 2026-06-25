@@ -2,6 +2,7 @@ export {
   formatCurrency,
   formatPercentage,
   formatNumber,
+  humanize,
   formatDate,
   formatDateTime,
   calculateReturn,

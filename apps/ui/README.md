@@ -4,21 +4,23 @@
 
 ## Stack
 
-| Technology               | Role                                                                              |
-| ------------------------ | --------------------------------------------------------------------------------- |
-| React 19                 | UI library                                                                        |
-| Redux Toolkit            | Global state management (RTK Query cache only — no custom slices)                 |
-| RTK Query                | Server data fetching, caching, mutations, and auth state derivation               |
-| React Router 6           | Client-side routing (`createBrowserRouter`)                                       |
-| Vite 5                   | Build tool and dev server                                                         |
-| Tailwind CSS 3           | Utility-first styling                                                             |
-| Radix UI                 | Accessible headless primitives (Avatar, Dialog, Select, Tabs, Progress, Dropdown) |
-| class-variance-authority | Component variant definitions                                                     |
-| React Hook Form          | Form state management                                                             |
-| Recharts                 | Chart visualisations                                                              |
-| @tanstack/react-table    | Data table rendering (client + server paginated)                                  |
-| Lucide React             | Icon library                                                                      |
-| async-mutex              | Token refresh race-condition guard                                                |
+| Technology               | Role                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| React 19                 | UI library                                                                                 |
+| Redux Toolkit            | Global state management (RTK Query cache only — no custom slices)                          |
+| RTK Query                | Server data fetching, caching, mutations, and auth state derivation                        |
+| React Router 6           | Client-side routing (`createBrowserRouter`)                                                |
+| Vite 5                   | Build tool and dev server                                                                  |
+| Tailwind CSS 3           | Utility-first styling                                                                      |
+| Radix UI                 | Accessible headless primitives (Avatar, Dialog, Select, Tabs, Progress, Dropdown, Popover) |
+| class-variance-authority | Component variant definitions                                                              |
+| React Hook Form          | Form state management                                                                      |
+| Recharts                 | Chart visualisations                                                                       |
+| @tanstack/react-table    | Data table rendering (client + server paginated)                                           |
+| Lucide React             | Icon library                                                                               |
+| react-day-picker         | Headless calendar/date picker engine (powers `DateRangePicker`)                            |
+| date-fns                 | Date formatting helpers used by the date range picker                                      |
+| async-mutex              | Token refresh race-condition guard                                                         |
 
 ## Architecture
 
@@ -42,7 +44,7 @@ apps/ui/
 │   │   └── user/               # Profile management, avatar
 │   ├── shared/                 # Cross-cutting concerns
 │   │   ├── api/apiSlice.js     # RTK Query base slice + reauth wrapper
-│   │   ├── components/         # Composite components (table, tabs, sheet, select, card)
+│   │   ├── components/         # Composite components (table, tabs, sheet, select, card, popover, calendar, date-range-picker)
 │   │   ├── constants/          # Routes, API URLs, asset types, validation rules
 │   │   ├── dto/helpers.js      # DTO primitives (str, num, bool, arr)
 │   │   ├── errors/             # Error boundary, NotFoundCard
@@ -229,10 +231,12 @@ Uses `apiSlice.util.updateQueryData()` (Immer-based draft patches) to mutate cac
 
 ### Order Form
 
-`features/market/components/OrderForm.jsx` hosts the BUY/SELL tabs and renders `BuyForm` / `SellForm`. Both forms render an asset-type-aware quantity input:
+`features/market/components/OrderForm.jsx` hosts the BUY/SELL tabs and renders `BuyForm` / `SellForm`. Both forms render an asset-type-aware input:
 
-- **STOCK** — integer-only input (`step="1"`, `min="1"`, `inputMode="numeric"`). Decimal-producing keys (`.`, `,`, `e`, `E`, `+`, `-`) are blocked at keydown via `blockDecimalKeys` in `shared/utils/inputFilters.js`. Submit value is parsed with `parseInt`. Mirrors the server-side rule enforced by `transaction.service.executeOrder()`.
-- **MUTUAL_FUND** — fractional input (`step="0.001"`, `min="0.001"`, `inputMode="decimal"`). Submit value is parsed with `parseFloat`.
+- **STOCK** — label "Quantity". Integer-only input (`step="1"`, `min="1"`, `inputMode="numeric"`). Decimal-producing keys (`.`, `,`, `e`, `E`, `+`, `-`) are blocked at keydown via `blockDecimalKeys` in `shared/utils/inputFilters.js`. Submit value is parsed with `parseInt`. Mirrors the server-side rule enforced by `transaction.service.executeOrder()`.
+- **MUTUAL_FUND** — label "Units". Fractional input (`step="0.001"`, `min="0.001"`, `inputMode="decimal"`). Submit value is parsed with `parseFloat`. Matches the Indian MF industry convention where ownership is expressed in units allocated at NAV.
+
+Throughout the app, Mutual Fund rows in tables (holdings, transactions, wallet history, tax gains, tax-loss harvesting) display a "units" suffix to distinguish from stock quantity.
 
 ### State Ownership
 

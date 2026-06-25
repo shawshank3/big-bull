@@ -11,7 +11,10 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
-    "async-mutex": "^0.5.0"
+    "@radix-ui/react-popover": "^1.1.17",
+    "async-mutex": "^0.5.0",
+    "date-fns": "^4.4.0",
+    "react-day-picker": "^10.0.1"
   },
   "devDependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

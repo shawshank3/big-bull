@@ -336,6 +336,27 @@ const listTransactions = async (
     query.transactionType = filters.transactionType;
   }
 
+  // Date range filter on executedAt (inclusive). dateTo is treated as the
+  // end of that calendar day so the range is intuitive for users picking a
+  // single date or a [from, to] range from the UI calendar.
+  if (filters.dateFrom || filters.dateTo) {
+    const range = {};
+    if (filters.dateFrom) {
+      const from = new Date(filters.dateFrom);
+      if (!Number.isNaN(from.getTime())) range.$gte = from;
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo);
+      if (!Number.isNaN(to.getTime())) {
+        to.setHours(23, 59, 59, 999);
+        range.$lte = to;
+      }
+    }
+    if (Object.keys(range).length > 0) {
+      query.executedAt = range;
+    }
+  }
+
   // Text search on notes field (if search term provided)
   if (search && search.trim()) {
     query.notes = { $regex: search.trim(), $options: 'i' };

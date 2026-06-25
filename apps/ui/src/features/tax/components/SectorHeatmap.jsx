@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
-import { formatCurrency } from '@/shared/utils';
+import { formatCurrency, humanize } from '@/shared/utils';
 import { groupBySector, getLossIntensity } from '../utils/taxFormatters';
 
 const HeatmapTile = ({ sector, data, maxLoss }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const intensity = getLossIntensity(data.totalLoss, maxLoss);
+  const label = humanize(sector);
 
   return (
     <div
@@ -17,16 +18,16 @@ const HeatmapTile = ({ sector, data, maxLoss }) => {
       onBlur={() => setShowTooltip(false)}
       tabIndex={0}
       role="button"
-      aria-label={`${sector}: ${formatCurrency(data.totalLoss)} loss across ${data.count} holdings`}
+      aria-label={`${label}: ${formatCurrency(data.totalLoss)} loss across ${data.count} holdings`}
     >
-      <span className="text-sm font-semibold text-white drop-shadow-sm">{sector}</span>
+      <span className="text-sm font-semibold text-white drop-shadow-sm">{label}</span>
       <span className="mt-1 text-xs text-white/80 drop-shadow-sm">
         {formatCurrency(data.totalLoss)}
       </span>
 
       {showTooltip && (
         <div className="absolute -top-2 left-1/2 z-10 w-52 -translate-x-1/2 -translate-y-full rounded-lg border border-border bg-surface p-3 shadow-soft">
-          <p className="text-sm font-bold text-foreground">{sector}</p>
+          <p className="text-sm font-bold text-foreground">{label}</p>
           <p className="text-xs text-muted">Total Loss: {formatCurrency(data.totalLoss)}</p>
           <p className="text-xs text-muted">Holdings: {data.count}</p>
           {data.topLoser && (

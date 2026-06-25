@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { formatCurrency, formatPercentage } from '@/shared/utils/format';
+import { formatCurrency, formatPercentage, humanize } from '@/shared/utils/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
 import {
   Select,
@@ -25,7 +25,12 @@ import { computeLossPercent } from '../utils/taxCalculations';
  * EnhancedOpportunitiesTable — Full-featured table with sorting,
  * filtering, expandable rows, and selection checkboxes for What-If simulator.
  */
-export const EnhancedOpportunitiesTable = ({ opportunities, selectedIds, onToggleSelection }) => {
+export const EnhancedOpportunitiesTable = ({
+  opportunities,
+  selectedIds,
+  onToggleSelection,
+  onSelectAll,
+}) => {
   const [sortConfig, setSortConfig] = useState({ key: 'estimatedSaving', direction: 'desc' });
   const [filters, setFilters] = useState({ assetType: '', lossType: '', sector: '' });
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -170,7 +175,7 @@ export const EnhancedOpportunitiesTable = ({ opportunities, selectedIds, onToggl
               <SelectItem value="_all">All Sectors</SelectItem>
               {filterOptions.sectors.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s}
+                  {humanize(s)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -193,7 +198,31 @@ export const EnhancedOpportunitiesTable = ({ opportunities, selectedIds, onToggl
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
-                <span className="sr-only">Select</span>
+                <input
+                  type="checkbox"
+                  checked={
+                    sortedData.length > 0 && sortedData.every((o) => selectedIds.has(o.assetId))
+                  }
+                  ref={(el) => {
+                    if (el) {
+                      const allSelected =
+                        sortedData.length > 0 &&
+                        sortedData.every((o) => selectedIds.has(o.assetId));
+                      const someSelected = sortedData.some((o) => selectedIds.has(o.assetId));
+                      el.indeterminate = someSelected && !allSelected;
+                    }
+                  }}
+                  onChange={() => {
+                    const allSelected = sortedData.every((o) => selectedIds.has(o.assetId));
+                    if (allSelected) {
+                      onSelectAll([]);
+                    } else {
+                      onSelectAll(sortedData.map((o) => o.assetId));
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  aria-label="Select all opportunities"
+                />
               </TableHead>
               {columns.map((col) => (
                 <TableHead
@@ -273,7 +302,7 @@ const OpportunityRow = ({
             <MutedText className="text-xs truncate max-w-[140px]">{opp.name}</MutedText>
           </div>
         </TableCell>
-        <TableCell className="text-muted-foreground">{opp.sector || '—'}</TableCell>
+        <TableCell className="text-muted-foreground">{humanize(opp.sector)}</TableCell>
         <TableCell>
           <span className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold border border-primary/30">
             {opp.assetType === 'MUTUAL_FUND' ? 'MF' : 'Stock'}
@@ -328,7 +357,9 @@ const OpportunityRow = ({
                   <span className="font-medium">{formatCurrency(opp.currentPrice)}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Quantity:</span>{' '}
+                  <span className="text-muted-foreground">
+                    {opp.assetType === 'MUTUAL_FUND' ? 'Units:' : 'Quantity:'}
+                  </span>{' '}
                   <span className="font-medium">{opp.quantity}</span>
                 </div>
                 <div>

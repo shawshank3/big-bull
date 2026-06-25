@@ -48,7 +48,16 @@ const columns = [
   },
   {
     accessorKey: 'quantity',
-    header: 'Qty',
+    header: 'Qty / Units',
+    cell: ({ row }) => {
+      const isMF = row.original.assetType === 'MUTUAL_FUND';
+      return (
+        <span>
+          {row.original.quantity}
+          {isMF && <span className="text-xs text-muted ml-1">units</span>}
+        </span>
+      );
+    },
     meta: { className: 'text-right' },
     enableSorting: true,
   },

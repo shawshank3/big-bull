@@ -25,7 +25,16 @@ const columns = [
   },
   {
     accessorKey: 'qty',
-    header: 'Quantity',
+    header: 'Qty / Units',
+    cell: ({ row }) => {
+      const isMF = row.original.type === 'mutual';
+      return (
+        <span>
+          {row.original.qty}
+          {isMF && <span className="text-xs text-muted ml-1">units</span>}
+        </span>
+      );
+    },
     meta: { className: 'text-right' },
     enableSorting: true,
   },

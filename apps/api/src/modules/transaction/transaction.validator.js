@@ -74,10 +74,17 @@ const historyQuerySchema = z
  */
 const { baseListQuerySchema } = require('../../shared/pagination');
 
+const isoDateString = z
+  .string()
+  .refine((v) => !Number.isNaN(Date.parse(v)), { message: 'must be a valid ISO date string' });
+
 const transactionFiltersSchema = z
   .object({
     assetId: z.string().optional(),
     transactionType: z.enum(TRANSACTION_TYPE_VALUES).optional(),
+    // ISO date strings (inclusive). Filter applies to executedAt.
+    dateFrom: isoDateString.optional(),
+    dateTo: isoDateString.optional(),
   })
   .optional()
   .default({});

@@ -23,6 +23,7 @@ export const OrderForm = ({ asset, currentPrice }) => {
     (h) => h.assetId === (asset?.id ?? asset?._id) || h.ticker === asset?.ticker
   );
   const heldQty = assetHolding?.netQuantity ?? assetHolding?.qty ?? 0;
+  const isMF = asset?.assetType === ASSET_TYPES.MUTUAL_FUND;
 
   // User-friendly display name: ticker for stocks, truncated name for mutual funds
   const displayLabel =
@@ -34,7 +35,7 @@ export const OrderForm = ({ asset, currentPrice }) => {
     <div className="space-y-4">
       {/* Info rows rendered OUTSIDE TabsContent — always visible */}
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted">In holdings</span>
+        <span className="text-muted">{isMF ? 'Units held' : 'In holdings'}</span>
         <span className="font-semibold tabular-nums">{heldQty > 0 ? heldQty : '—'}</span>
       </div>
       {wallet && (

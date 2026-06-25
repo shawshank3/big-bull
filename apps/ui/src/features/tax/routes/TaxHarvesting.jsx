@@ -31,6 +31,7 @@ const TaxHarvestingContent = () => {
   const {
     selectedIds,
     toggleSelection,
+    selectAll,
     resetSelection,
     hasSelection,
     selectedLossesTotal,
@@ -69,7 +70,7 @@ const TaxHarvestingContent = () => {
       {isLoading ? (
         <Spinner label="Loading harvesting insights…" />
       ) : (
-        <div className={`flex flex-col gap-6 ${hasSelection ? 'pb-56' : ''}`}>
+        <div className={`flex flex-col gap-6 ${hasSelection ? 'pb-56 md:pb-20' : ''}`}>
           <HarvestingMetrics opportunities={opportunities} summary={summary} />
           <GainsVsLossesChart summary={summary} opportunities={opportunities} />
           {isCurrentFY && (
@@ -79,6 +80,7 @@ const TaxHarvestingContent = () => {
                 opportunities={opportunities}
                 selectedIds={selectedIds}
                 onToggleSelection={toggleSelection}
+                onSelectAll={selectAll}
               />
             </>
           )}
