@@ -13,7 +13,7 @@ export const HarvestingPreview = ({ opportunities = [] }) => {
     <Card>
       <CardContent className="pt-6 space-y-4">
         <div className="flex items-center justify-between">
-          <SectionTitle>Tax-Loss Harvesting Opportunities</SectionTitle>
+          <SectionTitle>Top Tax-Loss Harvesting Opportunities</SectionTitle>
           <Link
             to={ROUTES.TAX_HARVESTING}
             className="text-sm font-medium text-primary hover:underline"
