@@ -26,7 +26,7 @@
 
 ```
 apps/ui/
-├── public/                     # Static assets served at root URL (favicon, brand icon)
+├── public/                     # Static assets served at root URL (favicon, brand icon, OG preview image)
 ├── src/
 │   ├── app/                    # App-level wiring
 │   │   ├── store.js            # Redux store (apiSlice reducer + middleware only)
