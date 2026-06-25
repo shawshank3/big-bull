@@ -1,14 +1,30 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DataTable } from '@/shared/ui/data-table';
 import { MutedText } from '@/shared/ui/typography';
 import { formatCurrency, formatDate } from '@/shared/utils';
+import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
 
-const columns = [
+const buildColumns = (onNavigate) => [
   {
     accessorKey: 'ticker',
     header: 'Asset',
     cell: ({ row }) => (
-      <div>
+      <div
+        className="cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          onNavigate(row.original);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.stopPropagation();
+            onNavigate(row.original);
+          }
+        }}
+        role="link"
+        tabIndex={0}
+      >
         <p className="font-semibold">{row.original.ticker}</p>
         <MutedText className="text-xs truncate max-w-[140px]">{row.original.name}</MutedText>
       </div>
@@ -99,6 +115,18 @@ const columns = [
 ];
 
 export const GainsTable = ({ gains = [], assetType = 'ALL', gainType = 'ALL' }) => {
+  const navigate = useNavigate();
+
+  const handleNavigate = (gain) => {
+    const path =
+      gain.assetType === 'MUTUAL_FUND'
+        ? buildMutualDetailPath(gain.ticker)
+        : buildStockDetailPath(gain.ticker);
+    navigate(path, { state: { name: gain.name } });
+  };
+
+  const columns = useMemo(() => buildColumns(handleNavigate), [navigate]);
+
   const filteredGains = useMemo(() => {
     return gains.filter((g) => {
       if (assetType !== 'ALL' && g.assetType !== assetType) return false;

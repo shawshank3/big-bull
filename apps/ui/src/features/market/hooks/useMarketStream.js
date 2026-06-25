@@ -14,10 +14,12 @@
  *   - getPortfolioHoldings            → HoldingsContent
  *   - getPortfolioSummary             → Dashboard stat cards
  *   - getTaxHarvesting                → Tax-loss harvesting opportunities
+ *   - getTaxSummary (harvestingCount) → Summary card opportunity count
  *
- * Realised gains (`getTaxGains`, `getTaxSummary`) are deliberately NOT patched
- * because their values are derived from historical SELL transactions and do not
- * move with live market prices.
+ * Realised gains (`getTaxGains`) and most `getTaxSummary` fields are deliberately
+ * NOT patched because their values are derived from historical SELL transactions
+ * and do not move with live market prices. Only `getTaxSummary.harvestingCount`
+ * is synced from the live harvesting cache.
  *
  * Mounted once at RootLayout level. Cleans up on unmount.
  */
@@ -174,6 +176,8 @@ export const useMarketStream = () => {
       // fields (currentPrice, unrealizedLoss, estimatedSaving), drop opportunities
       // whose loss has fallen at or below the threshold, then re-sort by
       // estimatedSaving desc to mirror the backend ordering.
+      // After patching, sync the harvestingCount in getTaxSummary with the minLoss=0
+      // entry to keep the summary card in sync with the actual opportunities list.
       dispatch((dispatch2, getState) => {
         const state = getState();
         const queries = state?.api?.queries;
@@ -218,6 +222,37 @@ export const useMarketStream = () => {
               }
             })
           );
+        }
+
+        // Sync harvestingCount in getTaxSummary from the base (minLoss=0) harvesting
+        // cache so the summary card count stays consistent with the opportunities list.
+        const updatedState = getState();
+        const updatedQueries = updatedState?.api?.queries;
+        if (!updatedQueries) return;
+
+        for (const key of Object.keys(updatedQueries)) {
+          if (!key.startsWith('getTaxHarvesting(')) continue;
+          const entry = updatedQueries[key];
+          if (!entry?.data || entry.status !== 'fulfilled') continue;
+          // Only use the minLoss=0 entry (matches the backend's harvestingCount logic)
+          if (entry.originalArgs?.minLoss !== 0) continue;
+
+          const newCount = entry.data.opportunities?.length ?? 0;
+          const taxYear = entry.originalArgs?.taxYear;
+
+          // Patch all matching getTaxSummary entries for the same taxYear
+          for (const sKey of Object.keys(updatedQueries)) {
+            if (!sKey.startsWith('getTaxSummary(')) continue;
+            const sEntry = updatedQueries[sKey];
+            if (!sEntry?.data || sEntry.status !== 'fulfilled') continue;
+            if (sEntry.originalArgs?.taxYear !== taxYear) continue;
+
+            dispatch2(
+              apiSlice.util.updateQueryData('getTaxSummary', sEntry.originalArgs, (draft) => {
+                draft.harvestingCount = newCount;
+              })
+            );
+          }
         }
       });
     });

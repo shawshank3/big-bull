@@ -30,6 +30,7 @@ export const taxApi = apiSlice.injectEndpoints({
       },
       transformResponse: (res) => toSummaryDTO(res?.data),
       providesTags: ['Tax'],
+      keepUnusedDataFor: 0,
     }),
     getTaxHarvesting: builder.query({
       query: ({ taxYear, minLoss } = {}) => {
@@ -40,6 +41,7 @@ export const taxApi = apiSlice.injectEndpoints({
       },
       transformResponse: (res) => toHarvestingDTO(res?.data),
       providesTags: ['Tax'],
+      keepUnusedDataFor: 0,
     }),
   }),
   overrideExisting: false,

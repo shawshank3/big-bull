@@ -1,11 +1,12 @@
 // Tier 2 — Prop-Based Component (verified)
-import { useState } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  getExpandedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
 import { ArrowUpDown, Search } from 'lucide-react';
@@ -25,8 +26,8 @@ import { cn } from '@/lib/utils';
  * DataTable
  *
  * A fully-featured data table built on @tanstack/react-table + shadcn primitives.
- * Supports client-side pagination, global search filtering, column sorting, and
- * optional custom row click handlers.
+ * Supports client-side pagination, global search filtering, column sorting,
+ * optional custom row click handlers, controlled row selection, and expandable rows.
  *
  * @param {Object} props
  * @param {import('@tanstack/react-table').ColumnDef[]} props.columns - Column definitions
@@ -38,6 +39,12 @@ import { cn } from '@/lib/utils';
  * @param {number} [props.pageSize=10] - Default page size
  * @param {Function} [props.onRowClick] - Callback when a row is clicked, receives the row data
  * @param {React.ReactNode} [props.toolbar] - Extra toolbar content rendered beside the search
+ * @param {Object} [props.rowSelection] - Controlled row selection state { [rowId]: boolean }
+ * @param {Function} [props.onRowSelectionChange] - Callback when row selection changes
+ * @param {Function} [props.getRowId] - Function to derive a stable row ID from data
+ * @param {Function} [props.renderExpandedRow] - Render function for expanded row content (row) => ReactNode
+ * @param {Object} [props.expanded] - Controlled expanded state { [rowId]: boolean }
+ * @param {Function} [props.onExpandedChange] - Callback when expanded state changes
  */
 export function DataTable({
   columns,
@@ -49,30 +56,70 @@ export function DataTable({
   pageSize = 10,
   onRowClick,
   toolbar,
+  rowSelection,
+  onRowSelectionChange,
+  getRowId,
+  renderExpandedRow,
+  expanded,
+  onExpandedChange,
 }) {
   const [sorting, setSorting] = useState([]);
   const [columnFilters, setColumnFilters] = useState([]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [internalExpanded, setInternalExpanded] = useState({});
 
-  const table = useReactTable({
+  const isControlledSelection = rowSelection !== undefined && onRowSelectionChange !== undefined;
+  const isControlledExpanded = expanded !== undefined && onExpandedChange !== undefined;
+
+  const tableOptions = useMemo(() => {
+    const opts = {
+      data,
+      columns,
+      state: {
+        sorting,
+        columnFilters,
+        globalFilter,
+        ...(isControlledSelection && { rowSelection }),
+        expanded: isControlledExpanded ? expanded : internalExpanded,
+      },
+      onSortingChange: setSorting,
+      onColumnFiltersChange: setColumnFilters,
+      onGlobalFilterChange: setGlobalFilter,
+      getCoreRowModel: getCoreRowModel(),
+      getFilteredRowModel: getFilteredRowModel(),
+      getPaginationRowModel: getPaginationRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+      initialState: {
+        pagination: { pageSize },
+      },
+      ...(isControlledSelection && {
+        onRowSelectionChange,
+        enableRowSelection: true,
+      }),
+      ...(getRowId && { getRowId }),
+      ...(renderExpandedRow && {
+        getExpandedRowModel: getExpandedRowModel(),
+        onExpandedChange: isControlledExpanded ? onExpandedChange : setInternalExpanded,
+      }),
+    };
+    return opts;
+  }, [
     data,
     columns,
-    state: {
-      sorting,
-      columnFilters,
-      globalFilter,
-    },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    initialState: {
-      pagination: { pageSize },
-    },
-  });
+    sorting,
+    columnFilters,
+    globalFilter,
+    rowSelection,
+    expanded,
+    internalExpanded,
+    isControlledSelection,
+    isControlledExpanded,
+    getRowId,
+    renderExpandedRow,
+    pageSize,
+  ]);
+
+  const table = useReactTable(tableOptions);
 
   const handleFilterChange = (value) => {
     if (searchKey) {
@@ -134,20 +181,31 @@ export function DataTable({
         <TableBody>
           {table.getRowModel().rows.length ? (
             table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className={cn(onRowClick && 'cursor-pointer')}
-                onClick={() => onRowClick?.(row.original)}
-                role={onRowClick ? 'button' : undefined}
-                tabIndex={onRowClick ? 0 : undefined}
-                onKeyDown={(e) => e.key === 'Enter' && onRowClick?.(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
+              <Fragment key={row.id}>
+                <TableRow
+                  className={cn(
+                    onRowClick && 'cursor-pointer',
+                    isControlledSelection && row.getIsSelected() && 'bg-primary/5'
+                  )}
+                  onClick={() => onRowClick?.(row.original)}
+                  role={onRowClick ? 'button' : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={(e) => e.key === 'Enter' && onRowClick?.(row.original)}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+                {renderExpandedRow && row.getIsExpanded() && (
+                  <TableRow className="bg-muted/20 hover:bg-muted/20">
+                    <TableCell colSpan={row.getVisibleCells().length} className="px-6 py-3">
+                      {renderExpandedRow(row)}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
             ))
           ) : (
             <TableRow>
