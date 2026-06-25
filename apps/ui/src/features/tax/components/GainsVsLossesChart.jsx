@@ -5,7 +5,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   Cell,
 } from 'recharts';
@@ -44,7 +43,6 @@ export const GainsVsLossesChart = ({ summary = {}, opportunities = [] }) => {
               className="fill-muted"
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(96, 165, 250, 0.08)' }} />
-            <Legend />
             <Bar dataKey="value" name="Amount" radius={[4, 4, 0, 0]}>
               {chartData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} />
