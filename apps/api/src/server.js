@@ -18,6 +18,7 @@ const v1PortfolioRoutes = require('./modules/portfolio/portfolio.routes');
 const v1MarketRoutes = require('./modules/market/market.routes');
 const v1TaxRoutes = require('./modules/tax/tax.routes');
 const v1ChatRoutes = require('./modules/chat/chat.routes');
+const v1InsightsRoutes = require('./modules/insights/insights.routes');
 const errorHandler = require('./middleware/errorHandler');
 const { scheduleMseTick } = require('./workers/mseWorker');
 const { startLiveTicker } = require('./workers/mseLiveTicker');
@@ -101,6 +102,7 @@ app.use('/api/v1/portfolio', v1PortfolioRoutes);
 app.use('/api/v1/market', v1MarketRoutes);
 app.use('/api/v1/tax', v1TaxRoutes);
 app.use('/api/v1/chat', chatLimiter, v1ChatRoutes);
+app.use('/api/v1/insights', v1InsightsRoutes);
 
 // SPA fallback for frontend routes
 app.get('*', (req, res, next) => {

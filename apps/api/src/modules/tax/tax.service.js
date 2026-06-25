@@ -450,6 +450,20 @@ const getTaxSummary = async (userId, { taxYear } = {}) => {
  * @returns {Promise<{ opportunities: Array, meta: object }>}
  */
 const getHarvestingOpportunities = async (userId, { taxYear, minLoss = 0 } = {}) => {
+  // Harvesting only applies to the current FY — losses can only offset gains within the same FY.
+  // For past FYs, return empty opportunities so the UI surfaces a clear empty state.
+  const effectiveTaxYear = taxYear || getCurrentFY();
+  if (effectiveTaxYear !== getCurrentFY()) {
+    return {
+      opportunities: [],
+      meta: {
+        minLoss,
+        totalOpportunities: 0,
+        isCurrentFY: false,
+      },
+    };
+  }
+
   // Step 1: Get current holdings with live prices
   const holdings = await portfolioService.computeHoldings(userId);
 
@@ -495,6 +509,7 @@ const getHarvestingOpportunities = async (userId, { taxYear, minLoss = 0 } = {})
     meta: {
       minLoss,
       totalOpportunities: opportunities.length,
+      isCurrentFY: true,
     },
   };
 };

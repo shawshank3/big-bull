@@ -16,16 +16,17 @@ export const Explore = () => {
       <TickerStrip />
 
       <ExploreHero>
-        <ExploreHero.Badge>🇮🇳 Indian Markets · NSE · BSE · Mutual Funds</ExploreHero.Badge>
+        <ExploreHero.Badge>🎮 Simulated Markets · Risk-Free · Paper Trading</ExploreHero.Badge>
         <ExploreHero.Heading>
-          Explore the markets, <span className="text-primary">before you invest</span>
+          Practice trading, <span className="text-primary">without the risk</span>
         </ExploreHero.Heading>
 
         <ExploreHero.Description>
-          Search thousands of stocks and mutual funds, see live quotes, and make informed decisions.
+          Trade virtual stocks in a realistic simulated market. Learn strategies, test ideas, and
+          build confidence — all with zero real money at stake.
           {isAuthenticated
-            ? ' Use the search bar above to find any stock or mutual fund.'
-            : " No account needed to explore — sign up when you're ready to track your portfolio."}
+            ? ' Use the search bar above to find any simulated stock.'
+            : " No account needed to explore — sign up when you're ready to start paper trading."}
         </ExploreHero.Description>
 
         {isAuthenticated ? (

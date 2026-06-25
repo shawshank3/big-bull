@@ -8,6 +8,7 @@ import '@/features/portfolio/api/portfolioApi';
 import '@/features/wallet/api/walletApi';
 import '@/features/transaction/api/transactionApi';
 import '@/features/chat/api/chatApi';
+import '@/features/explore/api/insightsApi';
 
 export const store = configureStore({
   reducer: {

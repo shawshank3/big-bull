@@ -1,3 +1,4 @@
+import { useGetPlatformInsightsQuery } from '../api/insightsApi';
 import { MARKET_FACTS } from '../constants';
 
 const StatCard = ({ icon: Icon, label, value, note }) => (
@@ -13,15 +14,25 @@ const StatCard = ({ icon: Icon, label, value, note }) => (
   </div>
 );
 
-export const MarketStats = () => (
-  <section>
-    <h2 className="mb-6 text-xl font-semibold text-foreground">Market at a glance</h2>
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {MARKET_FACTS.map((fact) => (
-        <StatCard key={fact.label} {...fact} />
-      ))}
-    </div>
-  </section>
-);
+export const MarketStats = () => {
+  const { data: insights } = useGetPlatformInsightsQuery();
+
+  return (
+    <section>
+      <h2 className="mb-6 text-xl font-semibold text-foreground">Simulated market at a glance</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {MARKET_FACTS.map((fact) => (
+          <StatCard
+            key={fact.key}
+            icon={fact.icon}
+            label={fact.label}
+            value={insights ? insights[fact.key].toLocaleString('en-IN') : '—'}
+            note={fact.note}
+          />
+        ))}
+      </div>
+    </section>
+  );
+};
 
 export default MarketStats;

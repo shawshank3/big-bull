@@ -86,6 +86,7 @@ export function toHarvestingDTO(raw) {
     meta: {
       minLoss: num(raw?.meta?.minLoss),
       totalOpportunities: num(raw?.meta?.totalOpportunities),
+      isCurrentFY: raw?.meta?.isCurrentFY !== false,
     },
   };
 }

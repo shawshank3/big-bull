@@ -6,9 +6,7 @@ import { PageHeader } from '@/shared/layout/PageHeader';
 import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../api/portfolioApi';
 import { getAllocation } from '@/shared/utils';
 import { HoldingsBreakdown } from './HoldingsBreakdown';
-import { AssetAllocationCard } from './AssetAllocationCard';
-import { PortfolioStatsGrid } from './PortfolioStatsGrid';
-import { PortfolioTotalValueCard } from './PortfolioTotalValueCard';
+import { PortfolioOverviewCard } from './PortfolioOverviewCard';
 import { TaxQuickAccess } from './TaxQuickAccess';
 
 export const DashboardContent = () => {
@@ -36,7 +34,7 @@ export const DashboardContent = () => {
           title="Dashboard"
           description="A quick view of your portfolio health, allocation, and holdings breakdown."
         />
-        <Spinner label="Loading portfolio…" />
+        <Spinner label="Loading dashboard…" />
       </>
     );
   }
@@ -48,11 +46,7 @@ export const DashboardContent = () => {
         description="A quick view of your portfolio health, allocation, and holdings breakdown."
       />
       {error ? <Alert variant="danger">Unable to load holdings right now.</Alert> : null}
-      <PortfolioStatsGrid summary={summary} />
-      <div className="split-grid">
-        <AssetAllocationCard allocation={allocation} />
-        <PortfolioTotalValueCard summary={summary} allocation={allocation} />
-      </div>
+      <PortfolioOverviewCard summary={summary} allocation={allocation} />
       <HoldingsBreakdown holdings={holdings} isLoading={false} showNavigate />
       <TaxQuickAccess />
     </>

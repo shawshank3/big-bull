@@ -1,4 +1,4 @@
-import { TrendingUp, BarChart2, Shield, Zap } from 'lucide-react';
+import { TrendingUp, BarChart2, Users, Activity } from 'lucide-react';
 
 export const STOCK_QUOTES = [
   {
@@ -25,40 +25,45 @@ export const STOCK_QUOTES = [
 ];
 
 export const MARKET_FACTS = [
-  { icon: TrendingUp, label: 'NSE Listed Companies', value: '2,000+', note: 'across 20+ sectors' },
   {
+    key: 'stockCount',
+    icon: TrendingUp,
+    label: 'Simulated Stocks',
+    note: 'virtual equities to trade',
+  },
+  {
+    key: 'mutualFundCount',
     icon: BarChart2,
-    label: 'Daily Traded Volume',
-    value: '₹50,000 Cr+',
-    note: 'average turnover on NSE',
+    label: 'Mutual Funds',
+    note: 'virtual schemes to invest in',
   },
   {
-    icon: Shield,
-    label: 'Mutual Fund Schemes',
-    value: '1,500+',
-    note: 'across equity, debt & hybrid',
+    key: 'totalTrades',
+    icon: Activity,
+    label: 'Trades Executed',
+    note: 'across all paper traders',
   },
   {
-    icon: Zap,
-    label: 'SEBI Registered Investors',
-    value: '15 Cr+',
-    note: 'and growing every year',
+    key: 'userCount',
+    icon: Users,
+    label: 'Paper Traders',
+    note: 'registered on the platform',
   },
 ];
 
 export const FEATURE_HIGHLIGHTS = [
   {
-    title: 'Real-time Search',
+    title: 'Simulated Market Search',
     description:
-      'Search across thousands of NSE/BSE stocks and mutual fund schemes instantly with live quotes.',
+      'Browse thousands of virtual stocks with simulated price movements — no real market data, just practice.',
     gradient: 'from-primary/10 to-primary/5',
     iconBg: 'bg-primary/10 text-primary',
     icon: '🔍',
   },
   {
-    title: 'Portfolio Tracking',
+    title: 'Paper Portfolio',
     description:
-      'Log your holdings, track P&L, and get a consolidated view of your entire investment portfolio.',
+      'Build a virtual portfolio, track simulated P&L, and learn portfolio management without risking a rupee.',
     gradient: 'from-secondary/10 to-secondary/5',
     iconBg: 'bg-secondary/10 text-secondary',
     icon: '📊',
@@ -66,7 +71,7 @@ export const FEATURE_HIGHLIGHTS = [
   {
     title: 'AI Market Assistant',
     description:
-      'Ask anything about markets, stocks, or investing and get smart, context-aware answers.',
+      'Ask anything about trading strategies or the simulated market and get smart, context-aware answers.',
     gradient: 'from-warning/10 to-warning/5',
     iconBg: 'bg-warning/10 text-warning',
     icon: '🤖',

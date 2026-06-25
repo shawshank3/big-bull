@@ -44,107 +44,120 @@ const resolveExecutionPrice = async (assetId) => {
 /**
  * aggregateHoldings(userId)
  *
- * Computes current holdings for a user by aggregating all their transactions.
- * Only returns assets where netQuantity > 0 (active positions).
+ * Computes current holdings for a user using FIFO lot-matching against all
+ * their transactions. Only returns assets where netQuantity > 0 (active
+ * positions).
+ *
+ * Why FIFO instead of a simple group-and-average?
+ * ─────────────────────────────────────────────────
+ * A naive aggregation sums ALL historical buy costs and quantities, which
+ * produces incorrect avgCostBasis when a user fully sells a position and
+ * later re-buys. The old (already sold) buy transactions contaminate the
+ * average. FIFO correctly consumes BUY lots against SELL transactions in
+ * chronological order, so the remaining (unmatched) lots accurately reflect
+ * the cost basis of the current position.
  *
  * @param {string} userId - MongoDB ObjectId string
  * @returns {Promise<Array>} Array of holding objects:
  *   { assetId, netQuantity, totalBuyQty, totalBuyCost, avgCostBasis, asset }
  */
 const aggregateHoldings = async (userId) => {
-  const holdings = await Transaction.aggregate([
-    // ── Stage 1: Filter to this user's transactions ───────────────────────
-    {
-      $match: { userId: new mongoose.Types.ObjectId(userId) },
-    },
+  // Step 1: Fetch all transactions for this user, sorted chronologically
+  const transactions = await Transaction.find({
+    userId: new mongoose.Types.ObjectId(userId),
+  })
+    .sort({ executedAt: 1 })
+    .lean();
 
-    // ── Stage 2: Group by asset, accumulate BUY/SELL quantities and cost ──
-    {
-      $group: {
-        _id: '$assetId',
-        totalBuyQty: {
-          $sum: {
-            $cond: [{ $eq: ['$transactionType', TRANSACTION_TYPES.BUY] }, '$quantity', 0],
-          },
-        },
-        totalSellQty: {
-          $sum: {
-            $cond: [{ $eq: ['$transactionType', TRANSACTION_TYPES.SELL] }, '$quantity', 0],
-          },
-        },
-        // Total amount spent on BUY orders (quantity × pricePerUnit for BUY only)
-        totalBuyCost: {
-          $sum: {
-            $cond: [
-              { $eq: ['$transactionType', TRANSACTION_TYPES.BUY] },
-              { $multiply: ['$quantity', '$pricePerUnit'] },
-              0,
-            ],
-          },
-        },
-      },
-    },
+  if (transactions.length === 0) return [];
 
-    // ── Stage 3: Derive netQuantity, avgCostBasis, and adjusted totalBuyCost ─
-    {
-      $addFields: {
-        assetId: '$_id',
-        netQuantity: { $subtract: ['$totalBuyQty', '$totalSellQty'] },
-        // Guard against division by zero (totalBuyQty should never be 0 here
-        // but we protect defensively)
-        avgCostBasis: {
-          $cond: [{ $gt: ['$totalBuyQty', 0] }, { $divide: ['$totalBuyCost', '$totalBuyQty'] }, 0],
-        },
-      },
-    },
+  // Step 2: Group transactions by assetId
+  const txByAsset = {};
+  for (const tx of transactions) {
+    const key = tx.assetId.toString();
+    if (!txByAsset[key]) txByAsset[key] = { buys: [], sells: [] };
+    if (tx.transactionType === TRANSACTION_TYPES.BUY) {
+      txByAsset[key].buys.push(tx);
+    } else {
+      txByAsset[key].sells.push(tx);
+    }
+  }
 
-    // ── Stage 3b: Recompute totalBuyCost as cost of CURRENTLY HELD shares ─
-    // Using raw totalBuyCost (all historical buys) causes totalInvested to
-    // grow on every buy/sell cycle. Instead, totalBuyCost should represent
-    // only the cost basis of the net position still held:
-    //   adjustedTotalBuyCost = avgCostBasis × netQuantity
-    {
-      $addFields: {
-        totalBuyCost: { $multiply: ['$avgCostBasis', '$netQuantity'] },
-      },
-    },
+  // Step 3: For each asset, run FIFO matching to determine remaining lots
+  const assetIdsWithHoldings = [];
+  const holdingsMap = {};
 
-    // ── Stage 4: Keep only active holdings (net position > 0) ─────────────
-    {
-      $match: { netQuantity: { $gt: 0 } },
-    },
+  for (const [assetId, { buys, sells }] of Object.entries(txByAsset)) {
+    // Create mutable lots from BUY transactions (already sorted by executedAt)
+    const lots = buys.map((b) => ({
+      remainingQty: b.quantity,
+      pricePerUnit: b.pricePerUnit,
+    }));
 
-    // ── Stage 5: Join with Asset collection for asset metadata ────────────
-    {
-      $lookup: {
-        from: 'assets',
-        localField: 'assetId',
-        foreignField: '_id',
-        as: 'asset',
-      },
-    },
+    // Consume lots in FIFO order against SELL transactions
+    let lotIdx = 0;
+    for (const sell of sells) {
+      let sellRemaining = sell.quantity;
+      while (sellRemaining > 0 && lotIdx < lots.length) {
+        const lot = lots[lotIdx];
+        if (lot.remainingQty <= 0) {
+          lotIdx++;
+          continue;
+        }
+        const matched = Math.min(lot.remainingQty, sellRemaining);
+        lot.remainingQty -= matched;
+        sellRemaining -= matched;
+        if (lot.remainingQty <= 0) lotIdx++;
+      }
+    }
 
-    // Unwrap the single-element array produced by $lookup
-    {
-      $unwind: {
-        path: '$asset',
-        preserveNullAndEmptyArrays: false,
-      },
-    },
+    // Sum up remaining (unmatched) lots → these form the current position
+    let netQuantity = 0;
+    let totalBuyCost = 0;
+    let totalBuyQty = 0;
 
-    // ── Stage 6: Clean up the output shape ───────────────────────────────
-    {
-      $project: {
-        _id: 0,
-        assetId: 1,
-        netQuantity: 1,
-        totalBuyQty: 1,
-        totalBuyCost: 1,
-        avgCostBasis: 1,
-        asset: 1,
-      },
-    },
-  ]);
+    for (const lot of lots) {
+      if (lot.remainingQty > 0) {
+        netQuantity += lot.remainingQty;
+        totalBuyCost += lot.remainingQty * lot.pricePerUnit;
+        totalBuyQty += lot.remainingQty;
+      }
+    }
+
+    // Only keep active holdings
+    if (netQuantity > 0) {
+      assetIdsWithHoldings.push(new mongoose.Types.ObjectId(assetId));
+      holdingsMap[assetId] = {
+        assetId: new mongoose.Types.ObjectId(assetId),
+        netQuantity,
+        totalBuyQty,
+        totalBuyCost,
+        avgCostBasis: totalBuyCost / totalBuyQty,
+      };
+    }
+  }
+
+  if (assetIdsWithHoldings.length === 0) return [];
+
+  // Step 4: Fetch asset metadata for active holdings
+  const assets = await Asset.find({ _id: { $in: assetIdsWithHoldings } }).lean();
+
+  const assetMap = {};
+  for (const asset of assets) {
+    assetMap[asset._id.toString()] = asset;
+  }
+
+  // Step 5: Assemble final holdings array
+  const holdings = [];
+  for (const [assetId, holding] of Object.entries(holdingsMap)) {
+    const asset = assetMap[assetId];
+    if (!asset) continue; // skip if asset was deleted from catalog
+
+    holdings.push({
+      ...holding,
+      asset,
+    });
+  }
 
   return holdings;
 };

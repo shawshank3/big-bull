@@ -132,6 +132,7 @@ If any layer throws an `AppError` (or any uncaught error), the global `errorHand
 | **asset**       | Asset model + validator (catalog data)        | `asset.model.js`, `asset.validator.js`                                                                                                                                                                                               | None (reference data)  |
 | **chat**        | AI Copilot — Gemini conversation              | `chat.controller.js`, `chat.routes.js`, `chat.service.js`                                                                                                                                                                            | `/api/v1/chat`         |
 | **tax**         | Capital gains tracking, tax-loss harvesting   | `tax.controller.js`, `tax.routes.js`, `tax.service.js`, `tax.validator.js`                                                                                                                                                           | `/api/v1/tax`          |
+| **insights**    | Public platform-wide statistics (cached)      | `insights.controller.js`, `insights.routes.js`, `insights.service.js`, `insights.model.js`                                                                                                                                           | `/api/v1/insights`     |
 
 ---
 
@@ -147,6 +148,7 @@ If any layer throws an `AppError` (or any uncaught error), the global `errorHand
 | `stockpricehistories` | market (MSE)  | `mseWorker` insertMany, `dailyPriceService.backfillIntradayToday()`                                                                                                | Append-only (48h TTL index)           |
 | `dailyprices` (stock) | market (MSE)  | `mseWorker` per-tick upsert of today's record, `dailyPriceService.writeTodayClose()` (shutdown safety net), `backfillMissingDays()` (past-day gap fill on startup) | Upsert per ticker per day             |
 | `dailyprices` (MF)    | market (MSE)  | `dailyPriceService.ensureMfDailyPrices()` — sole writer (startup + day rollover)                                                                                   | Upsert per ticker per day             |
+| `appinsights`         | insights      | `insights.service.getInsights()` — upserts single cached document                                                                                                  | Upsert (recomputes every 5 min)       |
 
 ---
 
@@ -389,6 +391,12 @@ All routes are prefixed with `/api/v1/` unless noted. Standard response envelope
 | GET    | `/market/quote/:ticker`  | Public | Path param: ticker                                                                   | Quote object with live price                                  |
 | GET    | `/market/stream`         | Public | None (SSE connection)                                                                | SSE events: `connected`, `price_update`, `volatility_alert`   |
 | GET    | `/market/chart/:ticker`  | Public | Path param: ticker; Query: `?range=1D\|1W\|1M\|3M\|1Y`                               | `{ ticker, assetType, range, granularity, points, baseline }` |
+
+### Insights (`/api/v1/insights`)
+
+| Method | Path        | Auth   | Body / Params | Response `data`                                           |
+| ------ | ----------- | ------ | ------------- | --------------------------------------------------------- |
+| GET    | `/insights` | Public | None          | `{ stockCount, mutualFundCount, userCount, totalTrades }` |
 
 ### Chat (`/api/v1/chat`)
 

@@ -35,7 +35,7 @@ const Guest = ({ children }) => children;
 
 export const ExploreHero = ({ children }) => (
   <section className="text-center">
-    <div className="mx-auto max-w-2xl">{children}</div>
+    <div className="mx-auto max-w-3xl">{children}</div>
   </section>
 );
 ExploreHero.Badge = HeroBadge;

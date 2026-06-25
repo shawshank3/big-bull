@@ -20,7 +20,7 @@ const FeatureCard = ({ title, description, gradient, iconBg, icon }) => (
 
 export const FeatureHighlights = () => (
   <section>
-    <h2 className="mb-6 text-xl font-semibold text-foreground">Everything you need</h2>
+    <h2 className="mb-6 text-xl font-semibold text-foreground">Everything you need to practice</h2>
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       {FEATURE_HIGHLIGHTS.map((f) => (
         <FeatureCard key={f.title} {...f} />

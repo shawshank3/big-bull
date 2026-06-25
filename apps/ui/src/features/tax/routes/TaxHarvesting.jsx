@@ -13,10 +13,12 @@ import { SectorHeatmap } from '../components/SectorHeatmap';
 import { ThresholdConfig } from '../components/ThresholdConfig';
 import { EnhancedOpportunitiesTable } from '../components/EnhancedOpportunitiesTable';
 import { WhatIfPanel } from '../components/WhatIfPanel';
+import { getCurrentFY, formatFYLabel } from '../utils/taxFormatters';
 
 const TaxHarvestingContent = () => {
   const { taxYear, setTaxYear } = useTaxYear();
   const { threshold } = useThreshold();
+  const isCurrentFY = taxYear === getCurrentFY();
 
   const { data: summary } = useGetTaxSummaryQuery({ taxYear });
   const { data: harvesting, isLoading } = useGetTaxHarvestingQuery({
@@ -45,7 +47,7 @@ const TaxHarvestingContent = () => {
         title="Tax-Loss Harvesting Insights"
         actions={
           <div className="flex items-center gap-2">
-            <ThresholdConfig />
+            {isCurrentFY && <ThresholdConfig />}
             <TaxYearSelector taxYear={taxYear} setTaxYear={setTaxYear} />
           </div>
         }
@@ -56,22 +58,34 @@ const TaxHarvestingContent = () => {
         a qualified tax advisor for real financial decisions.
       </Alert>
 
+      {!isCurrentFY && (
+        <Alert variant="info">
+          ℹ️ Tax-loss harvesting only applies to the current Financial Year (
+          {formatFYLabel(getCurrentFY())}). Past FY data is shown for reference — losses on current
+          holdings cannot offset gains from a closed FY.
+        </Alert>
+      )}
+
       {isLoading ? (
         <Spinner label="Loading harvesting insights…" />
       ) : (
         <div className={`flex flex-col gap-6 ${hasSelection ? 'pb-56' : ''}`}>
-          <HarvestingMetrics opportunities={opportunities} />
+          <HarvestingMetrics opportunities={opportunities} summary={summary} />
           <GainsVsLossesChart summary={summary} opportunities={opportunities} />
-          <SectorHeatmap opportunities={opportunities} />
-          <EnhancedOpportunitiesTable
-            opportunities={opportunities}
-            selectedIds={selectedIds}
-            onToggleSelection={toggleSelection}
-          />
+          {isCurrentFY && (
+            <>
+              <SectorHeatmap opportunities={opportunities} />
+              <EnhancedOpportunitiesTable
+                opportunities={opportunities}
+                selectedIds={selectedIds}
+                onToggleSelection={toggleSelection}
+              />
+            </>
+          )}
         </div>
       )}
 
-      {hasSelection && (
+      {hasSelection && isCurrentFY && (
         <WhatIfPanel
           selectedLossesTotal={selectedLossesTotal}
           currentFYGain={currentFYGain}
