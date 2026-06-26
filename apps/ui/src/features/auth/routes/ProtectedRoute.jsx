@@ -8,7 +8,7 @@ export const ProtectedRoute = () => {
   const { isAuthenticated, isLoading } = useSelector(selectAuthState);
 
   if (isLoading) {
-    return <GlobalLoader show />;
+    return <GlobalLoader />;
   }
 
   if (!isAuthenticated) return <Navigate to={ROUTES.LOGIN} replace />;

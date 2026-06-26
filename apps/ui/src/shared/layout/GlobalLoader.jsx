@@ -1,4 +1,4 @@
-export const GlobalLoader = ({ show, label }) => {
+export const GlobalLoader = ({ show = true, label = 'Loading...' }) => {
   if (!show) return null;
 
   return (
@@ -16,7 +16,7 @@ export const GlobalLoader = ({ show, label }) => {
           className="h-16 w-16 rounded-lg object-cover"
         />
       </div>
-      <p className="text-sm font-medium text-muted">{label ?? 'Signing out…'}</p>
+      <p className="text-sm font-medium text-muted">{label}</p>
     </div>
   );
 };
