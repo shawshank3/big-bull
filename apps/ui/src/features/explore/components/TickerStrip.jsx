@@ -1,4 +1,4 @@
-import { useMemo, memo } from 'react';
+import { memo } from 'react';
 import { useGetTickerQuotesQuery } from '@/features/market';
 import { TICKER_ITEMS } from '../constants';
 import { cn } from '@/lib/utils';
@@ -24,14 +24,24 @@ const TickerItem = memo(({ item, isLive }) => (
   </>
 ));
 
+/**
+ * A single scrolling track. Two identical tracks are rendered side-by-side;
+ * each translates from 0 → -100% of its own width, creating a seamless loop.
+ * Because each track translates by exactly its own content width, the second
+ * track fills the gap left by the first — no jump/flicker on reset.
+ */
+const TickerTrack = memo(({ items, isLive }) => (
+  <div className="flex shrink-0 animate-ticker-track will-change-transform">
+    {items.map((item, i) => (
+      <TickerItem key={i} item={item} isLive={isLive} />
+    ))}
+  </div>
+));
+
 export const TickerStrip = () => {
-  const { data: liveItems, isSuccess } = useGetTickerQuotesQuery(undefined);
+  const { data: liveItems, isSuccess } = useGetTickerQuotesQuery();
   const isLive = isSuccess && liveItems?.length > 0;
   const items = isLive ? liveItems : TICKER_ITEMS;
-
-  // Memoised so the animation container's children don't change identity on
-  // every 1s price tick — only rebuilds when the items array reference changes.
-  const repeated = useMemo(() => [...items, ...items, ...items, ...items], [items]);
 
   return (
     <div
@@ -39,10 +49,11 @@ export const TickerStrip = () => {
         'border-y border-border bg-surface py-2.5 overflow-hidden relative left-1/2 right-1/2 w-[100vw] -ml-[50vw] -mr-[50vw]'
       )}
     >
-      <div className="flex animate-ticker whitespace-nowrap will-change-transform">
-        {repeated.map((item, i) => (
-          <TickerItem key={i} item={item} isLive={isLive} />
-        ))}
+      {/* Two identical tracks — when the first scrolls fully left, the second
+          occupies the exact starting position, creating an infinite seamless loop. */}
+      <div className="flex whitespace-nowrap">
+        <TickerTrack items={items} isLive={isLive} />
+        <TickerTrack items={items} isLive={isLive} />
       </div>
     </div>
   );

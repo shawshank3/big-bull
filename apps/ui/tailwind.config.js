@@ -13,15 +13,15 @@ export default {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
-        ticker: {
+        'ticker-track': {
           '0%': { transform: 'translateX(0)' },
-          '100%': { transform: 'translateX(-25%)' },
+          '100%': { transform: 'translateX(-100%)' },
         },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        ticker: 'ticker 9s linear infinite',
+        'ticker-track': 'ticker-track 20s linear infinite',
       },
       colors: {
         bg: 'var(--bg)',
