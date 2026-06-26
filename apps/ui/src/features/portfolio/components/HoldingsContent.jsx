@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
+import { selectIsAuthenticated } from '@/features/auth';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
@@ -12,7 +12,7 @@ import { Button } from '@/shared/ui/button';
 import { ROUTES } from '@/shared/constants/routes';
 import { useGetPortfolioHoldingsQuery, useGetPortfolioSummaryQuery } from '../api/portfolioApi';
 import { formatCurrency } from '@/shared/utils/format';
-import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
+import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market';
 
 const pct = (n) => `${n >= 0 ? '+' : ''}${(n ?? 0).toFixed(2)}%`;
 

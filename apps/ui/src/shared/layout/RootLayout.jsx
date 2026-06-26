@@ -1,14 +1,19 @@
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
-import { useMarketStream } from '@/features/market/hooks/useMarketStream';
+import { useMarketStream } from '@/features/market';
+import { useLogoutMutation } from '@/features/auth';
 import { GlobalLoader } from './GlobalLoader';
 
 export const RootLayout = () => {
   useMarketStream();
 
+  const [, { isLoading: isLoggingOut }] = useLogoutMutation({
+    fixedCacheKey: 'global-logout',
+  });
+
   return (
     <div className="min-h-screen bg-bg text-foreground">
-      <GlobalLoader />
+      <GlobalLoader show={isLoggingOut} label="Logging out..." />
       <Navbar>
         <Navbar.Start>
           <Navbar.Brand />

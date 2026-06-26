@@ -13,7 +13,7 @@ import {
 import { Button } from '@/shared/ui/button';
 import { MutedText } from '@/shared/ui/typography';
 import { DataTable } from '@/shared/ui/data-table';
-import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
+import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market';
 import { computeLossPercent } from '../utils/taxCalculations';
 
 /**

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSelector } from 'react-redux';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
+import { selectIsAuthenticated } from '@/features/auth';
 import { AppPageLayout } from '@/shared/layout/AppPageLayout';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { Card, CardContent } from '@/shared/components/card';

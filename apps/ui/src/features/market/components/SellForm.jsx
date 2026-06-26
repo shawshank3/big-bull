@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Alert } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
 import { FormInput } from '@/shared/components/FormInput';
-import { useExecuteOrderMutation } from '@/features/transaction/api/transactionApi';
+import { useExecuteOrderMutation } from '@/features/transaction';
 import { formatCurrency } from '@/shared/utils/format';
 import { blockDecimalKeys } from '@/shared/utils/inputFilters';
 import { ROUTES } from '@/shared/constants/routes';

@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { Menu, Search } from 'lucide-react';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
-import { NavbarSearch } from '@/features/market/components/NavbarSearch';
+import { selectIsAuthenticated, useAuth } from '@/features/auth';
+import { NavbarSearch } from '@/features/market';
 import { NavbarBrand } from './NavbarBrand';
 import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
@@ -16,10 +16,8 @@ import {
   SheetBody,
 } from '@/shared/components/sheet';
 import { ROUTES } from '@/shared/constants/routes';
-import { useGetProfileQuery } from '@/features/user/api/userApi';
-import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { UserAvatar } from '@/features/user/components/UserAvatar';
+import { useGetProfileQuery, UserAvatar } from '@/features/user';
+import { useGetWalletQuery } from '@/features/wallet';
 import { formatCurrency } from '@/shared/utils/format';
 
 const NAV_LINKS = [

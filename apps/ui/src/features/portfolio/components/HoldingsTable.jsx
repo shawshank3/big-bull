@@ -4,7 +4,7 @@ import { Badge } from '@/shared/ui/badge';
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { DataTable } from '@/shared/ui/data-table';
 import { formatCurrency, getHoldingReturn } from '@/shared/utils';
-import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
+import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market';
 
 const columns = [
   {

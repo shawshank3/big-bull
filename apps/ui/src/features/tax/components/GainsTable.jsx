@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable } from '@/shared/ui/data-table';
 import { MutedText } from '@/shared/ui/typography';
 import { formatCurrency, formatDate } from '@/shared/utils';
-import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
+import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market';
 
 const buildColumns = (onNavigate) => [
   {

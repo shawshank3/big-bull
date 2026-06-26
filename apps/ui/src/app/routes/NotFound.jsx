@@ -1,5 +1,5 @@
 import { NotFoundCard } from '@/shared/errors/NotFoundCard';
-import { AuthLayout } from '@/features/auth/layout/AuthLayout';
+import { AuthLayout } from '@/features/auth';
 
 export const NotFound = () => (
   <AuthLayout>

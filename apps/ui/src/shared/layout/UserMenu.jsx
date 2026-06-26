@@ -1,11 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { ROUTES } from '@/shared/constants/routes';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
-import { useGetProfileQuery } from '@/features/user/api/userApi';
-import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import { UserAvatar } from '@/features/user/components/UserAvatar';
+import { selectIsAuthenticated, useAuth } from '@/features/auth';
+import { useGetProfileQuery, UserAvatar } from '@/features/user';
+import { useGetWalletQuery } from '@/features/wallet';
 import { formatCurrency } from '@/shared/utils/format';
 import { Button } from '@/shared/ui/button';
 import {

@@ -80,8 +80,6 @@ If Redis is unavailable, the system degrades gracefully through Tier 2 and Tier 
 
 Portfolio holdings and P&L are never stored — they are computed on demand by aggregating immutable Transaction documents and resolving live prices via the chain above. This eliminates stale-cache bugs and dual-write inconsistencies.
 
-For full data model details, see [06-Data-Model-and-Source-of-Truth](../BigBull%20-%20Plan/06-Data-Model-and-Source-of-Truth.md).
-
 ## Quick Start
 
 ### Prerequisites
@@ -172,20 +170,6 @@ The build step compiles the Vite UI into static files. At runtime, Express serve
 | `GEMENI_API_KEY`      | Google Gemini API key (optional) |
 
 ## Documentation Index
-
-### BigBull Plan (Architecture & Design)
-
-| Document                                                                                        | Description                                              |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| [01-Project-Overview](../BigBull%20-%20Plan/01-Project-Overview.md)                             | Mission, target users, tech stack, currency scope        |
-| [02-System-Knowledge-Map](../BigBull%20-%20Plan/02-System-Knowledge-Map.md)                     | Deployment model, full-stack data flow, SSE architecture |
-| [03-Backend-Knowledge-Map](../BigBull%20-%20Plan/03-Backend-Knowledge-Map.md)                   | Module structure, request lifecycle, design rules        |
-| [04-Frontend-Knowledge-Map](../BigBull%20-%20Plan/04-Frontend-Knowledge-Map.md)                 | Feature modules, RTK Query, SSE flow, state ownership    |
-| [05-Market-Simulation-Engine](../BigBull%20-%20Plan/05-Market-Simulation-Engine.md)             | Price formula, mseWorker, DailyPrice lifecycle           |
-| [06-Data-Model-and-Source-of-Truth](../BigBull%20-%20Plan/06-Data-Model-and-Source-of-Truth.md) | MongoDB collections, price chain, transaction-as-SoT     |
-| [07-AI-Copilot](../BigBull%20-%20Plan/07-AI-Copilot.md)                                         | Gemini integration, context injection, boundaries        |
-| [08-API-Reference](../BigBull%20-%20Plan/08-API-Reference.md)                                   | Complete route table with params and responses           |
-| [09-Roadmap](../BigBull%20-%20Plan/09-Roadmap.md)                                               | Pending features: AI Copilot v2                          |
 
 ### App READMEs
 

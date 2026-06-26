@@ -19,4 +19,3 @@ services:
         sync: false
       - key: GEMENI_API_KEY
         sync: false
-      # Alpha Vantage removed — no external API key required for market endpoints

@@ -27,8 +27,8 @@ import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { apiSlice } from '@/shared/api/apiSlice';
 import { API_URLS } from '@/shared/constants/apiUrls';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
-import { STCG_RATE, LTCG_RATE } from '@/features/tax/utils/taxCalculations';
+import { selectIsAuthenticated } from '@/features/auth';
+import { STCG_RATE, LTCG_RATE } from '@/features/tax';
 
 export const useMarketStream = () => {
   const dispatch = useDispatch();

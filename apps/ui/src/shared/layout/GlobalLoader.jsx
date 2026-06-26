@@ -1,19 +1,12 @@
-import { useLogoutMutation } from '@/features/auth/api/authApi';
-
 export const GlobalLoader = ({ show, label }) => {
-  const [, { isLoading: isLoggingOut }] = useLogoutMutation({
-    fixedCacheKey: 'global-logout',
-  });
-  const visible = show ?? isLoggingOut;
-
-  if (!visible) return null;
+  if (!show) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-bg/80 backdrop-blur-sm"
       role="status"
       aria-live="assertive"
-      aria-label={label ?? 'Signing out…'}
+      aria-label={label}
     >
       <div className="animate-pulse">
         <img

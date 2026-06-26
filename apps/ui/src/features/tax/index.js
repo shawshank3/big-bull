@@ -23,7 +23,14 @@ export { ThresholdConfig } from './components/ThresholdConfig';
 export { WhatIfPanel } from './components/WhatIfPanel';
 
 // Utils
-export { computeTax, computeHarvestingMetrics, computeLossPercent } from './utils/taxCalculations';
+export {
+  STCG_RATE,
+  LTCG_RATE,
+  LTCG_EXEMPTION,
+  computeTax,
+  computeHarvestingMetrics,
+  computeLossPercent,
+} from './utils/taxCalculations';
 export {
   formatFYLabel,
   generateFYOptions,

@@ -1,6 +1,6 @@
 import { useLocation, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
+import { selectIsAuthenticated } from '@/features/auth';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
@@ -9,7 +9,7 @@ import { useGetStockQuoteQuery, useGetAssetByTickerQuery } from '../api/marketAp
 import { MARKET_ASSET_LABELS } from '../constants/market';
 import { OrderForm } from './OrderForm';
 import { PriceChart } from './PriceChart';
-import { AssetTransactionsTable } from '@/features/transaction/components/AssetTransactionsTable';
+import { AssetTransactionsTable } from '@/features/transaction';
 
 // ─── Chart header slot ────────────────────────────────────────────────────────
 

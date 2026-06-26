@@ -1,5 +1,5 @@
 import { useSelector } from 'react-redux';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
+import { selectIsAuthenticated } from '@/features/auth';
 import { ROUTES } from '@/shared/constants/routes';
 import { TickerStrip } from '../components/TickerStrip';
 import { ExploreHero } from '../components/ExploreHero';

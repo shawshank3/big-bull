@@ -1,5 +1,5 @@
 import { useMemo, memo } from 'react';
-import { useGetTickerQuotesQuery } from '@/features/market/api/marketApi';
+import { useGetTickerQuotesQuery } from '@/features/market';
 import { TICKER_ITEMS } from '../constants';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/shared/utils/format';

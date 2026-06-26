@@ -1,5 +1,6 @@
 // Auth feature public API
 export { AuthProvider } from './providers/AuthProvider';
+export { AuthLayout } from './layout/AuthLayout';
 export { GuestRoute } from './routes/GuestRoute';
 export { ProtectedRoute } from './routes/ProtectedRoute';
 export { RootRedirect } from './routes/RootRedirect';

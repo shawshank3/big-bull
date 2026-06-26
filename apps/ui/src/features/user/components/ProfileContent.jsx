@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSelector } from 'react-redux';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
+import { selectIsAuthenticated } from '@/features/auth';
 import { useForm } from 'react-hook-form';
 import { Alert } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';

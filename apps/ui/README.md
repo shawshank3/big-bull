@@ -49,7 +49,7 @@ apps/ui/
 │   │   ├── dto/helpers.js      # DTO primitives (str, num, bool, arr)
 │   │   ├── errors/             # Error boundary, NotFoundCard
 │   │   ├── hooks/              # useDebounce, useThemeMode
-│   │   ├── layout/             # RootLayout, Navbar, PageShell, PageHeader
+│   │   ├── layout/             # RootLayout, Navbar, GlobalLoader, PageShell, PageHeader
 │   │   ├── ui/                 # Design system primitives (see below)
 │   │   └── utils/              # Formatters, localStorage, market/portfolio helpers, input filters
 │   ├── lib/utils.js            # Tailwind cn() merge utility
@@ -105,8 +105,8 @@ features/<module>/
 
 **Route guards:**
 
-- `GuestRoute` — wraps login/register; redirects to `/dashboard` if already authenticated
-- `ProtectedRoute` — wraps dashboard/holdings/profile/wallet; redirects to `/login` if unauthenticated
+- `GuestRoute` — wraps login/register; redirects to `/dashboard` if already authenticated. Shows `GlobalLoader` while auth state is resolving to prevent a flash of guest content.
+- `ProtectedRoute` — wraps dashboard/holdings/profile/wallet; redirects to `/login` if unauthenticated. Shows `GlobalLoader` while auth state is resolving.
 
 ## Prerequisites
 
@@ -198,7 +198,7 @@ Auth state is not managed by a Redux slice. Instead:
 - `authSelectors.js` derives `user`, `isAuthenticated`, `isLoading` from the `getMe` cache using `createSelector`
 - `login` / `register` mutations use `onQueryStarted` + `upsertQueryData` to write the returned user directly into the `getMe` cache
 - `logout` mutation uses `onQueryStarted` to set the `getMe` cache to `null` and invalidate all data tags (Profile, Portfolio, Holdings, Wallet, Transactions)
-- `GlobalLoader` reads logout loading state via a `fixedCacheKey` on the logout mutation — no Redux slice dependency
+- `GlobalLoader` is a pure presentational component — it accepts `show` (boolean) and `label` (string) props. Callers own the loading condition. `RootLayout` passes the logout mutation's `isLoading` state; `GuestRoute` and `ProtectedRoute` pass auth-hydration loading state.
 
 ### SSE Flow
 
@@ -278,7 +278,8 @@ All primitives live in `src/shared/ui/` and are exported from `shared/ui/index.j
 | `Badge`           | Coloured pill for status indicators (success, danger, warning, info)                           | Tags, status labels, category chips                                        |
 | `Alert`           | Dismissible alert banner with variant colours                                                  | Success/error/warning messages, notifications                              |
 | `Avatar`          | Radix-based image avatar with fallback initials                                                | User profile images, comment avatars                                       |
-| `Spinner`         | Animated loading indicator with optional label                                                 | Loading states, async operations in progress                               |
+| `Spinner`         | Animated loading indicator with optional label                                                 | Inline loading states, async operations in progress                        |
+| `GlobalLoader`    | Full-screen branded overlay with pulsing icon and label (props: `show`, `label`)               | Route-guard auth resolution, logout transition, any full-viewport wait     |
 | `Progress`        | Radix-based progress bar                                                                       | Upload progress, completion indicators                                     |
 | `LineChart`       | Recharts area chart wrapper with theme-aware colours and optional baseline reference line      | Price history charts, trend visualisations                                 |
 | `DataTable`       | Client-side paginated, sortable, searchable data table (TanStack)                              | Displaying in-memory datasets with filtering                               |

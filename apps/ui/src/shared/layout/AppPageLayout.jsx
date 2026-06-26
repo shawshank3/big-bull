@@ -1,4 +1,4 @@
-import { FloatingChatbot } from '@/features/chat/components/FloatingChatbot';
+import { FloatingChatbot } from '@/features/chat';
 import { PageShell } from './PageShell';
 
 const Content = ({ children }) => <PageShell>{children}</PageShell>;

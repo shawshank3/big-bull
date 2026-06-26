@@ -1,7 +1,7 @@
 import { useSelector } from 'react-redux';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
-import { useGetWalletQuery } from '@/features/wallet/api/walletApi';
-import { useGetPortfolioHoldingsQuery } from '@/features/portfolio/api/portfolioApi';
+import { selectIsAuthenticated } from '@/features/auth';
+import { useGetWalletQuery } from '@/features/wallet';
+import { useGetPortfolioHoldingsQuery } from '@/features/portfolio';
 import { formatCurrency } from '@/shared/utils/format';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/components/tabs';
 import BuyForm from './BuyForm';

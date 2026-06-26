@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
+import { selectIsAuthenticated } from '@/features/auth';
 import { Alert } from '@/shared/ui/alert';
 import { Card, CardContent } from '@/shared/components/card';
 import { Spinner } from '@/shared/ui/spinner';
@@ -10,9 +10,9 @@ import { MutedText } from '@/shared/ui/typography';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { ServerDataTable } from '@/shared/ui/server-data-table';
 import { DateRangePicker } from '@/shared/components/date-range-picker';
-import { useGetWalletQuery, useListWalletTransactionsQuery } from '@/features/wallet/api/walletApi';
+import { useGetWalletQuery, useListWalletTransactionsQuery } from '@/features/wallet';
 import { formatCurrency, formatDateTime } from '@/shared/utils/format';
-import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market/constants/market';
+import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market';
 import { ASSET_TYPES } from '@/shared/constants/assetTypes';
 
 const WalletBalanceCard = ({ balance, isLoading }) => (

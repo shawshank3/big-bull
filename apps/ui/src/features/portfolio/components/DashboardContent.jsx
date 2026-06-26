@@ -1,5 +1,5 @@
 import { useSelector } from 'react-redux';
-import { selectIsAuthenticated } from '@/features/auth/store/authSelectors';
+import { selectIsAuthenticated } from '@/features/auth';
 import { Alert } from '@/shared/ui/alert';
 import { Spinner } from '@/shared/ui/spinner';
 import { PageHeader } from '@/shared/layout/PageHeader';
