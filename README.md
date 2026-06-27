@@ -101,10 +101,10 @@ Portfolio holdings and P&L are never stored — they are computed on demand by a
 2. **Configure environment**
 
    ```bash
-   cp .env.example .env
+   cp apps/api/.env.example apps/api/.env
    ```
 
-   Edit `.env` and set these required variables:
+   Edit `apps/api/.env` and set these required variables:
 
    | Variable              | Purpose                      | Required |
    | --------------------- | ---------------------------- | -------- |
