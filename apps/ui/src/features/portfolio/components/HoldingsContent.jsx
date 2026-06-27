@@ -81,6 +81,14 @@ const columns = [
     enableSorting: true,
   },
   {
+    id: 'currentValue',
+    header: 'Current Value',
+    accessorFn: (row) => row.currentValue ?? row.netQuantity * row.currentPrice,
+    cell: ({ getValue }) => formatCurrency(getValue()),
+    meta: { className: 'text-right' },
+    enableSorting: true,
+  },
+  {
     accessorKey: 'unrealisedPnL',
     header: 'Unrealised P&L',
     cell: ({ row }) => {
