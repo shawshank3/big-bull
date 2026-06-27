@@ -15,7 +15,8 @@
  * - Live ticker: UI smoothness — 1s visual updates without DB overhead.
  */
 
-const { ASSET_TYPES, SSE_EVENTS } = require('../shared/constants');
+const { ASSET_TYPES } = require('../shared/constants');
+const { nextMicroPrice } = require('../utils/priceSimulation');
 
 // ─── In-memory price cache ────────────────────────────────────────────────────
 // Map<ticker, { price, volatility }>
@@ -38,13 +39,6 @@ const seedPriceCache = (assets) => {
   }
 };
 
-// ─── Gaussian noise ───────────────────────────────────────────────────────────
-const gaussianNoise = () => {
-  const u1 = 1 - Math.random();
-  const u2 = Math.random();
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-};
-
 // ─── Ticker loop ─────────────────────────────────────────────────────────────
 let tickerInterval = null;
 
@@ -64,15 +58,7 @@ const startLiveTicker = () => {
       if (entry.assetType === ASSET_TYPES.MUTUAL_FUND) continue;
 
       const prevPrice = entry.price;
-
-      // Micro-noise: much smaller than the 30s tick — scaled to 1/30th of
-      // the 30s window so the cumulative drift stays realistic.
-      const microVolatility = (entry.volatility ?? 0.01) * 0.18; // ≈ 1/√30 scaling
-      const noise = gaussianNoise();
-      const newPrice = Math.max(
-        1,
-        parseFloat((prevPrice * (1 + microVolatility * noise)).toFixed(2))
-      );
+      const newPrice = nextMicroPrice(prevPrice, entry.volatility ?? 0.01);
 
       const change = parseFloat((newPrice - prevPrice).toFixed(2));
       const pct = prevPrice > 0 ? (change / prevPrice) * 100 : 0;

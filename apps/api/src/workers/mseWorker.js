@@ -38,7 +38,7 @@ const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
 const DailyPrice = require('../modules/market/dailyPrice.model');
 const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
 const { ASSET_TYPES } = require('../shared/constants');
-const { gaussianNoise, todayIST } = require('../utils/priceSimulation');
+const { nextIntradayPrice, todayIST } = require('../utils/priceSimulation');
 
 // Lazy-require to avoid circular dependency issues at startup
 const getBroadcast = () => require('../modules/market/market.controller').broadcastPriceUpdate;
@@ -70,16 +70,15 @@ const getFloat = async (key, fallback = 0) => {
 };
 
 /**
- * Compute new price using the MSE formula from the plan:
- *   Price_t = Price_{t-1} × (1 + Sm + Ts + Va × N)
- * Clamped to a ₹1 floor.
+ * Compute the next price for one stock tick.
+ *
+ * The walk math itself lives in `nextIntradayPrice` (shared with the cold-start
+ * intraday backfill).  This worker only contributes the sentiment + sector
+ * trend drift on top, so when those values are zero the live chart is visually
+ * indistinguishable from the backfilled section.
  */
-const computeNewPrice = (prevPrice, sentiment, sectorTrend, volatility) => {
-  const noise = gaussianNoise();
-  const delta = sentiment + sectorTrend + volatility * noise;
-  const newPrice = prevPrice * (1 + delta);
-  return Math.max(1, parseFloat(newPrice.toFixed(2)));
-};
+const computeNewPrice = (prevPrice, sentiment, sectorTrend, volatility) =>
+  nextIntradayPrice(prevPrice, volatility, sentiment + sectorTrend);
 
 /** Format a signed percent string, e.g. "+1.23%" or "-0.45%" */
 const formatChangePercent = (change, prevPrice) => {

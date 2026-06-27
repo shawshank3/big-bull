@@ -60,12 +60,9 @@ const DailyPrice = require('../modules/market/dailyPrice.model');
 const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
 const { ASSET_TYPES } = require('../shared/constants');
 const redis = require('../shared/redis');
-const { gaussianNoise, nextDayPrice, todayIST } = require('../utils/priceSimulation');
+const { nextDayPrice, nextIntradayPrice, todayIST } = require('../utils/priceSimulation');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Local alias retained for readability — same function as `gaussianNoise`. */
-const gaussian = gaussianNoise;
 
 /** Default number of days of MF history to seed when no DailyPrice exists. */
 const MF_INITIAL_HISTORY_DAYS = 30;
@@ -485,8 +482,7 @@ const backfillIntradayToday = async () => {
       let prevPrice = price;
 
       for (let i = 0; i < tickCount; i++) {
-        const delta = asset.volatility * 0.25 * gaussian();
-        price = Math.max(1, parseFloat((price * (1 + delta)).toFixed(2)));
+        price = nextIntradayPrice(price, asset.volatility);
 
         const change = parseFloat((price - prevPrice).toFixed(2));
         const pct = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
@@ -513,6 +509,42 @@ const backfillIntradayToday = async () => {
       console.log(
         `[Intraday] ✓ Backfill complete — ${intradayDocs.length} ticks inserted for ${stocks.length} stocks`
       );
+
+      // Update MarketState and Redis with the final backfilled price for each
+      // stock so the live mseWorker resumes from a consistent baseline rather
+      // than jumping back to the pre-backfill price (which causes a visible
+      // discontinuity in the chart at the point the live ticks start).
+      for (const asset of stocks) {
+        const lastDoc = intradayDocs.filter((doc) => doc.ticker === asset.ticker).pop();
+        if (!lastDoc) continue;
+
+        try {
+          await MarketState.updateOne(
+            { ticker: asset.ticker },
+            { $set: { lastPrice: lastDoc.price, lastUpdatedAt: new Date() } },
+            { upsert: true }
+          );
+        } catch (_) {
+          /* non-fatal */
+        }
+
+        try {
+          await redis.setex(
+            `price:${asset.ticker}`,
+            60,
+            JSON.stringify({
+              ticker: asset.ticker,
+              price: lastDoc.price,
+              change: lastDoc.change ?? 0,
+              changePercent: lastDoc.changePercent ?? '+0.00%',
+              up: (lastDoc.change ?? 0) >= 0,
+              timestamp: new Date().toISOString(),
+            })
+          );
+        } catch (_) {
+          /* non-fatal — MarketState is the durable fallback */
+        }
+      }
     }
   } catch (err) {
     console.error('[Intraday] backfillIntradayToday failed:', err.message);
