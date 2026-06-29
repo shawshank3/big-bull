@@ -19,5 +19,6 @@ dist/
 pnpm-debug.log*
 .pnpm-store
 
-#kiro
+#ai-instructions
 .kiro
+.trae

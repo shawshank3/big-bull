@@ -406,38 +406,24 @@ const backfillMissingDays = async () => {
  * Generates synthetic 30-second intraday ticks for today (stocks only).
  *
  * Called on startup so the 1D chart is not empty while the MSE worker starts
- * accumulating real ticks.  Only runs if there are fewer than 10 existing
- * StockPriceHistory documents for today — meaning the worker hasn't had time
- * to build up meaningful data yet.
+ * accumulating real ticks.
  *
  * Algorithm:
  *   1. Compute today's IST window: 00:00 → now (24-hour market, no close).
- *   2. For each stock, resolve a starting price from MarketState → basePrice.
- *   3. Chain a random-walk at 30-second intervals with reduced volatility
- *      (same 0.25× scaling the seed script uses for intraday).
+ *   2. For each stock, find last existing StockPriceHistory tick for today.
+ *   3. Chain a random-walk at 30-second intervals from last tick (or start of day if none).
  *   4. Bulk-insert into StockPriceHistory.
  *
- * Idempotent: skips if today already has sufficient ticks.
  * Non-fatal: logs errors but does not throw.
  */
 const backfillIntradayToday = async () => {
   const today = dateIST(0);
-  console.log(`[Intraday] Checking if 1D backfill is needed for ${today}…`);
+  console.log(`[Intraday] Checking 1D backfill for ${today}…`);
 
   try {
     // IST day boundaries in UTC
     const [y, m, d] = today.split('-').map(Number);
     const istMidnightUTC = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - 5.5 * 60 * 60 * 1000);
-
-    // Check if we already have meaningful data for today
-    const existingCount = await StockPriceHistory.countDocuments({
-      timestamp: { $gte: istMidnightUTC },
-    });
-
-    if (existingCount >= 10) {
-      console.log(`[Intraday] ✓ Already ${existingCount} ticks today — skipping backfill`);
-      return;
-    }
 
     const stocks = await Asset.find({ assetType: ASSET_TYPES.STOCK }).lean();
     if (!stocks.length) {
@@ -460,24 +446,50 @@ const backfillIntradayToday = async () => {
       return;
     }
 
-    const tickCount = Math.floor((endS - MARKET_OPEN_S) / TICK_INTERVAL_S);
-    if (tickCount <= 0) {
-      console.log('[Intraday] ✓ No ticks to generate — skipping');
-      return;
-    }
-
-    console.log(`[Intraday] Generating ~${tickCount} ticks per stock (${stocks.length} stocks)…`);
+    console.log(`[Intraday] Checking gaps for ${stocks.length} stocks…`);
 
     const intradayDocs = [];
+    let totalTicks = 0;
 
     for (const asset of stocks) {
-      let price = asset.basePrice;
-      try {
-        const state = await MarketState.findOne({ ticker: asset.ticker }).lean();
-        if (state && state.lastPrice > 0) price = state.lastPrice;
-      } catch (_) {
-        /* use basePrice */
+      // Get last existing tick for this stock today
+      const lastTick = await StockPriceHistory.findOne({
+        ticker: asset.ticker,
+        timestamp: { $gte: istMidnightUTC },
+      })
+        .sort({ timestamp: -1 })
+        .lean();
+
+      let startS;
+      let price;
+
+      if (lastTick) {
+        // Calculate seconds since midnight IST for last tick's timestamp
+        const lastTickIST = new Date(lastTick.timestamp.getTime() + 5.5 * 60 * 60 * 1000);
+        const lastTickSecondsIST =
+          lastTickIST.getUTCHours() * 3600 +
+          lastTickIST.getUTCMinutes() * 60 +
+          lastTickIST.getUTCSeconds();
+        // Start from the next 30s interval after the last tick
+        startS = Math.ceil(lastTickSecondsIST / TICK_INTERVAL_S) * TICK_INTERVAL_S;
+        price = lastTick.price;
+      } else {
+        // No existing ticks, start from beginning of day
+        startS = MARKET_OPEN_S;
+        // Resolve starting price
+        price = asset.basePrice;
+        try {
+          const state = await MarketState.findOne({ ticker: asset.ticker }).lean();
+          if (state && state.lastPrice > 0) price = state.lastPrice;
+        } catch (_) {
+          /* use basePrice */
+        }
       }
+
+      if (startS >= endS) continue;
+
+      const tickCount = Math.floor((endS - startS) / TICK_INTERVAL_S);
+      if (tickCount <= 0) continue;
 
       let prevPrice = price;
 
@@ -489,7 +501,7 @@ const backfillIntradayToday = async () => {
         const sign = pct >= 0 ? '+' : '';
         const changePercent = `${sign}${pct.toFixed(2)}%`;
 
-        const tickOffsetS = MARKET_OPEN_S + i * TICK_INTERVAL_S;
+        const tickOffsetS = startS + i * TICK_INTERVAL_S;
         const timestamp = new Date(istMidnightUTC.getTime() + tickOffsetS * 1000);
 
         intradayDocs.push({
@@ -501,13 +513,14 @@ const backfillIntradayToday = async () => {
         });
 
         prevPrice = price;
+        totalTicks++;
       }
     }
 
     if (intradayDocs.length) {
       await StockPriceHistory.insertMany(intradayDocs, { ordered: false });
       console.log(
-        `[Intraday] ✓ Backfill complete — ${intradayDocs.length} ticks inserted for ${stocks.length} stocks`
+        `[Intraday] ✓ Backfill complete — ${totalTicks} ticks inserted for ${stocks.length} stocks`
       );
 
       // Update MarketState and Redis with the final backfilled price for each
@@ -545,6 +558,8 @@ const backfillIntradayToday = async () => {
           /* non-fatal — MarketState is the durable fallback */
         }
       }
+    } else {
+      console.log('[Intraday] ✓ No gaps to fill');
     }
   } catch (err) {
     console.error('[Intraday] backfillIntradayToday failed:', err.message);

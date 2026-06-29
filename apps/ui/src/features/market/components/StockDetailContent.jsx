@@ -57,7 +57,6 @@ export const StockDetailContent = () => {
   const { symbol } = useParams();
   const location = useLocation();
   const isAuthenticated = useSelector(selectIsAuthenticated);
-  const displayName = location.state?.name || symbol;
 
   const {
     data: quote,
@@ -66,10 +65,12 @@ export const StockDetailContent = () => {
   } = useGetStockQuoteQuery(symbol, { skip: !symbol });
   const { data: asset } = useGetAssetByTickerQuery(symbol, { skip: !symbol });
 
+  const displayName = quote?.name || asset?.name || symbol;
+
   const chartHeader = ({ delta }) => (
     <ChartHeader
       name={displayName}
-      symbol={symbol}
+      symbol={quote?.symbol || asset?.ticker || symbol}
       assetLabel={MARKET_ASSET_LABELS.stock}
       price={quote?.price ?? asset?.basePrice}
       currency={quote?.currency}

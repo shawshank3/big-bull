@@ -321,7 +321,7 @@ Server starts at `http://localhost:4000`. On startup:
 1. Connects to MongoDB
 2. Ensures all mutual-fund DailyPrice records are current (through today)
 3. Backfills any missing stock DailyPrice records from downtime days
-4. Backfills today's intraday StockPriceHistory ticks so the 1D chart is not empty
+4. Backfills today's intraday StockPriceHistory ticks (filling any gaps from last existing tick if present)
 5. Starts BullMQ mse-price-tick scheduler (30s interval)
 6. Starts live ticker (1s SSE broadcast)
 
