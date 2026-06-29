@@ -25,6 +25,7 @@ const mongoose = require('mongoose');
 const User = require('../src/modules/user/user.model');
 const Asset = require('../src/modules/asset/asset.model');
 const VirtualWallet = require('../src/modules/wallet/wallet.model');
+const AppInsights = require('../src/modules/insights/insights.model');
 const {
   ASSET_TYPES,
   EXCHANGE_TYPES,
@@ -789,6 +790,10 @@ const seedDatabase = async () => {
       const deletedCount = await Asset.deleteMany({});
       console.log(`⚠️  --force: deleted ${deletedCount.deletedCount} existing assets`);
     }
+
+    // ── Clear cached insights to ensure fresh stats are computed ──────────────
+    const insightsDeleted = await AppInsights.deleteMany({});
+    console.log(`✓ Cleared cached insights (${insightsDeleted.deletedCount} document(s) deleted)`);
 
     // ── Upsert Assets (idempotent — never destroys user data) ───────────────
     let upserted = 0;

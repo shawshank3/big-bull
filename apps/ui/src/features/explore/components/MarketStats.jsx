@@ -15,7 +15,9 @@ const StatCard = ({ icon: Icon, label, value, note }) => (
 );
 
 export const MarketStats = () => {
-  const { data: insights } = useGetPlatformInsightsQuery();
+  const { data: insights } = useGetPlatformInsightsQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
 
   return (
     <section>
