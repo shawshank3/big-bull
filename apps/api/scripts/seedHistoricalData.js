@@ -194,7 +194,7 @@ const seed = async () => {
 
   // ── Phase 2: simulate today's 30-second intraday ticks (stocks only) ────
 
-  console.log(`\nSimulating today's intraday 30s ticks for stocks…`);
+  console.log(`\nSimulating today's intraday 30s ticks for ${stocks.length} stocks…`);
   const intradayDocs = [];
   const dayStartUTC = istMidnightUTC(today);
 
@@ -238,8 +238,13 @@ const seed = async () => {
   }
 
   if (intradayDocs.length) {
-    await StockPriceHistory.insertMany(intradayDocs, { ordered: false });
-    console.log(`✓ StockPriceHistory: ${intradayDocs.length} intraday ticks inserted`);
+    console.log(`Inserting ${intradayDocs.length} intraday ticks…`);
+    try {
+      await StockPriceHistory.insertMany(intradayDocs, { ordered: false });
+      console.log(`✓ StockPriceHistory: ${intradayDocs.length} intraday ticks inserted`);
+    } catch (insertErr) {
+      console.error('Error inserting StockPriceHistory:', insertErr.message);
+    }
   } else {
     console.log('  (no intraday ticks — no stock assets found)');
   }

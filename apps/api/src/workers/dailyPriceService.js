@@ -449,7 +449,9 @@ const backfillIntradayToday = async () => {
     console.log(`[Intraday] Checking gaps for ${stocks.length} stocks…`);
 
     const intradayDocs = [];
+    const stockFinalPrices = new Map(); // ticker -> final price after backfill
     let totalTicks = 0;
+    let processedStocks = 0;
 
     for (const asset of stocks) {
       // Get last existing tick for this stock today
@@ -486,81 +488,105 @@ const backfillIntradayToday = async () => {
         }
       }
 
-      if (startS >= endS) continue;
+      // Initialize final price for this stock
+      let finalPrice = price;
+      let finalChange = 0;
+      let finalChangePercent = '+0.00%';
 
-      const tickCount = Math.floor((endS - startS) / TICK_INTERVAL_S);
-      if (tickCount <= 0) continue;
+      if (startS < endS) {
+        const tickCount = Math.floor((endS - startS) / TICK_INTERVAL_S);
+        if (tickCount > 0) {
+          let prevPrice = price;
 
-      let prevPrice = price;
+          for (let i = 0; i < tickCount; i++) {
+            price = nextIntradayPrice(price, asset.volatility);
 
-      for (let i = 0; i < tickCount; i++) {
-        price = nextIntradayPrice(price, asset.volatility);
+            const change = parseFloat((price - prevPrice).toFixed(2));
+            const pct = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
+            const sign = pct >= 0 ? '+' : '';
+            const changePercent = `${sign}${pct.toFixed(2)}%`;
 
-        const change = parseFloat((price - prevPrice).toFixed(2));
-        const pct = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
-        const sign = pct >= 0 ? '+' : '';
-        const changePercent = `${sign}${pct.toFixed(2)}%`;
+            const tickOffsetS = startS + i * TICK_INTERVAL_S;
+            const timestamp = new Date(istMidnightUTC.getTime() + tickOffsetS * 1000);
 
-        const tickOffsetS = startS + i * TICK_INTERVAL_S;
-        const timestamp = new Date(istMidnightUTC.getTime() + tickOffsetS * 1000);
+            intradayDocs.push({
+              ticker: asset.ticker,
+              price,
+              change,
+              changePercent,
+              timestamp,
+            });
 
-        intradayDocs.push({
-          ticker: asset.ticker,
-          price,
-          change,
-          changePercent,
-          timestamp,
-        });
+            prevPrice = price;
+            totalTicks++;
 
-        prevPrice = price;
-        totalTicks++;
+            // Update final values
+            finalPrice = price;
+            finalChange = change;
+            finalChangePercent = changePercent;
+          }
+        }
       }
+
+      // Store final price even if we didn't generate new ticks
+      stockFinalPrices.set(asset.ticker, {
+        price: finalPrice,
+        change: finalChange,
+        changePercent: finalChangePercent,
+      });
+      processedStocks++;
     }
 
+    console.log(`[Intraday] Processed ${processedStocks}/${stocks.length} stocks`);
+
     if (intradayDocs.length) {
-      await StockPriceHistory.insertMany(intradayDocs, { ordered: false });
-      console.log(
-        `[Intraday] ✓ Backfill complete — ${totalTicks} ticks inserted for ${stocks.length} stocks`
-      );
-
-      // Update MarketState and Redis with the final backfilled price for each
-      // stock so the live mseWorker resumes from a consistent baseline rather
-      // than jumping back to the pre-backfill price (which causes a visible
-      // discontinuity in the chart at the point the live ticks start).
-      for (const asset of stocks) {
-        const lastDoc = intradayDocs.filter((doc) => doc.ticker === asset.ticker).pop();
-        if (!lastDoc) continue;
-
-        try {
-          await MarketState.updateOne(
-            { ticker: asset.ticker },
-            { $set: { lastPrice: lastDoc.price, lastUpdatedAt: new Date() } },
-            { upsert: true }
-          );
-        } catch (_) {
-          /* non-fatal */
-        }
-
-        try {
-          await redis.setex(
-            `price:${asset.ticker}`,
-            60,
-            JSON.stringify({
-              ticker: asset.ticker,
-              price: lastDoc.price,
-              change: lastDoc.change ?? 0,
-              changePercent: lastDoc.changePercent ?? '+0.00%',
-              up: (lastDoc.change ?? 0) >= 0,
-              timestamp: new Date().toISOString(),
-            })
-          );
-        } catch (_) {
-          /* non-fatal — MarketState is the durable fallback */
-        }
+      console.log(`[Intraday] Inserting ${intradayDocs.length} ticks…`);
+      try {
+        await StockPriceHistory.insertMany(intradayDocs, { ordered: false });
+        console.log(`[Intraday] ✓ Backfill complete — ${totalTicks} ticks inserted`);
+      } catch (insertErr) {
+        console.error('[Intraday] Error inserting ticks:', insertErr.message);
       }
     } else {
       console.log('[Intraday] ✓ No gaps to fill');
     }
+
+    // Update MarketState and Redis for ALL stocks, not just those that had new ticks
+    console.log('[Intraday] Updating MarketState and Redis for all stocks…');
+    let updatedCount = 0;
+    for (const asset of stocks) {
+      const finalData = stockFinalPrices.get(asset.ticker);
+      if (!finalData) continue;
+
+      try {
+        await MarketState.updateOne(
+          { ticker: asset.ticker },
+          { $set: { lastPrice: finalData.price, lastUpdatedAt: new Date() } },
+          { upsert: true }
+        );
+      } catch (_) {
+        /* non-fatal */
+      }
+
+      try {
+        await redis.setex(
+          `price:${asset.ticker}`,
+          60,
+          JSON.stringify({
+            ticker: asset.ticker,
+            price: finalData.price,
+            change: finalData.change ?? 0,
+            changePercent: finalData.changePercent ?? '+0.00%',
+            up: (finalData.change ?? 0) >= 0,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } catch (_) {
+        /* non-fatal — MarketState is the durable fallback */
+      }
+      updatedCount++;
+    }
+    console.log(`[Intraday] ✓ Updated MarketState/Redis for ${updatedCount} stocks`);
   } catch (err) {
     console.error('[Intraday] backfillIntradayToday failed:', err.message);
   }
