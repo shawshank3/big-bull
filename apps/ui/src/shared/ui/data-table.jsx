@@ -138,15 +138,15 @@ export function DataTable({
     <div className="space-y-0">
       {/* Toolbar / Search */}
       {(showSearch || toolbar) && (
-        <div className="flex items-center gap-3 px-4 py-3">
+        <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
           {showSearch && (
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative w-full sm:w-auto sm:flex-none sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
               <Input
                 placeholder={searchPlaceholder}
                 value={filterValue}
                 onChange={(e) => handleFilterChange(e.target.value)}
-                className="pl-9 h-9"
+                className="pl-9 h-9 w-full sm:w-64"
               />
             </div>
           )}

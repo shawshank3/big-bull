@@ -314,12 +314,15 @@ export const EnhancedOpportunitiesTable = ({
 
   // Custom filter toolbar
   const filterToolbar = (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:contents">
       <Select
         value={filters.assetType || '_all'}
         onValueChange={(val) => setFilters((f) => ({ ...f, assetType: val === '_all' ? '' : val }))}
       >
-        <SelectTrigger className="w-[130px]" aria-label="Filter by asset type">
+        <SelectTrigger
+          className="flex-1 min-w-[110px] sm:flex-none sm:w-[130px]"
+          aria-label="Filter by asset type"
+        >
           <SelectValue placeholder="All Types" />
         </SelectTrigger>
         <SelectContent>
@@ -336,7 +339,10 @@ export const EnhancedOpportunitiesTable = ({
         value={filters.lossType || '_all'}
         onValueChange={(val) => setFilters((f) => ({ ...f, lossType: val === '_all' ? '' : val }))}
       >
-        <SelectTrigger className="w-[140px]" aria-label="Filter by loss type">
+        <SelectTrigger
+          className="flex-1 min-w-[110px] sm:flex-none sm:w-[140px]"
+          aria-label="Filter by loss type"
+        >
           <SelectValue placeholder="All Loss Types" />
         </SelectTrigger>
         <SelectContent>
@@ -353,7 +359,10 @@ export const EnhancedOpportunitiesTable = ({
         value={filters.sector || '_all'}
         onValueChange={(val) => setFilters((f) => ({ ...f, sector: val === '_all' ? '' : val }))}
       >
-        <SelectTrigger className="w-[140px]" aria-label="Filter by sector">
+        <SelectTrigger
+          className="flex-1 min-w-[110px] sm:flex-none sm:w-[140px]"
+          aria-label="Filter by sector"
+        >
           <SelectValue placeholder="All Sectors" />
         </SelectTrigger>
         <SelectContent>
@@ -371,7 +380,7 @@ export const EnhancedOpportunitiesTable = ({
           variant="ghost"
           size="sm"
           onClick={() => setFilters({ assetType: '', lossType: '', sector: '' })}
-          className="text-xs"
+          className="text-xs shrink-0"
         >
           Clear filters
         </Button>
