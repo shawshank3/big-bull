@@ -108,7 +108,7 @@ Portfolio holdings and P&L are never stored — they are computed on demand by a
 
    | Variable              | Purpose                      | Required |
    | --------------------- | ---------------------------- | -------- |
-   | `MONGO_URI`           | MongoDB connection string    | Yes      |
+   | `MONGODB_URI`         | MongoDB connection string    | Yes      |
    | `JWT_SECRET`          | Access token signing key     | Yes      |
    | `JWT_ACCESS_EXPIRES`  | Token lifetime (e.g. `30s`)  | Yes      |
    | `JWT_REFRESH_EXPIRES` | Refresh lifetime (e.g. `2h`) | Yes      |
@@ -163,7 +163,7 @@ The build step compiles the Vite UI into static files. At runtime, Express serve
 | --------------------- | -------------------------------- |
 | `NODE_ENV`            | Set to `production`              |
 | `PORT`                | `4000`                           |
-| `MONGO_URI`           | MongoDB Atlas connection string  |
+| `MONGODB_URI`         | MongoDB Atlas connection string  |
 | `JWT_SECRET`          | Access token signing key         |
 | `JWT_ACCESS_EXPIRES`  | Token lifetime                   |
 | `JWT_REFRESH_EXPIRES` | Refresh token lifetime           |

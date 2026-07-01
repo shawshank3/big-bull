@@ -132,7 +132,7 @@ If any layer throws an `AppError` (or any uncaught error), the global `errorHand
 | **asset**       | Asset model + validator (catalog data)        | `asset.model.js`, `asset.validator.js`                                                                                                                                                                                               | None (reference data)  |
 | **chat**        | AI Copilot — Gemini conversation              | `chat.controller.js`, `chat.routes.js`, `chat.service.js`                                                                                                                                                                            | `/api/v1/chat`         |
 | **tax**         | Capital gains tracking, tax-loss harvesting   | `tax.controller.js`, `tax.routes.js`, `tax.service.js`, `tax.validator.js`                                                                                                                                                           | `/api/v1/tax`          |
-| **insights**    | Public platform-wide statistics (cached)      | `insights.controller.js`, `insights.routes.js`, `insights.service.js`, `insights.model.js`                                                                                                                                           | `/api/v1/insights`     |
+| **insights**    | Public platform-wide statistics               | `insights.controller.js`, `insights.routes.js`, `insights.service.js`                                                                                                                                                                | `/api/v1/insights`     |
 
 ---
 
@@ -145,10 +145,9 @@ If any layer throws an `AppError` (or any uncaught error), the global `errorHand
 | `virtualwallets`      | wallet        | `wallet.service.debit()`, `wallet.service.credit()`                                                                                                                | Atomic `$inc` within session          |
 | `transactions`        | transaction   | `transaction.service.executeOrder()`                                                                                                                               | Create (immutable, never updated)     |
 | `marketstates`        | market (MSE)  | `mseWorker` bulk-upsert (stocks only), `dailyPriceService.backfillMissingDays()` (stocks only)                                                                     | Upsert on every 30s tick + startup    |
-| `stockpricehistories` | market (MSE)  | `mseWorker` insertMany, `dailyPriceService.backfillIntradayToday()`                                                                                                | Append-only (48h TTL index)           |
+| `stockpricehistories` | market (MSE)  | `mseWorker` insertMany, `dailyPriceService.backfillIntradayToday()` (per-stock insertMany)                                                                         | Append-only (48h TTL index)           |
 | `dailyprices` (stock) | market (MSE)  | `mseWorker` per-tick upsert of today's record, `dailyPriceService.writeTodayClose()` (shutdown safety net), `backfillMissingDays()` (past-day gap fill on startup) | Upsert per ticker per day             |
 | `dailyprices` (MF)    | market (MSE)  | `dailyPriceService.ensureMfDailyPrices()` — sole writer (startup + day rollover)                                                                                   | Upsert per ticker per day             |
-| `appinsights`         | insights      | `insights.service.getInsights()` — upserts single cached document                                                                                                  | Upsert (recomputes every 5 min)       |
 
 ---
 
@@ -319,11 +318,13 @@ pnpm start
 Server starts at `http://localhost:4000`. On startup:
 
 1. Connects to MongoDB
-2. Ensures all mutual-fund DailyPrice records are current (through today)
-3. Backfills any missing stock DailyPrice records from downtime days
-4. Backfills today's intraday StockPriceHistory ticks (filling any gaps from last existing tick if present)
-5. Starts BullMQ mse-price-tick scheduler (30s interval)
+2. Ensures all mutual-fund DailyPrice records are current (through today) — `await`ed
+3. Backfills any missing stock DailyPrice records from downtime days — `await`ed
+4. Backfills today's intraday StockPriceHistory ticks (gap from last tick to now) — `await`ed
+5. Starts BullMQ mse-price-tick scheduler + creates Worker (30s interval)
 6. Starts live ticker (1s SSE broadcast)
+
+Steps 2–4 are awaited sequentially before step 5. This ensures the MSE worker never fires its first tick before backfill completes, which would otherwise cause it to write a `StockPriceHistory` entry at `~now` and make gap detection think nothing needs backfilling.
 
 On graceful shutdown (SIGTERM/SIGINT): writes today's stock closing prices to DailyPrice before exiting. Mutual fund NAVs are already persisted by `ensureMfDailyPrices()` and need no shutdown action.
 
