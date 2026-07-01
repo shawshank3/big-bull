@@ -234,12 +234,26 @@ const handleDayTransition = async (currentDay) => {
   }
 };
 
-// ─── Worker ──────────────────────────────────────────────────────────────────
+// ─── Worker factory ───────────────────────────────────────────────────────────
 
-let mseWorker = null;
+/**
+ * Creates and returns the BullMQ Worker instance.
+ *
+ * Deliberately NOT created at module load time.  The Worker starts consuming
+ * jobs from Redis the moment it is instantiated — including any repeatable job
+ * left in the queue from the previous run.  Creating it here (inside
+ * scheduleMseTick) ensures the worker only starts AFTER all startup backfills
+ * (backfillIntradayToday etc.) have fully completed, preventing the race where
+ * a live tick writes StockPriceHistory entries that make the gap-detection
+ * logic think there is nothing to backfill.
+ */
+const createMseWorker = () => {
+  if (!isRedisAvailable) {
+    console.warn('⚠️  MSE worker: Redis not configured — worker disabled');
+    return null;
+  }
 
-if (isRedisAvailable) {
-  mseWorker = new Worker(
+  const worker = new Worker(
     'mse-price-tick',
     async (job) => {
       console.log(`[MSE] Price tick job #${job.id} — processing`);
@@ -389,13 +403,12 @@ if (isRedisAvailable) {
     { connection: makeBullMQConnection() }
   );
 
-  mseWorker.on('completed', (job) => console.log(`[MSE] Job ${job.id} completed`));
-  mseWorker.on('failed', (job, err) => console.error(`[MSE] Job ${job?.id} failed:`, err.message));
+  worker.on('completed', (job) => console.log(`[MSE] Job ${job.id} completed`));
+  worker.on('failed', (job, err) => console.error(`[MSE] Job ${job?.id} failed:`, err.message));
 
   console.log('✓ MSE price-tick worker started');
-} else {
-  console.warn('⚠️  MSE worker: Redis not configured — worker disabled');
-}
+  return worker;
+};
 
 // ─── Scheduler ───────────────────────────────────────────────────────────────
 
@@ -414,6 +427,14 @@ const scheduleMseTick = async () => {
     { repeat: { every: 30000 } } // every 30 seconds
   );
   console.log('✓ MSE price-tick job scheduled (every 30s)');
+
+  // Create the worker only after the job is scheduled — this is the earliest
+  // point it is safe to start consuming, guaranteeing all startup backfills
+  // have already completed (server.js awaits backfillIntradayToday before
+  // calling scheduleMseTick).
+  mseWorker = createMseWorker();
 };
 
-module.exports = { mseWorker, scheduleMseTick };
+let mseWorker = null;
+
+module.exports = { scheduleMseTick };
