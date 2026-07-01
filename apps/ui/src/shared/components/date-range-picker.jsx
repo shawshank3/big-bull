@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import { Calendar } from './calendar';
 import { cn } from '@/lib/utils';
+import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 
 /**
  * DateRangePicker
@@ -36,8 +37,13 @@ export function DateRangePicker({
   placeholder = 'Pick a date range',
   className,
   align = 'end',
-  numberOfMonths = 2,
+  numberOfMonths,
 }) {
+  const isMobile = useMediaQuery('(max-width: 639px)');
+  // On mobile show a single month to prevent horizontal overflow.
+  // Callers can still override by passing numberOfMonths explicitly.
+  const months = numberOfMonths ?? (isMobile ? 1 : 2);
+
   const hasRange = Boolean(value?.from);
 
   const label = React.useMemo(() => {
@@ -83,12 +89,12 @@ export function DateRangePicker({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align={align} className="p-2">
+      <PopoverContent align={align} className="w-auto p-2">
         <Calendar
           mode="range"
           selected={value}
           onSelect={onChange}
-          numberOfMonths={numberOfMonths}
+          numberOfMonths={months}
           defaultMonth={value?.from ?? new Date()}
         />
       </PopoverContent>
