@@ -8,3 +8,4 @@ export { LineChart } from './line-chart';
 export { Progress } from './progress';
 export { Spinner } from './spinner';
 export { PageTitle, PageDescription, SectionTitle, MutedText, StatValue } from './typography';
+export { Popover, PopoverTrigger, PopoverContent } from './popover';
