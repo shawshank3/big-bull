@@ -53,17 +53,32 @@ app.use(express.json({ limit: '3mb' }));
 app.use(express.urlencoded({ extended: true, limit: '3mb' }));
 
 // Connect to database
-connectDB().then(() => {
+connectDB().then(async () => {
+  // Run all backfills sequentially and to completion BEFORE starting the MSE
+  // worker.  The MSE worker writes StockPriceHistory on its very first tick,
+  // which would race with backfillIntradayToday() and cause the gap-fill to
+  // skip stocks that haven't been processed yet (because their lastTick would
+  // already point to "now" instead of the pre-shutdown timestamp).
+
   // Mutual funds: ensure today's NAV exists for every MF (single source of
   // truth for MF prices = DailyPrice).  Idempotent: skips MFs already current.
-  ensureMfDailyPrices().catch((err) => console.error('MF NAV initialization failed:', err.message));
+  await ensureMfDailyPrices().catch((err) =>
+    console.error('MF NAV initialization failed:', err.message)
+  );
+
   // Stocks: backfill any missing DailyPrice records from previous downtime days
-  backfillMissingDays().catch((err) =>
+  await backfillMissingDays().catch((err) =>
     console.error('Stock DailyPrice backfill failed:', err.message)
   );
-  // Stocks: backfill today's intraday ticks so 1D chart is not empty on startup
-  backfillIntradayToday().catch((err) => console.error('Intraday backfill failed:', err.message));
-  // Start BullMQ price-tick scheduler and 1s live ticker after DB is ready
+
+  // Stocks: backfill today's intraday ticks so 1D chart is not empty on startup.
+  // Must finish before scheduleMseTick() so the MSE worker's first tick does
+  // not interfere with gap detection.
+  await backfillIntradayToday().catch((err) =>
+    console.error('Intraday backfill failed:', err.message)
+  );
+
+  // All backfills done — now safe to start the live simulation
   scheduleMseTick().catch((err) => console.error('MSE scheduler failed to start:', err.message));
   startLiveTicker();
 });

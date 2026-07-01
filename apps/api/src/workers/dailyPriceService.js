@@ -448,11 +448,13 @@ const backfillIntradayToday = async () => {
 
     console.log(`[Intraday] Checking gaps for ${stocks.length} stocks…`);
 
-    const intradayDocs = [];
     const stockFinalPrices = new Map(); // ticker -> final price after backfill
     let totalTicks = 0;
     let processedStocks = 0;
 
+    // Process one stock at a time — never accumulate all ticks in memory at once.
+    // With 100 stocks × ~1800 ticks each, a single array would consume ~300 MB
+    // and crash the process with a heap-out-of-memory error.
     for (const asset of stocks) {
       // Get last existing tick for this stock today
       const lastTick = await StockPriceHistory.findOne({
@@ -496,6 +498,9 @@ const backfillIntradayToday = async () => {
       if (startS < endS) {
         const tickCount = Math.floor((endS - startS) / TICK_INTERVAL_S);
         if (tickCount > 0) {
+          // Build docs for this stock only, then insert immediately.
+          // Keeps peak memory to a single stock's worth of ticks (~1–2 MB).
+          const stockDocs = [];
           let prevPrice = price;
 
           for (let i = 0; i < tickCount; i++) {
@@ -509,7 +514,7 @@ const backfillIntradayToday = async () => {
             const tickOffsetS = startS + i * TICK_INTERVAL_S;
             const timestamp = new Date(istMidnightUTC.getTime() + tickOffsetS * 1000);
 
-            intradayDocs.push({
+            stockDocs.push({
               ticker: asset.ticker,
               price,
               change,
@@ -525,6 +530,16 @@ const backfillIntradayToday = async () => {
             finalChange = change;
             finalChangePercent = changePercent;
           }
+
+          // Insert this stock's ticks immediately — do not accumulate across stocks
+          try {
+            await StockPriceHistory.insertMany(stockDocs, { ordered: false });
+          } catch (insertErr) {
+            console.error(
+              `[Intraday] Error inserting ticks for ${asset.ticker}:`,
+              insertErr.message
+            );
+          }
         }
       }
 
@@ -539,14 +554,8 @@ const backfillIntradayToday = async () => {
 
     console.log(`[Intraday] Processed ${processedStocks}/${stocks.length} stocks`);
 
-    if (intradayDocs.length) {
-      console.log(`[Intraday] Inserting ${intradayDocs.length} ticks…`);
-      try {
-        await StockPriceHistory.insertMany(intradayDocs, { ordered: false });
-        console.log(`[Intraday] ✓ Backfill complete — ${totalTicks} ticks inserted`);
-      } catch (insertErr) {
-        console.error('[Intraday] Error inserting ticks:', insertErr.message);
-      }
+    if (totalTicks > 0) {
+      console.log(`[Intraday] ✓ Backfill complete — ${totalTicks} ticks inserted`);
     } else {
       console.log('[Intraday] ✓ No gaps to fill');
     }
