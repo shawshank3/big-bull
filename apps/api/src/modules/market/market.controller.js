@@ -193,7 +193,7 @@ const listAssets = catchAsync(async (req, res) => {
   ]);
 
   // Enrich with live prices and day change data
-  const { resolveAssetPrice } = require('./market.service');
+  const { resolveAssetPrice, computeMfDayDelta } = require('./market.service');
   const assets = await Promise.all(
     rawAssets.map(async (asset) => {
       const currentPrice = await resolveAssetPrice(asset).catch(() => asset.basePrice);
@@ -201,16 +201,25 @@ const listAssets = catchAsync(async (req, res) => {
       let change = 0;
       let changePercent = '+0.00%';
 
-      // Read change metadata from Redis (set by mseWorker on each tick)
-      try {
-        const cached = await redis.get(`price:${asset.ticker}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (typeof parsed.change === 'number') change = parsed.change;
-          if (typeof parsed.changePercent === 'string') changePercent = parsed.changePercent;
+      if (asset.assetType === ASSET_TYPES.MUTUAL_FUND) {
+        // MFs have no intraday Redis key — compute delta from yesterday's DailyPrice NAV.
+        const delta = await computeMfDayDelta(asset.ticker, currentPrice).catch(() => null);
+        if (delta) {
+          change = delta.change;
+          changePercent = delta.changePercent;
         }
-      } catch (_) {
-        /* non-fatal */
+      } else {
+        // Read change metadata from Redis (set by mseWorker on each tick for stocks)
+        try {
+          const cached = await redis.get(`price:${asset.ticker}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (typeof parsed.change === 'number') change = parsed.change;
+            if (typeof parsed.changePercent === 'string') changePercent = parsed.changePercent;
+          }
+        } catch (_) {
+          /* non-fatal */
+        }
       }
 
       return { ...asset, currentPrice, change, changePercent };

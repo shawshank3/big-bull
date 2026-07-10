@@ -353,4 +353,5 @@ module.exports = {
   resolveAssetPrice,
   resolveStockPrice,
   resolveMfPrice,
+  computeMfDayDelta,
 };
