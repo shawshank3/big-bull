@@ -276,26 +276,27 @@ To add a new feature module:
 
 All primitives live in `src/shared/ui/` and are exported from `shared/ui/index.js`. Import from the barrel: `import { Button, Badge } from '@/shared/ui'`.
 
-| Component         | Description                                                                                    | When to Use                                                                |
-| ----------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `Button`          | Multi-variant button with loading state (primary, secondary, danger, outline, ghost; sm/md/lg) | Any clickable action — form submit, navigation trigger, destructive action |
-| `Input`           | Styled text input with focus ring and placeholder styling                                      | Form fields, search boxes, text entry                                      |
-| `Label`           | Form field label with disabled state styling                                                   | Pair with `Input` in forms                                                 |
-| `Badge`           | Coloured pill for status indicators (success, danger, warning, info)                           | Tags, status labels, category chips                                        |
-| `Alert`           | Dismissible alert banner with variant colours                                                  | Success/error/warning messages, notifications                              |
-| `Avatar`          | Radix-based image avatar with fallback initials                                                | User profile images, comment avatars                                       |
-| `Spinner`         | Animated loading indicator with optional label                                                 | Inline loading states, async operations in progress                        |
-| `GlobalLoader`    | Full-screen branded overlay with pulsing icon and label (props: `show`, `label`)               | Route-guard auth resolution, logout transition, any full-viewport wait     |
-| `Progress`        | Radix-based progress bar                                                                       | Upload progress, completion indicators                                     |
-| `LineChart`       | Recharts area chart wrapper with theme-aware colours and optional baseline reference line      | Price history charts, trend visualisations                                 |
-| `DataTable`       | Client-side paginated, sortable, searchable data table (TanStack)                              | Displaying in-memory datasets with filtering                               |
-| `ServerDataTable` | Server-side paginated data table with debounced search                                         | Large datasets fetched page-by-page from API                               |
-| `Pagination`      | Unified pagination bar supporting both client and server modes                                 | Used internally by DataTable and ServerDataTable                           |
-| `PageTitle`       | `<h1>` with standard heading styles                                                            | Page-level titles                                                          |
-| `PageDescription` | Muted paragraph text                                                                           | Subtitle/description below page titles                                     |
-| `SectionTitle`    | `<h2>` with section heading styles                                                             | Section headings within a page                                             |
-| `MutedText`       | Small muted text element                                                                       | Captions, helper text, timestamps                                          |
-| `StatValue`       | Large bold number with tone colouring (primary, success, danger)                               | Dashboard stat cards, KPI displays                                         |
+| Component         | Description                                                                                    | When to Use                                                                            |
+| ----------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `Button`          | Multi-variant button with loading state (primary, secondary, danger, outline, ghost; sm/md/lg) | Any clickable action — form submit, navigation trigger, destructive action             |
+| `Input`           | Styled text input with focus ring and placeholder styling                                      | Form fields, search boxes, text entry                                                  |
+| `Label`           | Form field label with disabled state styling                                                   | Pair with `Input` in forms                                                             |
+| `Badge`           | Coloured pill for status indicators (success, danger, warning, info)                           | Tags, status labels, category chips                                                    |
+| `Alert`           | Dismissible alert banner with variant colours                                                  | Success/error/warning messages, notifications                                          |
+| `Avatar`          | Radix-based image avatar with fallback initials                                                | User profile images, comment avatars                                                   |
+| `Spinner`         | Animated loading indicator with optional label                                                 | Inline loading states, async operations in progress                                    |
+| `Skeleton`        | Animated shimmer placeholder (accepts `className` for size/shape)                              | Content loading states where layout should be preserved — auth-gated UI, data fetching |
+| `GlobalLoader`    | Full-screen branded overlay with pulsing icon and label (props: `show`, `label`)               | Route-guard auth resolution, logout transition, any full-viewport wait                 |
+| `Progress`        | Radix-based progress bar                                                                       | Upload progress, completion indicators                                                 |
+| `LineChart`       | Recharts area chart wrapper with theme-aware colours and optional baseline reference line      | Price history charts, trend visualisations                                             |
+| `DataTable`       | Client-side paginated, sortable, searchable data table (TanStack)                              | Displaying in-memory datasets with filtering                                           |
+| `ServerDataTable` | Server-side paginated data table with debounced search                                         | Large datasets fetched page-by-page from API                                           |
+| `Pagination`      | Unified pagination bar supporting both client and server modes                                 | Used internally by DataTable and ServerDataTable                                       |
+| `PageTitle`       | `<h1>` with standard heading styles                                                            | Page-level titles                                                                      |
+| `PageDescription` | Muted paragraph text                                                                           | Subtitle/description below page titles                                                 |
+| `SectionTitle`    | `<h2>` with section heading styles                                                             | Section headings within a page                                                         |
+| `MutedText`       | Small muted text element                                                                       | Captions, helper text, timestamps                                                      |
+| `StatValue`       | Large bold number with tone colouring (primary, success, danger)                               | Dashboard stat cards, KPI displays                                                     |
 
 ## Tax Center Feature
 
