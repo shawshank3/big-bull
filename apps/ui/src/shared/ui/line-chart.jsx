@@ -106,7 +106,7 @@ export const LineChart = React.forwardRef(
     const yMax = maxPrice + buffer;
 
     return (
-      <div ref={ref} className={cn('w-full', className)} {...props}>
+      <div ref={ref} className={cn('w-full [&_*]:outline-none', className)} {...props}>
         <ResponsiveContainer width="100%" height={height}>
           <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
             <defs>
