@@ -165,6 +165,7 @@ Per-tick operations in order (stocks only):
 2. Detect IST day transition; on rollover trigger MF NAV refresh (stocks need no extra action — see step 12 below)
 3. Read global MarketSentiment and SectorTrend values from Redis
 4. Resolve previous price (three-tier chain), compute new price using `Price_t = Price_{t-1} × (1 + Sm + Ts + Va × N)` where N is Gaussian noise
+   4a. Load previous-day close prices for all stocks from DailyPrice (one aggregate query); used as 1D change baseline for `change`/`changePercent` in SSE payloads — never tick-to-tick delta.
 5. Write updated price to Redis (`price:<ticker>`, TTL 60s)
 6. Broadcast SSE `price_update` event to all connected clients
 7. Emit `volatility_alert` if single-tick swing > 3%
@@ -177,7 +178,7 @@ Per-tick operations in order (stocks only):
 **Layer 2 — Live Ticker (mseLiveTicker, every 1s via setInterval)**
 
 - Applies micro-noise (scaled to 1/√30 of volatility) to in-memory cached stock prices
-- Broadcasts SSE `price_update` per stock to all clients
+- Broadcasts SSE `price_update` per stock to all clients; `change`/`changePercent` use `dayOpenPrice` (previous close) from the seeded cache as baseline — consistent with the authoritative 30s tick
 - No database reads, no Redis writes — pure in-process interpolation
 
 ### Mutual funds: one NAV per IST day
@@ -382,16 +383,17 @@ All routes are prefixed with `/api/v1/` unless noted. Standard response envelope
 
 ### Market (`/api/v1/market`)
 
-| Method | Path                     | Auth   | Body / Params                                                                        | Response `data`                                               |
-| ------ | ------------------------ | ------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| GET    | `/market/ticker`         | Public | None                                                                                 | Live ticker quotes for top stocks                             |
-| GET    | `/market/assets`         | Public | Query: `?type=STOCK\|MUTUAL_FUND` (legacy)                                           | `{ assets }` — enriched with live prices                      |
-| POST   | `/market/assets/list`    | Public | `{ pagination: { page, limit }, filters?: { assetType?, sector? }, search?, sort? }` | Paginated `{ items, pagination }`                             |
-| GET    | `/market/assets/:ticker` | Public | Path param: ticker (NSE symbol)                                                      | `{ asset }`                                                   |
-| GET    | `/market/search`         | Public | Query: `?q=` — min 2 chars, max 100                                                  | `{ results }`                                                 |
-| GET    | `/market/quote/:ticker`  | Public | Path param: ticker                                                                   | Quote object with live price                                  |
-| GET    | `/market/stream`         | Public | None (SSE connection)                                                                | SSE events: `connected`, `price_update`, `volatility_alert`   |
-| GET    | `/market/chart/:ticker`  | Public | Path param: ticker; Query: `?range=1D\|1W\|1M\|3M\|1Y`                               | `{ ticker, assetType, range, granularity, points, baseline }` |
+| Method | Path                     | Auth   | Body / Params                                                                        | Response `data`                                                 |
+| ------ | ------------------------ | ------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| GET    | `/market/ticker`         | Public | None                                                                                 | Live ticker quotes for top stocks                               |
+| GET    | `/market/assets`         | Public | Query: `?type=STOCK\|MUTUAL_FUND` (legacy)                                           | `{ assets }` — enriched with live prices                        |
+| POST   | `/market/assets/list`    | Public | `{ pagination: { page, limit }, filters?: { assetType?, sector? }, search?, sort? }` | Paginated `{ items, pagination }`                               |
+| GET    | `/market/assets/:ticker` | Public | Path param: ticker (NSE symbol)                                                      | `{ asset }`                                                     |
+| GET    | `/market/search`         | Public | Query: `?q=` — min 2 chars, max 100                                                  | `{ results }`                                                   |
+| GET    | `/market/quote/:ticker`  | Public | Path param: ticker                                                                   | Quote object with live price                                    |
+| GET    | `/market/stream`         | Public | None (SSE connection)                                                                | SSE events: `connected`, `price_update`, `volatility_alert`     |
+| GET    | `/market/chart/:ticker`  | Public | Path param: ticker; Query: `?range=1D\|1W\|1M\|3M\|1Y`                               | `{ ticker, assetType, range, granularity, points, baseline }`   |
+| GET    | `/market/movers`         | Public | Query: `?limit=4` (default 4, max 20)                                                | `{ gainers, losers }` — top N stocks sorted by 1D changePercent |
 
 ### Insights (`/api/v1/insights`)
 

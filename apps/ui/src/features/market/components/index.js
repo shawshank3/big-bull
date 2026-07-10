@@ -1,4 +1,6 @@
 export { MarketContent } from './MarketContent';
+export { AssetTypeTabBar } from './AssetTypeTabBar';
+export { AssetPriceCell } from './AssetPriceCell';
 export { MarketQuoteCard } from './MarketQuoteCard';
 export { MutualDetailContent } from './MutualDetailContent';
 export { NavbarSearch } from './NavbarSearch';

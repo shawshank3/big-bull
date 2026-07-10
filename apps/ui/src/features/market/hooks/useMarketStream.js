@@ -102,23 +102,32 @@ export const useMarketStream = () => {
         );
       }
 
-      // Patch ALL existing listAssets cache entries (new server-paginated endpoint)
+      // Patch ALL existing listAssets infinite-query cache entries.
+      // The infinite cache shape is { pages: [{ items, pagination }, ...], pageParams: [...] }.
+      // We iterate every page in every cached query arg to find and update the matching ticker.
       dispatch((dispatch2, getState) => {
         const state = getState();
         const queries = state?.api?.queries;
         if (!queries) return;
-        const argsToUpdate = [];
+
         for (const key of Object.keys(queries)) {
           if (!key.startsWith('listAssets(')) continue;
           const entry = queries[key];
-          if (!entry?.data?.items || entry.status !== 'fulfilled') continue;
-          argsToUpdate.push(entry.originalArgs);
-        }
-        for (const args of argsToUpdate) {
+          if (!entry?.data?.pages || entry.status !== 'fulfilled') continue;
+
           dispatch2(
-            apiSlice.util.updateQueryData('listAssets', args, (draft) => {
-              const asset = draft.items?.find((a) => a.ticker === ticker);
-              if (asset) asset.currentPrice = price;
+            apiSlice.util.updateQueryData('listAssets', entry.originalArgs, (draft) => {
+              for (const page of draft.pages) {
+                const asset = page.items?.find((a) => a.ticker === ticker);
+                if (asset) {
+                  asset.currentPrice = price;
+                  asset.change = change ?? 0;
+                  // changePercent arrives as a string like "+1.23%" — parse to number
+                  const raw = changePercent ?? '+0.00%';
+                  asset.changePercent = parseFloat(raw) || 0;
+                  asset.changePercentStr = raw;
+                }
+              }
             })
           );
         }

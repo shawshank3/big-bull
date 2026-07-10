@@ -11,6 +11,7 @@
 const transactionService = require('../transaction/transaction.service');
 const walletService = require('../wallet/wallet.service');
 const { resolveAssetPrice } = require('../market/market.service');
+const { moneyAdd, moneyMultiply, moneySubtract } = require('../../shared/money');
 
 /**
  * computeHoldings(userId)
@@ -39,9 +40,9 @@ const computeHoldings = async (userId) => {
         () => holding.asset.basePrice
       );
 
-      const currentValue = holding.netQuantity * currentPrice;
+      const currentValue = moneyMultiply(holding.netQuantity, currentPrice);
       const totalInvested = holding.totalBuyCost;
-      const unrealisedPnL = currentValue - totalInvested;
+      const unrealisedPnL = moneySubtract(currentValue, totalInvested);
       const unrealisedPnLPercent = totalInvested > 0 ? (unrealisedPnL / totalInvested) * 100 : 0;
 
       return {
@@ -68,7 +69,7 @@ const computeHoldings = async (userId) => {
   );
 
   // Total portfolio value across all positions
-  const totalPortfolioValue = enriched.reduce((sum, h) => sum + h.currentValue, 0);
+  const totalPortfolioValue = enriched.reduce((sum, h) => moneyAdd(sum, h.currentValue), 0);
 
   // Append portfolio weight to each holding
   enriched.forEach((holding) => {
@@ -97,9 +98,9 @@ const computeSummary = async (userId) => {
     walletService.getBalance(userId).catch(() => ({ balance: 0 })),
   ]);
 
-  const totalInvested = holdings.reduce((sum, h) => sum + h.totalInvested, 0);
-  const currentValue = holdings.reduce((sum, h) => sum + h.currentValue, 0);
-  const totalPnL = currentValue - totalInvested;
+  const totalInvested = holdings.reduce((sum, h) => moneyAdd(sum, h.totalInvested), 0);
+  const currentValue = holdings.reduce((sum, h) => moneyAdd(sum, h.currentValue), 0);
+  const totalPnL = moneySubtract(currentValue, totalInvested);
   const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
 
   return {

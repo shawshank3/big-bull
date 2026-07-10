@@ -6,6 +6,7 @@ const {
   getAssets,
   getAssetByTicker,
   listAssets,
+  getMovers,
   stream,
 } = require('./market.controller');
 const { getChart } = require('./chart.controller');
@@ -13,6 +14,7 @@ const { getChart } = require('./chart.controller');
 const router = Router();
 
 router.get('/ticker', getTicker); // public
+router.get('/movers', getMovers); // public — top gainers & losers
 router.get('/assets', getAssets); // public (legacy)
 router.post('/assets/list', listAssets); // public — standardised paginated list
 router.get('/assets/:ticker', getAssetByTicker); // public

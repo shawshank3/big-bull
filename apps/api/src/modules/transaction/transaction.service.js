@@ -14,6 +14,7 @@ const Asset = require('../asset/asset.model');
 const AppError = require('../../shared/AppError');
 const walletService = require('../wallet/wallet.service');
 const { resolveAssetPrice } = require('../market/market.service');
+const { roundRupee, moneyAdd, moneySubtract, moneyMultiply } = require('../../shared/money');
 const { TRANSACTION_TYPES, ASSET_TYPES } = require('../../shared/constants');
 
 /**
@@ -119,7 +120,7 @@ const aggregateHoldings = async (userId) => {
     for (const lot of lots) {
       if (lot.remainingQty > 0) {
         netQuantity += lot.remainingQty;
-        totalBuyCost += lot.remainingQty * lot.pricePerUnit;
+        totalBuyCost = moneyAdd(totalBuyCost, moneyMultiply(lot.remainingQty, lot.pricePerUnit));
         totalBuyQty += lot.remainingQty;
       }
     }
@@ -132,7 +133,7 @@ const aggregateHoldings = async (userId) => {
         netQuantity,
         totalBuyQty,
         totalBuyCost,
-        avgCostBasis: totalBuyCost / totalBuyQty,
+        avgCostBasis: totalBuyQty > 0 ? roundRupee(totalBuyCost / totalBuyQty) : 0,
       };
     }
   }
@@ -227,11 +228,11 @@ const executeOrder = async (userId, orderData) => {
   }
 
   if (transactionType === TRANSACTION_TYPES.BUY) {
-    const totalCost = quantity * pricePerUnit + fees;
+    const totalCost = moneyAdd(moneyMultiply(quantity, pricePerUnit), fees);
     const wallet = await walletService.getBalance(userId);
 
     if (wallet.balance < totalCost) {
-      const shortBy = (totalCost - wallet.balance).toFixed(2);
+      const shortBy = roundRupee(totalCost - wallet.balance).toFixed(2);
       throw new AppError(
         `Insufficient wallet balance to buy ${assetDisplayName}. You need ₹${shortBy} more.`,
         400
@@ -259,11 +260,11 @@ const executeOrder = async (userId, orderData) => {
     const [tx] = await Transaction.create([txData], { session });
 
     if (transactionType === TRANSACTION_TYPES.BUY) {
-      const totalCost = quantity * pricePerUnit + fees;
+      const totalCost = moneyAdd(moneyMultiply(quantity, pricePerUnit), fees);
       await walletService.debit(userId, totalCost, session);
     } else {
       // SELL: credit sale proceeds minus fees
-      const proceeds = quantity * pricePerUnit - fees;
+      const proceeds = moneySubtract(moneyMultiply(quantity, pricePerUnit), fees);
       await walletService.credit(userId, proceeds, session);
     }
 

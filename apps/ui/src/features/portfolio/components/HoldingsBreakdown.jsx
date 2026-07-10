@@ -17,7 +17,7 @@ export const HoldingsBreakdown = ({ holdings, isLoading, showNavigate = false })
     <Card>
       <CardContent className="space-y-4 pt-6">
         <HoldingsSectionHeader showNavigate={showNavigate} />
-        <Tabs defaultValue={HOLDING_TYPES.MUTUAL}>
+        <Tabs defaultValue={HOLDING_TYPES.STOCK}>
           <TabsList>
             {HOLDING_TABS.map((tab) => (
               <TabsTrigger key={tab.key} value={tab.key}>

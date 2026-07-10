@@ -8,6 +8,7 @@ import { getAllocation } from '@/shared/utils';
 import { HoldingsBreakdown } from './HoldingsBreakdown';
 import { PortfolioOverviewCard } from './PortfolioOverviewCard';
 import { TaxQuickAccess } from './TaxQuickAccess';
+import { TopMovers } from './TopMovers';
 
 export const DashboardContent = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -47,6 +48,7 @@ export const DashboardContent = () => {
       />
       {error ? <Alert variant="danger">Unable to load holdings right now.</Alert> : null}
       <PortfolioOverviewCard summary={summary} allocation={allocation} />
+      <TopMovers />
       <HoldingsBreakdown holdings={holdings} isLoading={false} showNavigate />
       <TaxQuickAccess />
     </>

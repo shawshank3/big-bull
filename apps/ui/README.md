@@ -34,8 +34,8 @@ apps/ui/
 │   │   └── routes/NotFound.jsx # 404 page
 │   ├── features/               # Feature modules (domain-sliced)
 │   │   ├── auth/               # Login, register, session, route guards
-│   │   ├── market/             # Asset listing, quotes, SSE stream, search
-│   │   ├── portfolio/          # Holdings, dashboard summary, P&L
+│   │   ├── market/             # Asset listing (infinite scroll), quotes, SSE stream, search, top movers
+│   │   ├── portfolio/          # Holdings, dashboard summary, P&L, Top Gainers/Losers (from market)
 │   │   ├── tax/                # Capital gains, tax-loss harvesting
 │   │   ├── transaction/        # Buy/sell order execution
 │   │   ├── wallet/             # Balance display, wallet transaction history
@@ -169,6 +169,8 @@ Component hooks                    useGetPortfolioHoldingsQuery(), useExecuteOrd
 
 **Endpoint injection:** Each feature's `api/<mod>Api.js` calls `apiSlice.injectEndpoints(...)`. All are imported as side-effects in `app/store.js` to ensure registration before the store is created.
 
+**Infinite Query:** The market assets list (`/market`) uses `builder.infiniteQuery` (RTK Query 2.x). The endpoint is named `listAssets` and generates `useListAssetsInfiniteQuery`. RTK natively manages the `pages[]` array and `fetchNextPage` trigger. All page accumulation and `IntersectionObserver` sentinel logic (ref-callback pattern — no `useEffect`) is encapsulated in `features/market/hooks/useInfiniteAssets.js`.
+
 **DTO transforms:** `transformResponse` in each endpoint normalises raw server JSON using type-safe helpers (`str`, `num`, `bool`, `arr` from `shared/dto/helpers.js`).
 
 **Cache tags:**
@@ -217,8 +219,10 @@ useMarketStream (features/market/hooks/useMarketStream.js)
     │     • getStockQuote(ticker)     → StockDetail page price
     │     • getMutualQuote(ticker)    → MutualDetail page price
     │     • getTickerQuotes()         → Navbar ticker strip
-    │     • getAssets(*)              → Market listing prices
-    │     • listAssets(*)             → Paginated market listing prices
+    │     • getAssets(*)              → Market listing prices (legacy)
+    │     • listAssets(*)             → Patches all pages in the infinite query cache
+    │                                    (pages[].items) with live price, change, and
+    │                                    changePercent (1D from previous day's close)
     │
     └── Authenticated patches (when logged in):
           • getPortfolioHoldings()   → Recalculates currentValue, unrealisedPnL, portfolioWeight

@@ -7,7 +7,8 @@ export { NavbarSearch } from './components/NavbarSearch';
 export { useMarketStream } from './hooks/useMarketStream';
 export {
   marketApi,
-  useListAssetsQuery,
+  useListAssetsInfiniteQuery,
+  useListAssetsPageQuery,
   useGetAssetsQuery,
   useGetAssetByTickerQuery,
   useLazySearchMarketQuery,
@@ -15,12 +16,16 @@ export {
   useGetMutualQuoteQuery,
   useGetTickerQuotesQuery,
   useGetChartQuery,
+  useGetMarketMoversQuery,
 } from './api/marketApi';
 export {
   MARKET_ASSET_TYPES,
   MARKET_ASSET_LABELS,
   MARKET_ASSET_BADGE_LABELS,
   MARKET_SEARCH,
+  MARKET_LIST_TABS,
+  MARKET_LIST_PAGE_SIZE,
+  MARKET_MOVERS_LIMIT,
   buildStockDetailPath,
   buildMutualDetailPath,
 } from './constants/market';

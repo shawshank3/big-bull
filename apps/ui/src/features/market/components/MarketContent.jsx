@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/shared/layout/PageHeader';
 import { Card, CardContent } from '@/shared/components/card';
@@ -6,17 +6,14 @@ import { Badge } from '@/shared/ui/badge';
 import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';
 import { ServerDataTable } from '@/shared/ui/server-data-table';
-import { formatCurrency, humanize } from '@/shared/utils/format';
-import { useListAssetsQuery } from '../api/marketApi';
-import { buildStockDetailPath, buildMutualDetailPath } from '../constants/market';
+import { humanize } from '@/shared/utils/format';
 import { ASSET_TYPES } from '@/shared/constants/assetTypes';
+import { useInfiniteAssets } from '../hooks/useInfiniteAssets';
+import { buildStockDetailPath, buildMutualDetailPath, MARKET_LIST_TABS } from '../constants/market';
+import { AssetTypeTabBar } from './AssetTypeTabBar';
+import { AssetPriceCell } from './AssetPriceCell';
 
-const TABS = [
-  { label: 'All', value: '' },
-  { label: 'Stocks', value: ASSET_TYPES.STOCK },
-  { label: 'Mutual Funds', value: ASSET_TYPES.MUTUAL_FUND },
-];
-
+/** Column definitions — defined at module scope so the array reference is stable. */
 const columns = [
   {
     accessorKey: 'ticker',
@@ -47,9 +44,13 @@ const columns = [
   },
   {
     accessorKey: 'currentPrice',
-    header: 'Price',
-    cell: ({ getValue }) => (
-      <span className="tabular-nums text-sm font-semibold">{formatCurrency(getValue() ?? 0)}</span>
+    header: 'Price / 1D Change',
+    cell: ({ row }) => (
+      <AssetPriceCell
+        currentPrice={row.original.currentPrice}
+        change={row.original.change}
+        changePercent={row.original.changePercent}
+      />
     ),
     meta: { className: 'text-right' },
     enableSorting: false,
@@ -58,65 +59,39 @@ const columns = [
 
 export const MarketContent = () => {
   const navigate = useNavigate();
-  const [activeType, setActiveType] = useState('');
-
-  // Server-side pagination state
-  const [paginationParams, setPaginationParams] = useState({ page: 1, limit: 5 });
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState(undefined);
 
   const {
-    data: listData,
+    allAssets,
+    total,
+    hasNextPage,
     isLoading,
     isFetching,
     isError,
-  } = useListAssetsQuery({
-    pagination: paginationParams,
-    filters: activeType ? { assetType: activeType } : {},
+    activeType,
     search,
-    sort,
-  });
+    sentinelRef,
+    handleTabChange,
+    handleSearchChange,
+    handleSortChange,
+  } = useInfiniteAssets();
 
-  const assets = listData?.items ?? [];
-  const pagination = listData?.pagination ?? {
-    page: 1,
-    limit: 5,
-    total: 0,
-    totalPages: 1,
-    hasNextPage: false,
-    hasPrevPage: false,
-  };
+  // Stable reference — columns array is already module-level, useMemo guards
+  // against future accidental inline redefinitions.
+  const tableColumns = useMemo(() => columns, []);
 
   const handleRowClick = (asset) => {
-    if (asset.assetType === ASSET_TYPES.STOCK)
+    if (asset.assetType === ASSET_TYPES.STOCK) {
       navigate(buildStockDetailPath(asset.ticker), {
         state: { name: asset.name, assetId: asset.id },
       });
-    else
+    } else {
       navigate(buildMutualDetailPath(asset.ticker), {
         state: { name: asset.name, assetId: asset.id },
       });
+    }
   };
 
-  const tableColumns = useMemo(() => columns, []);
-
-  const handlePaginationChange = useCallback(({ page, limit }) => {
-    setPaginationParams({ page, limit });
-  }, []);
-
-  const handleSearchChange = useCallback((term) => {
-    setSearch(term);
-    setPaginationParams((prev) => ({ ...prev, page: 1 }));
-  }, []);
-
-  const handleSortChange = useCallback((newSort) => {
-    setSort(newSort);
-  }, []);
-
-  const handleTabChange = useCallback((value) => {
-    setActiveType(value);
-    setPaginationParams((prev) => ({ ...prev, page: 1 }));
-  }, []);
+  const showEmptyState = !isFetching && !isLoading && allAssets.length === 0 && !search;
 
   return (
     <>
@@ -124,27 +99,18 @@ export const MarketContent = () => {
         title="Market"
         description="Browse and trade simulated Indian stocks and mutual funds."
       />
-      <div className="flex gap-2 border-b border-border pb-0 mb-6">
-        {TABS.map(({ label, value }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => handleTabChange(value)}
-            className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              activeType === value
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted hover:text-foreground',
-            ].join(' ')}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+
+      <AssetTypeTabBar
+        tabs={MARKET_LIST_TABS}
+        activeValue={activeType}
+        onChange={handleTabChange}
+      />
+
       {isError && <Alert variant="danger">Unable to load assets right now.</Alert>}
-      {isLoading && assets.length === 0 ? (
+
+      {isLoading && allAssets.length === 0 ? (
         <Spinner label="Loading market…" />
-      ) : !isLoading && assets.length === 0 && !isFetching && !search ? (
+      ) : showEmptyState ? (
         <Card>
           <CardContent className="py-16 text-center text-muted">
             No assets found. Run the seed script to populate the market catalog.
@@ -155,15 +121,27 @@ export const MarketContent = () => {
           <CardContent className="p-0">
             <ServerDataTable
               columns={tableColumns}
-              data={assets}
-              pagination={pagination}
-              onPaginationChange={handlePaginationChange}
+              data={allAssets}
               onSearchChange={handleSearchChange}
               onSortChange={handleSortChange}
               searchPlaceholder="Search by ticker, name, or sector…"
               onRowClick={handleRowClick}
-              isLoading={isFetching}
+              isLoading={isLoading && allAssets.length === 0}
+              showPagination={false}
             />
+
+            {/* Sentinel — ref callback attaches the IntersectionObserver here.
+                Rendered only when there are more pages to load. */}
+            {hasNextPage && (
+              <div ref={sentinelRef} className="flex justify-center py-3 min-h-[40px]">
+                {isFetching && <Spinner label="Loading more…" />}
+              </div>
+            )}
+
+            {/* End-of-list indicator */}
+            {!hasNextPage && allAssets.length > 0 && (
+              <p className="text-center text-xs text-muted py-3">All {total} assets loaded</p>
+            )}
           </CardContent>
         </Card>
       )}

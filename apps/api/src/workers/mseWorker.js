@@ -39,7 +39,6 @@ const DailyPrice = require('../modules/market/dailyPrice.model');
 const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
 const { ASSET_TYPES } = require('../shared/constants');
 const { nextIntradayPrice, todayIST } = require('../utils/priceSimulation');
-
 // Lazy-require to avoid circular dependency issues at startup
 const getBroadcast = () => require('../modules/market/market.controller').broadcastPriceUpdate;
 const getSeedCache = () => require('./mseLiveTicker').seedPriceCache;
@@ -85,6 +84,58 @@ const formatChangePercent = (change, prevPrice) => {
   const pct = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
   const sign = pct >= 0 ? '+' : '';
   return `${sign}${pct.toFixed(2)}%`;
+};
+
+/**
+ * Load the previous trading day's close price for every stock from DailyPrice.
+ * Used as the 1D baseline so that `change` / `changePercent` always reflects
+ * today's move from the prior close, not the last-tick-to-this-tick delta.
+ *
+ * Queries the most-recent DailyPrice whose date is strictly before today.
+ * Falls back to the asset's basePrice when no historical record exists yet.
+ *
+ * @param {Array} stocks  - Asset documents from MongoDB
+ * @param {string} today  - IST date string YYYY-MM-DD (to exclude today's snapshot)
+ * @returns {Promise<Map<string, number>>}  ticker → prevClosePrice
+ */
+const loadPrevClosePrices = async (stocks, today) => {
+  const tickers = stocks.map((s) => s.ticker);
+  const map = new Map();
+
+  try {
+    // Find the most-recent DailyPrice before today for each ticker in one query.
+    // We aggregate to get the latest pre-today record per ticker.
+    const docs = await DailyPrice.aggregate([
+      {
+        $match: {
+          ticker: { $in: tickers },
+          assetType: ASSET_TYPES.STOCK,
+          date: { $lt: today },
+        },
+      },
+      { $sort: { ticker: 1, date: -1 } },
+      {
+        $group: {
+          _id: '$ticker',
+          closePrice: { $first: '$closePrice' },
+        },
+      },
+    ]);
+    for (const doc of docs) {
+      map.set(doc._id, doc.closePrice);
+    }
+  } catch (err) {
+    console.error('[MSE] loadPrevClosePrices error:', err.message);
+  }
+
+  // Fill any missing tickers with their basePrice so we always have a baseline.
+  for (const stock of stocks) {
+    if (!map.has(stock.ticker)) {
+      map.set(stock.ticker, stock.basePrice);
+    }
+  }
+
+  return map;
 };
 
 /**
@@ -280,6 +331,11 @@ const createMseWorker = () => {
         sectorTrends[sector] = await getFloat(sectorTrendKey(sector), 0);
       }
 
+      // 4a. Load previous-day close prices for 1D change baseline.
+      // change/changePercent in SSE payloads always reflects movement from
+      // the prior close, not tick-to-tick delta.
+      const prevClosePrices = await loadPrevClosePrices(stocks, istToday);
+
       const broadcast = getBroadcast();
       const tickTime = new Date();
       const timestamp = tickTime.toISOString();
@@ -298,8 +354,12 @@ const createMseWorker = () => {
         // ── Compute new price ──────────────────────────────────────────────
         const sectorTrend = asset.sector ? (sectorTrends[asset.sector] ?? 0) : 0;
         const newPrice = computeNewPrice(prevPrice, sentiment, sectorTrend, asset.volatility);
-        const change = parseFloat((newPrice - prevPrice).toFixed(2));
-        const changePercent = formatChangePercent(change, prevPrice);
+
+        // 1D change is always relative to the previous day's close, not the
+        // last tick — so the delta shown in the UI never resets mid-day.
+        const dayOpenPrice = prevClosePrices.get(asset.ticker) ?? prevPrice;
+        const change = parseFloat((newPrice - dayOpenPrice).toFixed(2));
+        const changePercent = formatChangePercent(change, dayOpenPrice);
         const up = change >= 0;
 
         const pricePayload = {
@@ -325,8 +385,8 @@ const createMseWorker = () => {
           /* SSE map may be empty */
         }
 
-        // 7. Emit volatility_alert if single-tick swing > 3%
-        const swingPct = prevPrice > 0 ? Math.abs(change / prevPrice) : 0;
+        // 7. Emit volatility_alert if single-tick swing > 3% (tick-to-tick, intentional)
+        const swingPct = prevPrice > 0 ? Math.abs((newPrice - prevPrice) / prevPrice) : 0;
         if (swingPct > 0.03) {
           try {
             const { broadcastVolatilityAlert } = require('../modules/market/market.controller');
@@ -349,6 +409,7 @@ const createMseWorker = () => {
           price: newPrice,
           volatility: asset.volatility,
           assetType: asset.assetType,
+          dayOpenPrice, // passed to mseLiveTicker so 1s micro-ticks use the same baseline
         });
 
         // Phase 2: queue MarketState upsert

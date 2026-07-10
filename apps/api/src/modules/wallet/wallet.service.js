@@ -10,6 +10,7 @@
 const VirtualWallet = require('./wallet.model');
 const Transaction = require('../transaction/transaction.model');
 const AppError = require('../../shared/AppError');
+const { roundRupee, moneyAdd, moneyMultiply } = require('../../shared/money');
 const { TRANSACTION_TYPES, WALLET_TRANSACTION_TYPES } = require('../../shared/constants');
 
 /**
@@ -122,7 +123,7 @@ const getWalletTransactions = async (userId, { page = 1, limit = 20 } = {}) => {
   ]);
 
   const mapped = transactions.map((tx) => {
-    const totalAmount = tx.quantity * tx.pricePerUnit + tx.fees;
+    const totalAmount = moneyAdd(moneyMultiply(tx.quantity, tx.pricePerUnit), tx.fees);
     return {
       id: tx._id,
       type:
@@ -217,7 +218,7 @@ const listWalletTransactions = async (
   // If search is provided, filter by asset ticker/name in memory
   // (since it's a populated field, we can't use MongoDB regex directly)
   let mapped = transactions.map((tx) => {
-    const totalAmount = tx.quantity * tx.pricePerUnit + tx.fees;
+    const totalAmount = moneyAdd(moneyMultiply(tx.quantity, tx.pricePerUnit), tx.fees);
     return {
       id: tx._id,
       type:

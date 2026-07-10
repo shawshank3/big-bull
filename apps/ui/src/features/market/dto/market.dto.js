@@ -21,6 +21,11 @@ export function toChartDTO(raw) {
 }
 
 export function toAssetDTO(raw) {
+  const change = num(raw?.change);
+  const changePercentRaw = str(raw?.changePercent, '+0.00%');
+  // Parse numeric value from string like "+1.23%" or "-0.45%"
+  const changePercentValue = parseFloat(changePercentRaw.replace('%', '')) || 0;
+
   return {
     id: str(raw?._id ?? raw?.id),
     ticker: str(raw?.ticker),
@@ -31,6 +36,9 @@ export function toAssetDTO(raw) {
     basePrice: num(raw?.basePrice),
     currentPrice: num(raw?.currentPrice ?? raw?.basePrice),
     currency: str(raw?.currency, 'INR'),
+    change,
+    changePercent: changePercentValue,
+    changePercentStr: changePercentRaw,
   };
 }
 

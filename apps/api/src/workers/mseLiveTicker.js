@@ -27,14 +27,17 @@ const priceCache = new Map();
  * Called by mseWorker after each BullMQ tick to refresh the local cache with
  * the authoritative post-tick prices and per-asset volatility.
  *
- * @param {Array<{ ticker: string, price: number, volatility: number, assetType: string }>} assets
+ * @param {Array<{ ticker: string, price: number, volatility: number, assetType: string, dayOpenPrice: number }>} assets
  */
 const seedPriceCache = (assets) => {
-  for (const { ticker, price, volatility, assetType } of assets) {
+  for (const { ticker, price, volatility, assetType, dayOpenPrice } of assets) {
     priceCache.set(ticker, {
       price,
       volatility: volatility ?? 0.01,
       assetType: assetType ?? ASSET_TYPES.STOCK,
+      // dayOpenPrice is the previous day's close — used as the 1D baseline
+      // so change/changePercent in micro-ticks never resets mid-day.
+      dayOpenPrice: dayOpenPrice ?? price,
     });
   }
 };
@@ -60,13 +63,15 @@ const startLiveTicker = () => {
       const prevPrice = entry.price;
       const newPrice = nextMicroPrice(prevPrice, entry.volatility ?? 0.01);
 
-      const change = parseFloat((newPrice - prevPrice).toFixed(2));
-      const pct = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
+      // 1D change: always relative to previous day's close, not last micro-tick.
+      const dayOpenPrice = entry.dayOpenPrice ?? prevPrice;
+      const change = parseFloat((newPrice - dayOpenPrice).toFixed(2));
+      const pct = dayOpenPrice > 0 ? (change / dayOpenPrice) * 100 : 0;
       const sign = pct >= 0 ? '+' : '';
       const changePercent = `${sign}${pct.toFixed(2)}%`;
       const up = change >= 0;
 
-      // Update in-memory cache
+      // Update in-memory cache — keep dayOpenPrice stable throughout the day
       entry.price = newPrice;
 
       broadcastPriceUpdate({ ticker, price: newPrice, change, changePercent, up, timestamp });

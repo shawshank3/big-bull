@@ -4,13 +4,14 @@
  */
 const catchAsync = require('../../shared/catchAsync');
 const AppError = require('../../shared/AppError');
+const redis = require('../../shared/redis');
 const { sendSuccess } = require('../../utils/response');
 const { sendPaginatedSuccess, baseListQuerySchema } = require('../../shared/pagination');
 const { searchQuerySchema } = require('./market.validator');
 const marketService = require('./market.service');
 const Asset = require('../asset/asset.model');
 const { z } = require('zod');
-const { ASSET_TYPE_VALUES, HTTP_STATUS } = require('../../shared/constants');
+const { ASSET_TYPE_VALUES, ASSET_TYPES, HTTP_STATUS } = require('../../shared/constants');
 
 /** Module-level map of active SSE clients: clientId → res */
 const sseClients = new Map();
@@ -191,18 +192,91 @@ const listAssets = catchAsync(async (req, res) => {
     Asset.countDocuments(query),
   ]);
 
-  // Enrich with live prices
-  const { resolvePrice } = require('./market.service');
+  // Enrich with live prices and day change data
+  const { resolveAssetPrice } = require('./market.service');
   const assets = await Promise.all(
     rawAssets.map(async (asset) => {
-      const currentPrice = await resolvePrice(asset.ticker, asset.basePrice).catch(
-        () => asset.basePrice
-      );
-      return { ...asset, currentPrice };
+      const currentPrice = await resolveAssetPrice(asset).catch(() => asset.basePrice);
+
+      let change = 0;
+      let changePercent = '+0.00%';
+
+      // Read change metadata from Redis (set by mseWorker on each tick)
+      try {
+        const cached = await redis.get(`price:${asset.ticker}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (typeof parsed.change === 'number') change = parsed.change;
+          if (typeof parsed.changePercent === 'string') changePercent = parsed.changePercent;
+        }
+      } catch (_) {
+        /* non-fatal */
+      }
+
+      return { ...asset, currentPrice, change, changePercent };
     })
   );
 
   sendPaginatedSuccess(res, assets, total, page, limit, 'Assets retrieved');
+});
+
+/**
+ * GET /market/movers?limit=4
+ * Returns top N gainers and top N losers sorted by 1D changePercent.
+ * Only STOCK assets are included (mutual funds don't have intraday Redis ticks).
+ */
+const getMovers = catchAsync(async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit ?? '4', 10) || 4, 20);
+
+  // Fetch all stock assets and enrich with live prices + change data from Redis
+  const rawAssets = await Asset.find({ assetType: ASSET_TYPES.STOCK }).lean();
+
+  const { resolveAssetPrice } = require('./market.service');
+  const enriched = await Promise.all(
+    rawAssets.map(async (asset) => {
+      const currentPrice = await resolveAssetPrice(asset).catch(() => asset.basePrice);
+
+      let change = 0;
+      let changePercent = '+0.00%';
+      let changePercentValue = 0;
+
+      try {
+        const cached = await redis.get(`price:${asset.ticker}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (typeof parsed.change === 'number') change = parsed.change;
+          if (typeof parsed.changePercent === 'string') {
+            changePercent = parsed.changePercent;
+            changePercentValue = parseFloat(parsed.changePercent) || 0;
+          }
+        }
+      } catch (_) {
+        /* non-fatal */
+      }
+
+      return {
+        id: asset._id,
+        ticker: asset.ticker,
+        name: asset.name,
+        assetType: asset.assetType,
+        sector: asset.sector,
+        exchange: asset.exchange ?? null,
+        currentPrice,
+        change,
+        changePercent,
+        changePercentValue,
+        currency: 'INR',
+      };
+    })
+  );
+
+  // Sort descending by numeric changePercent
+  const sorted = enriched.sort((a, b) => b.changePercentValue - a.changePercentValue);
+
+  const gainers = sorted.slice(0, limit);
+  const losers = sorted.slice(-limit).reverse();
+
+  sendSuccess(res, { gainers, losers }, 'Top movers retrieved');
 });
 
 module.exports = {
@@ -212,6 +286,7 @@ module.exports = {
   getAssets,
   getAssetByTicker,
   listAssets,
+  getMovers,
   stream,
   broadcastPriceUpdate,
   broadcastVolatilityAlert,

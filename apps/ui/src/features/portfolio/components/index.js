@@ -3,5 +3,7 @@ export { HoldingsBreakdown } from './HoldingsBreakdown';
 export { HoldingsContent } from './HoldingsContent';
 export { HoldingsSectionHeader } from './HoldingsSectionHeader';
 export { HoldingsTable } from './HoldingsTable';
+export { MoverCard } from './MoverCard';
 export { PortfolioOverviewCard } from './PortfolioOverviewCard';
 export { TaxQuickAccess } from './TaxQuickAccess';
+export { TopMovers } from './TopMovers';
