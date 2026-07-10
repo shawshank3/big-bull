@@ -133,6 +133,40 @@ export const useMarketStream = () => {
         }
       });
 
+      // Patch ALL existing getMarketMovers cache entries (keyed by { limit }).
+      // The movers response shape is { gainers: [...], losers: [...] }.
+      // For the matched ticker we update price, change, changePercent, and
+      // changePercentStr. The sort order is preserved client-side — the backend
+      // re-sorts on the next refetch; SSE keeps values current between fetches.
+      dispatch((dispatch2, getState) => {
+        const state = getState();
+        const queries = state?.api?.queries;
+        if (!queries) return;
+
+        const raw = changePercent ?? '+0.00%';
+        const changePercentNum = parseFloat(raw) || 0;
+
+        for (const key of Object.keys(queries)) {
+          if (!key.startsWith('getMarketMovers(')) continue;
+          const entry = queries[key];
+          if (!entry?.data || entry.status !== 'fulfilled') continue;
+
+          dispatch2(
+            apiSlice.util.updateQueryData('getMarketMovers', entry.originalArgs, (draft) => {
+              for (const list of [draft.gainers, draft.losers]) {
+                const asset = list?.find((a) => a.ticker === ticker);
+                if (asset) {
+                  asset.currentPrice = price;
+                  asset.change = change ?? 0;
+                  asset.changePercent = changePercentNum;
+                  asset.changePercentStr = raw;
+                }
+              }
+            })
+          );
+        }
+      });
+
       // ── Authenticated-only cache patches ──────────────────────────────────
       if (!isAuthenticatedRef.current) return;
 

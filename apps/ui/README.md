@@ -223,6 +223,8 @@ useMarketStream (features/market/hooks/useMarketStream.js)
     │     • listAssets(*)             → Patches all pages in the infinite query cache
     │                                    (pages[].items) with live price, change, and
     │                                    changePercent (1D from previous day's close)
+    │     • getMarketMovers(*)        → Patches price, change, changePercent in both
+    │                                    gainers[] and losers[] (all cached limit variants)
     │
     └── Authenticated patches (when logged in):
           • getPortfolioHoldings()   → Recalculates currentValue, unrealisedPnL, portfolioWeight
