@@ -15,7 +15,13 @@ import { MoverCard } from './MoverCard';
 export const TopMovers = () => {
   const navigate = useNavigate();
 
-  const { data, isLoading, isError } = useGetMarketMoversQuery({ limit: MARKET_MOVERS_LIMIT });
+  const { data, isLoading, isError } = useGetMarketMoversQuery(
+    { limit: MARKET_MOVERS_LIMIT },
+    {
+      refetchOnMountOrArgChange: true, // fresh ranked list on every mount (reload or navigate-back)
+      pollingInterval: 10000, // re-rank every 10s while dashboard is open
+    }
+  );
 
   const gainers = data?.gainers ?? [];
   const losers = data?.losers ?? [];
