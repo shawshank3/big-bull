@@ -108,7 +108,7 @@ export const LineChart = React.forwardRef(
     return (
       <div ref={ref} className={cn('w-full', className)} {...props}>
         <ResponsiveContainer width="100%" height={height}>
-          <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
+          <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={stroke} stopOpacity={0.18} />
