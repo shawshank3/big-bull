@@ -41,14 +41,15 @@ const Guest = ({ children }) => children;
  */
 const HeroCtaSkeleton = () => (
   <div className="flex flex-col items-center gap-6" aria-label="Loading…">
-    {/* description line */}
-    <div className="flex w-full max-w-lg flex-col items-center gap-2">
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-4/5" />
+    {/* description — matches HeroDescription's ~2 lines of text at sm:text-lg */}
+    <div className="flex w-full max-w-xl flex-col items-center gap-3">
+      <Skeleton className="h-5 w-full" />
+      <Skeleton className="h-5 w-11/12" />
+      <Skeleton className="h-5 w-3/4" />
     </div>
-    {/* CTA buttons */}
+    {/* CTA buttons — matches Button size="lg" (h-11) */}
     <div className="flex flex-wrap items-center justify-center gap-3">
-      <Skeleton className="h-11 w-40 rounded-lg" />
+      <Skeleton className="h-11 w-44 rounded-lg" />
       <Skeleton className="h-11 w-28 rounded-lg" />
     </div>
   </div>
