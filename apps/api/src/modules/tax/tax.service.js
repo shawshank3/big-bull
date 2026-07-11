@@ -102,13 +102,23 @@ const getCurrentFY = () => {
 /**
  * toDateKey(date)
  *
- * Returns the UTC calendar date string (YYYY-MM-DD) for a given date.
- * Used as a grouping key for same-day netting.
+ * Returns the IST calendar date string (YYYY-MM-DD) for a given date.
+ * IST = UTC+5:30. Used as a grouping key for same-day netting so that
+ * "same calendar day" is always evaluated in Indian Standard Time — the
+ * timezone in which trades are executed and reported.
+ *
+ * Using UTC here would misclassify trades:
+ *  - A buy at 10:46 PM IST (= 17:16 UTC) and a sell the next IST calendar
+ *    day (e.g. 04:00 UTC, still UTC Jul 11) would share the same UTC date
+ *    key and be incorrectly netted as INTRADAY instead of STCG.
  *
  * @param {Date|string} date
  * @returns {string} e.g. "2026-07-11"
  */
-const toDateKey = (date) => new Date(date).toISOString().slice(0, 10);
+const toDateKey = (date) => {
+  const ist = new Date(new Date(date).getTime() + 5.5 * 60 * 60 * 1000);
+  return ist.toISOString().slice(0, 10);
+};
 
 /**
  * matchGains(buyLots, sellTxns)
@@ -680,9 +690,12 @@ const getHarvestingOpportunities = async (userId, { taxYear, minLoss = 0 } = {})
 
   // ── B: Intraday harvesting ───────────────────────────────────────────────
   const { resolveAssetPrice } = require('../market/market.service');
-  const todayKey = toDateKey(new Date());
-  const todayStart = new Date(`${todayKey}T00:00:00.000Z`);
-  const todayEnd = new Date(`${todayKey}T23:59:59.999Z`);
+  // Use IST calendar date for "today" — same timezone used by toDateKey() so
+  // that the MongoDB query window and the grouping key are always in sync.
+  // todayKey is e.g. "2026-07-12" in IST (UTC+5:30).
+  const todayKey = toDateKey(new Date()); // already IST via toDateKey
+  const todayStart = new Date(`${todayKey}T00:00:00.000+05:30`);
+  const todayEnd = new Date(`${todayKey}T23:59:59.999+05:30`);
 
   const todayTxns = await Transaction.find({
     userId: new mongoose.Types.ObjectId(userId),
