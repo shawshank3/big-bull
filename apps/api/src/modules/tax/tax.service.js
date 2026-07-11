@@ -555,14 +555,14 @@ const getTaxSummary = async (userId, { taxYear } = {}) => {
   // Compute estimated tax
   const { stcgTax, ltcgTax, estimatedTax } = computeEstimatedTax(totalSTCG, totalLTCG);
 
-  // Count harvesting opportunities (using default minLoss = 0)
+  // Count all harvesting opportunities (delivery + intraday, using default minLoss = 0)
   let harvestingCount = 0;
   try {
-    const { opportunities } = await getHarvestingOpportunities(userId, {
+    const { opportunities, intradayOpportunities } = await getHarvestingOpportunities(userId, {
       taxYear: effectiveTaxYear,
       minLoss: 0,
     });
-    harvestingCount = opportunities.length;
+    harvestingCount = opportunities.length + (intradayOpportunities?.length ?? 0);
   } catch {
     // If harvesting computation fails, default to 0
     harvestingCount = 0;
