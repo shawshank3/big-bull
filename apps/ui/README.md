@@ -316,19 +316,20 @@ All primitives live in `src/shared/ui/` and are exported from `shared/ui/index.j
 
 ### Key Components
 
-| Component                    | Location                   | Purpose                                                               |
-| ---------------------------- | -------------------------- | --------------------------------------------------------------------- |
-| `TaxSummaryCard`             | `features/tax/components/` | STCG/LTCG/Intraday/Est. Tax stat cards; tax computed client-side      |
-| `GainsTable`                 | `features/tax/components/` | Paginated realized gains ledger with asset-type and gain-type filters |
-| `HarvestingMetrics`          | `features/tax/components/` | Per-bucket (STCG or LTCG) metric cards + insight card                 |
-| `SectorHeatmap`              | `features/tax/components/` | Grid heatmap of delivery loss intensity by sector                     |
-| `GainsVsLossesChart`         | `features/tax/components/` | Recharts waterfall bar chart: gains vs harvestable losses vs net      |
-| `EnhancedOpportunitiesTable` | `features/tax/components/` | Sortable/filterable delivery opportunities table with row checkboxes  |
-| `IntradayHarvestingSection`  | `features/tax/components/` | Tab 3: today's open intraday positions + intraday what-if panel       |
-| `SlabRateConfig`             | `features/tax/components/` | Settings popover for income slab rate (5%/10%/20%/30%), localStorage  |
-| `ThresholdConfig`            | `features/tax/components/` | Settings popover for minLoss threshold (₹0–₹10,000), localStorage     |
-| `WhatIfPanel`                | `features/tax/components/` | Before/after tax panel for delivery (STCG or LTCG) selections         |
-| `IntradayWhatIfPanel`        | `features/tax/components/` | Before/after tax panel for intraday selections (uses slab rate)       |
+| Component                    | Location                   | Purpose                                                                  |
+| ---------------------------- | -------------------------- | ------------------------------------------------------------------------ |
+| `TaxSummaryCard`             | `features/tax/components/` | STCG/LTCG/Intraday/Est. Tax stat cards; tax computed client-side         |
+| `FYOverviewChart`            | `features/tax/components/` | Full FY picture on Tax Center: realized + all unrealized, live SSE       |
+| `GainsTable`                 | `features/tax/components/` | Paginated realized gains ledger with asset-type and gain-type filters    |
+| `HarvestingMetrics`          | `features/tax/components/` | Per-bucket (STCG or LTCG) metric cards + insight card                    |
+| `SectorHeatmap`              | `features/tax/components/` | Grid heatmap of delivery loss intensity by sector                        |
+| `GainsVsLossesChart`         | `features/tax/components/` | "Realized Gains vs Harvestable Losses" — fixed 6 bars on Harvesting page |
+| `EnhancedOpportunitiesTable` | `features/tax/components/` | Sortable/filterable delivery opportunities table with row checkboxes     |
+| `IntradayHarvestingSection`  | `features/tax/components/` | Tab 3: today's open intraday positions + intraday what-if panel          |
+| `SlabRateConfig`             | `features/tax/components/` | Settings popover for income slab rate (5%/10%/20%/30%), localStorage     |
+| `ThresholdConfig`            | `features/tax/components/` | Settings popover for minLoss threshold (₹0–₹10,000), localStorage        |
+| `WhatIfPanel`                | `features/tax/components/` | Before/after tax panel for delivery (STCG or LTCG) selections            |
+| `IntradayWhatIfPanel`        | `features/tax/components/` | Before/after tax panel for intraday selections (uses slab rate)          |
 
 ### Hooks
 
@@ -346,9 +347,10 @@ RTK Query endpoints in `features/tax/api/taxApi.js`:
 
 - `useGetTaxSummaryQuery({ taxYear })` — FY summary: totalSTCG, totalLTCG, totalIntraday, stcgTax, ltcgTax, estimatedTax, harvestingCount
 - `useGetTaxGainsQuery({ taxYear, page, limit })` — paginated realized gain records
-- `useGetTaxHarvestingQuery({ taxYear, minLoss })` — delivery opportunities + intradayOpportunities in one response
+- `useGetTaxHarvestingQuery({ taxYear, minLoss })` — delivery opportunities + intradayOpportunities in one response; threshold-filtered
+- `useGetTaxOverviewQuery({ taxYear })` — config-agnostic overview for the FY chart: realized totals + totalUnrealizedGain + totalUnrealizedLoss + netPosition across ALL holdings (no threshold filter)
 
-Both `getTaxSummary` and `getTaxHarvesting` use `keepUnusedDataFor: 0` to always refetch fresh data on mount.
+`getTaxSummary`, `getTaxHarvesting`, and `getTaxOverview` all use `keepUnusedDataFor: 0` to always refetch fresh data on mount.
 
 ### Intraday Tax (Section 43(5))
 
@@ -366,14 +368,21 @@ Intraday equity income is speculative business income taxed at the user's income
 - **Intraday opportunities** — recomputes `unrealizedIntradayLoss` using a `_avgEntryPrice` back-calculated and stored on first tick; re-sorts by loss desc
 - `getTaxSummary.harvestingCount` is kept in sync from the `minLoss=0` harvesting cache entry
 
-All tax UI components (`HarvestingMetrics`, `EnhancedOpportunitiesTable`, `SectorHeatmap`, `GainsVsLossesChart`, `WhatIfPanel`, `IntradayHarvestingSection`, `HarvestingPreview`) re-render automatically on each patch.
+`useMarketStream` also patches every cached `getTaxOverview` entry on each SSE tick:
+
+- `totalUnrealizedGain` and `totalUnrealizedLoss` re-aggregated from the freshly-patched holdings draft (computed inside the holdings patch callback — no stale state read)
+- `netPosition` recomputed as `totalSTCG + totalLTCG + totalIntraday + totalUnrealizedGain - totalUnrealizedLoss`
+- Realized fields (`totalSTCG`, `totalLTCG`, `totalIntraday`) are immutable (derived from historical SELL transactions) and never touched by the SSE patch
+- `TaxCenter` subscribes to `getPortfolioHoldings` to ensure the holdings cache is warm even if the user navigates directly to `/tax` without visiting the Portfolio page first
+
+All tax UI components re-render automatically on each patch.
 
 ### Utils
 
 Feature-specific utilities in `features/tax/utils/`:
 
-| File                 | Contents                                                                                                                                                  |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `taxCalculations.js` | Rate constants (`STCG_RATE`, `LTCG_RATE`, `LTCG_EXEMPTION`), `computeTax()`, `computeIntradayTax()`, `computeHarvestingMetrics()`, `computeLossPercent()` |
-| `taxFormatters.js`   | `getCurrentFY()`, `formatFYLabel()`, `generateFYOptions()`, `groupBySector()`, `getLossIntensity()`                                                       |
-| `chartHelpers.js`    | `buildGainsVsLossesData()` — builds Recharts data array from summary + opportunities                                                                      |
+| File                 | Contents                                                                                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `taxCalculations.js` | Rate constants (`STCG_RATE`, `LTCG_RATE`, `LTCG_EXEMPTION`), `computeTax()`, `computeIntradayTax()`, `computeHarvestingMetrics()`, `computeLossPercent()`             |
+| `taxFormatters.js`   | `getCurrentFY()`, `formatFYLabel()`, `generateFYOptions()`, `groupBySector()`, `getLossIntensity()`                                                                   |
+| `chartHelpers.js`    | `buildGainsVsLossesData()` — fixed 6-bar Recharts data for the Harvesting page chart; `buildFYOverviewData()` — fixed 6-bar data for the Tax Center FY overview chart |

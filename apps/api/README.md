@@ -413,11 +413,12 @@ All routes are prefixed with `/api/v1/` unless noted. Standard response envelope
 
 > **Educational only** — This module provides simulated capital gains tracking and tax-loss harvesting insights (delivery + intraday). It performs zero database writes and reads exclusively from existing `transactions` and `assets` collections.
 
-| Method | Path              | Auth     | Query Params                    | Response `data`                                  |
-| ------ | ----------------- | -------- | ------------------------------- | ------------------------------------------------ |
-| GET    | `/tax/gains`      | Required | `?taxYear=2025&page=1&limit=20` | `{ gains, summary, pagination }`                 |
-| GET    | `/tax/summary`    | Required | `?taxYear=2025`                 | `{ totalSTCG, totalLTCG, totalIntraday, ... }`   |
-| GET    | `/tax/harvesting` | Required | `?taxYear=2025&minLoss=0`       | `{ opportunities, intradayOpportunities, meta }` |
+| Method | Path              | Auth     | Query Params                    | Response `data`                                                                                           |
+| ------ | ----------------- | -------- | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| GET    | `/tax/gains`      | Required | `?taxYear=2025&page=1&limit=20` | `{ gains, summary, pagination }`                                                                          |
+| GET    | `/tax/summary`    | Required | `?taxYear=2025`                 | `{ totalSTCG, totalLTCG, totalIntraday, ... }`                                                            |
+| GET    | `/tax/harvesting` | Required | `?taxYear=2025&minLoss=0`       | `{ opportunities, intradayOpportunities, meta }`                                                          |
+| GET    | `/tax/overview`   | Required | `?taxYear=2025`                 | `{ taxYear, totalSTCG, totalLTCG, totalIntraday, totalUnrealizedGain, totalUnrealizedLoss, netPosition }` |
 
 **Query Parameters:**
 

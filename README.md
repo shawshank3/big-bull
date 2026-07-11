@@ -18,6 +18,7 @@ BigBull is a full-stack stock market simulation platform where users trade virtu
 | Top Gainers / Losers      | `apps/ui/src/features/portfolio`    | Done    |
 | Capital Gains (STCG/LTCG) | `apps/api/src/modules/tax`          | Done    |
 | Intraday Tax Harvesting   | `apps/api/src/modules/tax`          | Done    |
+| FY Gains & Losses Chart   | `apps/ui/src/features/tax`          | Done    |
 | SEO + Code Splitting      | `apps/ui/src/app/router.jsx`        | Done    |
 | Simulated Data Disclaimer | `apps/ui/src/shared/`               | Done    |
 | AI Copilot v2             | —                                   | Planned |

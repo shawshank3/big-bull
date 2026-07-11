@@ -1,15 +1,5 @@
-/**
- * Tax API — RTK Query endpoints for /api/v1/tax/*.
- *
- * Endpoints:
- *   getTaxGains      — GET /api/v1/tax/gains
- *   getTaxSummary    — GET /api/v1/tax/summary
- *   getTaxHarvesting — GET /api/v1/tax/harvesting
- *                      Response includes both delivery opportunities and
- *                      intradayOpportunities in a single call.
- */
 import { apiSlice } from '@/shared/api/apiSlice';
-import { toGainsDTO, toSummaryDTO, toHarvestingDTO } from '../dto/tax.dto';
+import { toGainsDTO, toSummaryDTO, toHarvestingDTO, toFYOverviewDTO } from '../dto/tax.dto';
 
 export const taxApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -45,8 +35,23 @@ export const taxApi = apiSlice.injectEndpoints({
       providesTags: ['Tax'],
       keepUnusedDataFor: 0,
     }),
+    getTaxOverview: builder.query({
+      query: ({ taxYear } = {}) => {
+        const params = new URLSearchParams();
+        if (taxYear) params.set('taxYear', taxYear);
+        return `/api/v1/tax/overview?${params.toString()}`;
+      },
+      transformResponse: (res) => toFYOverviewDTO(res?.data),
+      providesTags: ['Tax'],
+      keepUnusedDataFor: 0,
+    }),
   }),
   overrideExisting: false,
 });
 
-export const { useGetTaxGainsQuery, useGetTaxSummaryQuery, useGetTaxHarvestingQuery } = taxApi;
+export const {
+  useGetTaxGainsQuery,
+  useGetTaxSummaryQuery,
+  useGetTaxHarvestingQuery,
+  useGetTaxOverviewQuery,
+} = taxApi;

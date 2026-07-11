@@ -171,6 +171,7 @@ export const useMarketStream = () => {
       if (!isAuthenticatedRef.current) return;
 
       let summaryTotals = null;
+      let overviewUnrealized = null;
 
       dispatch(
         apiSlice.util.updateQueryData('getPortfolioHoldings', undefined, (draft) => {
@@ -201,6 +202,17 @@ export const useMarketStream = () => {
           const totalPnL = currentValue - totalInvested;
           const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
           summaryTotals = { currentValue, totalPnL, totalPnLPercent };
+
+          // Compute unrealized totals for the FYOverviewChart patch while we
+          // already have the freshly-mutated draft in hand — avoids a stale
+          // getState() read in a subsequent dispatch.
+          let totalUnrealizedGain = 0;
+          let totalUnrealizedLoss = 0;
+          for (const h of draft) {
+            if (h.unrealisedPnL > 0) totalUnrealizedGain += h.unrealisedPnL;
+            else if (h.unrealisedPnL < 0) totalUnrealizedLoss += Math.abs(h.unrealisedPnL);
+          }
+          overviewUnrealized = { totalUnrealizedGain, totalUnrealizedLoss };
         })
       );
 
@@ -212,6 +224,40 @@ export const useMarketStream = () => {
             draft.totalPnLPercent = summaryTotals.totalPnLPercent;
           })
         );
+      }
+
+      // Patch getTaxOverview cache — re-aggregate unrealized totals from the
+      // already-updated getPortfolioHoldings cache so the FY Gains & Losses
+      // Overview chart on Tax Center stays live with every price tick.
+      // Realized fields (totalSTCG / totalLTCG / totalIntraday) are derived
+      // from historical SELL transactions and never change with live prices,
+      // so only the unrealized buckets and netPosition need updating.
+      if (overviewUnrealized) {
+        const { totalUnrealizedGain, totalUnrealizedLoss } = overviewUnrealized;
+
+        dispatch((dispatch2, getState) => {
+          const queries = getState()?.api?.queries;
+          if (!queries) return;
+
+          for (const key of Object.keys(queries)) {
+            if (!key.startsWith('getTaxOverview(')) continue;
+            const entry = queries[key];
+            if (!entry?.data || entry.status !== 'fulfilled') continue;
+
+            dispatch2(
+              apiSlice.util.updateQueryData('getTaxOverview', entry.originalArgs, (draft) => {
+                draft.totalUnrealizedGain = totalUnrealizedGain;
+                draft.totalUnrealizedLoss = totalUnrealizedLoss;
+                draft.netPosition =
+                  (draft.totalSTCG ?? 0) +
+                  (draft.totalLTCG ?? 0) +
+                  (draft.totalIntraday ?? 0) +
+                  totalUnrealizedGain -
+                  totalUnrealizedLoss;
+              })
+            );
+          }
+        });
       }
 
       // Patch ALL existing getTaxHarvesting cache entries (keyed by { taxYear, minLoss }).

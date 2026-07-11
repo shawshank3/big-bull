@@ -6,6 +6,7 @@
  *   GET /gains       → getGainsLedger
  *   GET /summary     → getTaxSummary
  *   GET /harvesting  → getHarvestingOpportunities
+ *   GET /overview    → getFYOverview
  */
 const catchAsync = require('../../shared/catchAsync');
 const AppError = require('../../shared/AppError');
@@ -75,4 +76,28 @@ const getHarvestingOpportunities = catchAsync(async (req, res) => {
   sendSuccess(res, data, 'Harvesting opportunities retrieved');
 });
 
-module.exports = { getGainsLedger, getTaxSummary, getHarvestingOpportunities };
+/**
+ * GET /tax/overview
+ *
+ * Returns a config-agnostic FY overview for the "FY Gains & Losses Overview"
+ * chart on the Tax Center page.
+ *
+ * Includes realized totals (STCG / LTCG / Intraday) and unrealized totals
+ * (gain + loss) across ALL current holdings with NO threshold filtering.
+ * Net position = all realized + all unrealized.
+ */
+const getFYOverview = catchAsync(async (req, res) => {
+  const result = summaryQuerySchema.safeParse(req.query);
+
+  if (!result.success) {
+    const message = result.error.errors?.[0]?.message ?? 'Invalid query parameters';
+    throw new AppError(message, 400);
+  }
+
+  const { taxYear } = result.data;
+  const data = await taxService.getFYOverview(req.user.id, { taxYear });
+
+  sendSuccess(res, data, 'FY overview retrieved');
+});
+
+module.exports = { getGainsLedger, getTaxSummary, getHarvestingOpportunities, getFYOverview };

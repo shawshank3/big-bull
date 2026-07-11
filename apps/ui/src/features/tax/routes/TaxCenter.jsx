@@ -10,10 +10,13 @@ import {
   useGetTaxSummaryQuery,
   useGetTaxGainsQuery,
   useGetTaxHarvestingQuery,
+  useGetTaxOverviewQuery,
 } from '../api/taxApi';
+import { useGetPortfolioHoldingsQuery } from '@/features/portfolio/api/portfolioApi';
 import { useTaxYear } from '../hooks/useTaxYear';
 import { TaxYearSelector } from '../components/TaxYearSelector';
 import { TaxSummaryCard } from '../components/TaxSummaryCard';
+import { FYOverviewChart } from '../components/FYOverviewChart';
 import { GainsFilters } from '../components/GainsFilters';
 import { GainsTable } from '../components/GainsTable';
 import { HarvestingPreview } from '../components/HarvestingPreview';
@@ -24,6 +27,11 @@ const TaxCenterContent = () => {
   const { taxYear, setTaxYear } = useTaxYear();
   const [assetType, setAssetType] = useState('ALL');
   const [gainType, setGainType] = useState('ALL');
+
+  // Warm the portfolio holdings cache so the SSE patch in useMarketStream
+  // can update totalUnrealizedGain/Loss in getTaxOverview on every price tick.
+  // The data itself is not rendered here — this is purely a cache subscription.
+  useGetPortfolioHoldingsQuery(undefined, { skip: !isAuthenticated });
 
   const {
     data: summary,
@@ -39,6 +47,12 @@ const TaxCenterContent = () => {
 
   const { data: harvestingData } = useGetTaxHarvestingQuery(
     { taxYear, minLoss: 0 },
+    { skip: !isAuthenticated }
+  );
+
+  // Config-agnostic overview for the FY chart — no threshold filtering applied
+  const { data: overview, isLoading: overviewLoading } = useGetTaxOverviewQuery(
+    { taxYear },
     { skip: !isAuthenticated }
   );
 
@@ -71,6 +85,13 @@ const TaxCenterContent = () => {
         <Spinner label="Loading tax summary…" />
       ) : (
         <TaxSummaryCard summary={summary} />
+      )}
+
+      {/* FY Gains & Losses Overview — full picture, no threshold influence */}
+      {overviewLoading ? (
+        <Spinner label="Loading overview…" />
+      ) : (
+        <FYOverviewChart overview={overview ?? {}} />
       )}
 
       <Card>

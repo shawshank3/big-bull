@@ -6,6 +6,7 @@ export {
   useGetTaxGainsQuery,
   useGetTaxSummaryQuery,
   useGetTaxHarvestingQuery,
+  useGetTaxOverviewQuery,
 } from './api/taxApi';
 export { useTaxYear, getCurrentFY } from './hooks/useTaxYear';
 export { useThreshold } from './hooks/useThreshold';
@@ -16,6 +17,7 @@ export { useIntradaySimulator } from './hooks/useIntradaySimulator';
 // Components
 export { TaxYearSelector } from './components/TaxYearSelector';
 export { TaxSummaryCard } from './components/TaxSummaryCard';
+export { FYOverviewChart } from './components/FYOverviewChart';
 export { GainsFilters } from './components/GainsFilters';
 export { GainsTable } from './components/GainsTable';
 export { HarvestingPreview } from './components/HarvestingPreview';
@@ -42,4 +44,4 @@ export {
   groupBySector,
   getLossIntensity,
 } from './utils/taxFormatters';
-export { buildGainsVsLossesData } from './utils/chartHelpers';
+export { buildGainsVsLossesData, buildFYOverviewData } from './utils/chartHelpers';

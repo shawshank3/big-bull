@@ -137,13 +137,20 @@ const toDateKey = (date) => new Date(date).toISOString().slice(0, 10);
  *   mutable `remainingQty` field initialised to `quantity`.
  * @param {Array<{ executedAt: Date, quantity: number, pricePerUnit: number }>} sellTxns
  *   All SELL transactions for this asset, sorted executedAt ASC.
+ * @param {object} [options]
+ * @param {boolean} [options.skipIntraday=false] - When true, Phase 1 same-day
+ *   netting is skipped entirely. Use for asset types that cannot generate
+ *   speculative intraday income (e.g. Mutual Funds), ensuring all matched
+ *   quantities are classified as STCG or LTCG delivery gains.
  * @returns {Array<{ buyDate: Date, sellDate: Date, quantity: number, buyPrice: number,
  *   sellPrice: number, gain: number, gainType: string, holdingDays: number }>}
  */
-const matchGains = (buyLots, sellTxns) => {
+const matchGains = (buyLots, sellTxns, { skipIntraday = false } = {}) => {
   const gains = [];
 
   // ── Step 1: Symmetric same-day netting ──────────────────────────────────
+  // Skipped for asset types that cannot generate speculative intraday income
+  // (e.g. Mutual Funds). When skipped, all sells go directly to delivery FIFO.
 
   // Group buys and sells by calendar day key
   const buysByDay = {};
@@ -167,6 +174,15 @@ const matchGains = (buyLots, sellTxns) => {
     const dayBuys = buysByDay[day];
     const daySells = sellsByDay[day];
     if (!dayBuys || !daySells) continue; // need both sides
+
+    // Skip Phase 1 intraday netting for non-speculative asset types
+    if (skipIntraday) {
+      // Mark all sells on this day as fully delivery so Phase 2 processes them
+      for (const sell of daySells) {
+        sell.deliveryQty = sell.quantity;
+      }
+      continue;
+    }
 
     // Total available on each side (only unmatched remaining qty)
     const totalBuyAvail = dayBuys.reduce((s, l) => s + l.remainingQty, 0);
@@ -366,6 +382,7 @@ const computeAllGains = async (userId, taxYear) => {
 
   for (const assetId of assetIds) {
     const assetSells = sellsByAsset[assetId];
+    const asset = assetMap[assetId];
 
     // Find the latest sell date to scope BUY lot query
     const latestSellDate = assetSells[assetSells.length - 1].executedAt;
@@ -386,11 +403,15 @@ const computeAllGains = async (userId, taxYear) => {
       remainingQty: lot.quantity,
     }));
 
+    // Mutual funds are not eligible for intraday (speculative) classification.
+    // Pass a flag so matchGains skips Phase 1 same-day netting and treats all
+    // matched quantities as delivery (STCG / LTCG).
+    const isMutualFund = asset?.assetType === 'MUTUAL_FUND';
+
     // Run two-step matching (same-day intraday netting first, then delivery FIFO)
-    const gains = matchGains(lotsWithRemaining, assetSells);
+    const gains = matchGains(lotsWithRemaining, assetSells, { skipIntraday: isMutualFund });
 
     // Enrich each gain record with asset metadata
-    const asset = assetMap[assetId];
     for (const gain of gains) {
       allGains.push({
         assetId,
@@ -697,6 +718,12 @@ const getHarvestingOpportunities = async (userId, { taxYear, minLoss = 0 } = {})
     const asset = todayAssetMap[assetId];
     if (!asset) continue;
 
+    // Mutual funds are not eligible for intraday (speculative) classification.
+    // MF units are redeemed at NAV and governed by SEBI redemption rules —
+    // same-day buy+sell of MF units is treated as delivery (STCG/LTCG), not
+    // speculative business income under Section 43(5).
+    if (asset.assetType === 'MUTUAL_FUND') continue;
+
     const totalBuyQty = buys.reduce((s, t) => s + t.quantity, 0);
     const totalSellQty = sells.reduce((s, t) => s + t.quantity, 0);
     const alreadyMatchedQty = Math.min(totalBuyQty, totalSellQty);
@@ -826,6 +853,72 @@ const getHarvestingOpportunities = async (userId, { taxYear, minLoss = 0 } = {})
   };
 };
 
+/**
+ * getFYOverview(userId, { taxYear })
+ *
+ * Returns a config-agnostic FY overview intended exclusively for the
+ * "FY Gains & Losses Overview" chart on the Tax Center page.
+ *
+ * Realized totals (STCG / LTCG / Intraday) come from computeAllGains —
+ * the same source used by getTaxSummary, so values are always consistent.
+ *
+ * Unrealized totals come from portfolioService.computeHoldings with NO
+ * minLoss filter applied — every holding is included regardless of the
+ * user's threshold configuration. Profitable holdings contribute to
+ * totalUnrealizedGain; loss holdings contribute to totalUnrealizedLoss.
+ *
+ * netPosition = totalSTCG + totalLTCG + totalIntraday
+ *             + totalUnrealizedGain - totalUnrealizedLoss
+ *
+ * This endpoint does NOT affect harvesting opportunities, threshold
+ * filtering, or any other tax functionality.
+ *
+ * @param {string} userId
+ * @param {object} [options]
+ * @param {number} [options.taxYear] - Indian FY start year (default: current FY)
+ * @returns {Promise<object>}
+ */
+const getFYOverview = async (userId, { taxYear } = {}) => {
+  const effectiveTaxYear = taxYear || getCurrentFY();
+
+  // ── Realized gains (same source as getTaxSummary) ────────────────────────
+  const allGains = await computeAllGains(userId, effectiveTaxYear);
+
+  let totalSTCG = 0;
+  let totalLTCG = 0;
+  let totalIntraday = 0;
+
+  for (const record of allGains) {
+    if (record.gainType === GAIN_TYPES.STCG) totalSTCG += record.gain;
+    else if (record.gainType === GAIN_TYPES.LTCG) totalLTCG += record.gain;
+    else if (record.gainType === GAIN_TYPES.INTRADAY) totalIntraday += record.gain;
+  }
+
+  // ── Unrealized P&L — ALL holdings, no threshold filter ──────────────────
+  const holdings = await portfolioService.computeHoldings(userId);
+
+  let totalUnrealizedGain = 0;
+  let totalUnrealizedLoss = 0;
+
+  for (const h of holdings) {
+    if (h.unrealisedPnL > 0) totalUnrealizedGain += h.unrealisedPnL;
+    else if (h.unrealisedPnL < 0) totalUnrealizedLoss += Math.abs(h.unrealisedPnL);
+  }
+
+  const netPosition =
+    totalSTCG + totalLTCG + totalIntraday + totalUnrealizedGain - totalUnrealizedLoss;
+
+  return {
+    taxYear: effectiveTaxYear,
+    totalSTCG,
+    totalLTCG,
+    totalIntraday,
+    totalUnrealizedGain,
+    totalUnrealizedLoss,
+    netPosition,
+  };
+};
+
 module.exports = {
   GAIN_TYPES,
   getFYDateRange,
@@ -835,4 +928,5 @@ module.exports = {
   getGainsLedger,
   getTaxSummary,
   getHarvestingOpportunities,
+  getFYOverview,
 };

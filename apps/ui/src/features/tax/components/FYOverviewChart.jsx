@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
 import { formatCurrency } from '@/shared/utils';
-import { buildGainsVsLossesData } from '../utils/chartHelpers';
+import { buildFYOverviewData } from '../utils/chartHelpers';
 
 const CustomTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -33,23 +33,26 @@ const CustomTooltip = ({ active, payload }) => {
 };
 
 /**
- * GainsVsLossesChart
+ * FYOverviewChart
  *
- * Full FY overview bar chart shown above the harvesting tabs.
- * Includes STCG, LTCG, and intraday gains/losses alongside all
- * harvestable losses (delivery + intraday open positions).
+ * Shown on the Tax Center page. Displays the full FY picture:
+ *  - Realized gains/losses by category (STCG, LTCG, Intraday)
+ *  - Total unrealized gain across ALL profitable holdings
+ *  - Total unrealized loss across ALL holdings at a loss
+ *  - Net Position = realized + unrealized (no threshold influence)
+ *
+ * Live updates are driven by the SSE market stream patching the
+ * getTaxOverview cache whenever portfolio prices change.
+ *
+ * @param {object} overview - FYOverview DTO from useGetTaxOverviewQuery
  */
-export const GainsVsLossesChart = ({
-  summary = {},
-  opportunities = [],
-  intradayOpportunities = [],
-}) => {
-  const chartData = buildGainsVsLossesData(summary, opportunities, intradayOpportunities);
+export const FYOverviewChart = ({ overview = {} }) => {
+  const chartData = buildFYOverviewData(overview);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Realized Gains vs Harvestable Losses</CardTitle>
+        <CardTitle>FY Gains &amp; Losses Overview</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="[&_*]:outline-none">
@@ -63,7 +66,6 @@ export const GainsVsLossesChart = ({
                 tickLine={false}
                 interval={0}
                 height={36}
-                // Wrap long labels by truncating — keeps mobile clean
                 tickFormatter={(v) => (v.length > 12 ? v.slice(0, 11) + '…' : v)}
               />
               <YAxis
@@ -101,4 +103,4 @@ export const GainsVsLossesChart = ({
   );
 };
 
-export default GainsVsLossesChart;
+export default FYOverviewChart;

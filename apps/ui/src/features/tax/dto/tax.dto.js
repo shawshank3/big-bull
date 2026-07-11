@@ -115,3 +115,20 @@ export function toHarvestingDTO(raw) {
     },
   };
 }
+
+/**
+ * Transform the FY overview response.
+ * Used exclusively by the FY Gains & Losses Overview chart on the Tax Center page.
+ * Contains realized totals + full unrealized totals (no threshold filtering).
+ */
+export function toFYOverviewDTO(raw) {
+  return {
+    taxYear: num(raw?.taxYear),
+    totalSTCG: num(raw?.totalSTCG),
+    totalLTCG: num(raw?.totalLTCG),
+    totalIntraday: num(raw?.totalIntraday),
+    totalUnrealizedGain: num(raw?.totalUnrealizedGain),
+    totalUnrealizedLoss: num(raw?.totalUnrealizedLoss),
+    netPosition: num(raw?.netPosition),
+  };
+}
