@@ -4,11 +4,14 @@
  *
  * This module is READ-ONLY — it performs no writes to any MongoDB collection.
  * All calculations are derived on-demand from raw Transaction documents using
- * a two-phase matching algorithm:
- *   Phase 1 — same-day intraday netting (buy and sell on the same calendar day
- *              are matched first and classified as INTRADAY before touching any
- *              historical delivery holdings).
- *   Phase 2 — delivery FIFO on the remaining unmatched sell quantities.
+ * a two-step matching algorithm:
+ *   Step 1 — symmetric same-day intraday netting:
+ *              For any day that has BOTH buys AND sells for the same asset,
+ *              min(totalBuyQty, totalSellQty) is matched as INTRADAY using
+ *              FIFO within each side (earliest buy price vs earliest sell price).
+ *              This is symmetric — sell-first (sell delivery in morning, buy
+ *              back later same day) is handled identically to buy-first.
+ *   Step 2 — delivery FIFO on remaining unmatched sell quantities.
  *
  * Tax Rules Applied:
  *  - INTRADAY (Speculative Business Income): same-calendar-day buy + sell →
@@ -112,19 +115,21 @@ const toDateKey = (date) => new Date(date).toISOString().slice(0, 10);
  *
  * Two-phase matching engine for a single asset.
  *
- * ── Phase 1: Same-day netting (INTRADAY) ────────────────────────────────────
- * For each trading day that has BOTH buys and sells:
- *   - Match BUY and SELL quantities on a min(totalBuy, totalSell) basis.
- *   - Matched quantity is INTRADAY (speculative business income, Section 43(5)).
- *   - These matched quantities are REMOVED from further processing — they never
- *     consume historical delivery holdings.
- *   - Same-day buy quantities consumed by intraday matching are removed from
- *     the delivery buy pool.
+ * ── Step 1: Symmetric same-day netting (INTRADAY) ───────────────────────────
+ * For each calendar day that has BOTH buys AND sells:
+ *   - intradayQty = min(totalBuyQtyOnDay, totalSellQtyOnDay)
+ *   - Match those quantities using FIFO within each side independently:
+ *       buy FIFO  → earliest buy transactions first (by executedAt)
+ *       sell FIFO → earliest sell transactions first (by executedAt)
+ *   - Each intraday gain record: gain = (sellPrice_FIFO - buyPrice_FIFO) × matched
+ *   - This is SYMMETRIC — sell-delivery-in-morning then buy-back-in-afternoon
+ *     is treated identically to buy-first-then-sell.
+ *   - Consumed quantities are removed from their respective pools before Step 2.
  *
- * ── Phase 2: Delivery FIFO (STCG / LTCG) ───────────────────────────────────
- * Remaining unmatched SELL quantities are matched against the surviving
- * BUY lots in strict chronological (FIFO) order.
- * Holding period is measured from the FIFO lot's executedAt date.
+ * ── Step 2: Delivery FIFO (STCG / LTCG) ─────────────────────────────────────
+ * Remaining unmatched SELL quantities are matched against surviving BUY lots
+ * in strict chronological (FIFO) order.
+ * Holding period measured from the FIFO lot's executedAt date.
  * Classification: holdingDays >= 365 → LTCG, else → STCG.
  *
  * @param {Array<{ executedAt: Date, quantity: number, pricePerUnit: number, remainingQty: number }>} buyLots
@@ -138,7 +143,7 @@ const toDateKey = (date) => new Date(date).toISOString().slice(0, 10);
 const matchGains = (buyLots, sellTxns) => {
   const gains = [];
 
-  // ── Phase 1: Same-day netting ────────────────────────────────────────────
+  // ── Step 1: Symmetric same-day netting ──────────────────────────────────
 
   // Group buys and sells by calendar day key
   const buysByDay = {};
@@ -155,50 +160,73 @@ const matchGains = (buyLots, sellTxns) => {
     sellsByDay[key].push(sell);
   }
 
-  // For each day that has both buys and sells, perform same-day matching
-  for (const [day, daySells] of Object.entries(sellsByDay)) {
+  // For each day that has both buys and sells, net symmetrically
+  const allDays = new Set([...Object.keys(buysByDay), ...Object.keys(sellsByDay)]);
+
+  for (const day of allDays) {
     const dayBuys = buysByDay[day];
-    if (!dayBuys) continue; // no same-day buys → nothing to net
+    const daySells = sellsByDay[day];
+    if (!dayBuys || !daySells) continue; // need both sides
 
-    // Work through same-day sells and consume same-day buys
-    let buyIdx = 0;
-    for (const sell of daySells) {
-      let sellRemaining = sell.quantity;
+    // Total available on each side (only unmatched remaining qty)
+    const totalBuyAvail = dayBuys.reduce((s, l) => s + l.remainingQty, 0);
+    const totalSellAvail = daySells.reduce((s, s2) => s + s2.quantity, 0);
 
-      while (sellRemaining > 0 && buyIdx < dayBuys.length) {
-        const lot = dayBuys[buyIdx];
-        if (lot.remainingQty <= 0) {
-          buyIdx++;
-          continue;
-        }
+    // intradayQty = min of both sides — symmetric netting
+    let intradayRemaining = Math.min(totalBuyAvail, totalSellAvail);
+    if (intradayRemaining <= 0) continue;
 
-        const matched = Math.min(lot.remainingQty, sellRemaining);
-        const gain = (sell.pricePerUnit - lot.pricePerUnit) * matched;
+    // Walk buy FIFO and sell FIFO simultaneously, matching intradayRemaining
+    let bIdx = 0;
+    let sIdx = 0;
+    let buyAvailInSlot = dayBuys[0]?.remainingQty ?? 0;
+    let sellAvailInSlot = daySells[0]?.quantity ?? 0;
 
-        gains.push({
-          buyDate: lot.executedAt,
-          sellDate: sell.executedAt,
-          quantity: matched,
-          buyPrice: lot.pricePerUnit,
-          sellPrice: sell.pricePerUnit,
-          gain,
-          gainType: GAIN_TYPES.INTRADAY,
-          holdingDays: 0,
-        });
+    // Track consumed sell quantities so Phase 2 knows what's left
+    const sellConsumed = new Array(daySells.length).fill(0);
 
-        lot.remainingQty -= matched;
-        sellRemaining -= matched;
+    while (intradayRemaining > 0 && bIdx < dayBuys.length && sIdx < daySells.length) {
+      const matched = Math.min(buyAvailInSlot, sellAvailInSlot, intradayRemaining);
+      if (matched <= 0) break;
 
-        if (lot.remainingQty <= 0) buyIdx++;
+      const buyLot = dayBuys[bIdx];
+      const sellTx = daySells[sIdx];
+      const gain = (sellTx.pricePerUnit - buyLot.pricePerUnit) * matched;
+
+      gains.push({
+        buyDate: buyLot.executedAt,
+        sellDate: sellTx.executedAt,
+        quantity: matched,
+        buyPrice: buyLot.pricePerUnit,
+        sellPrice: sellTx.pricePerUnit,
+        gain,
+        gainType: GAIN_TYPES.INTRADAY,
+        holdingDays: 0,
+      });
+
+      buyLot.remainingQty -= matched;
+      buyAvailInSlot -= matched;
+      sellAvailInSlot -= matched;
+      sellConsumed[sIdx] += matched;
+      intradayRemaining -= matched;
+
+      if (buyAvailInSlot <= 0) {
+        bIdx++;
+        buyAvailInSlot = dayBuys[bIdx]?.remainingQty ?? 0;
       }
+      if (sellAvailInSlot <= 0) {
+        sIdx++;
+        sellAvailInSlot = (daySells[sIdx]?.quantity ?? 0) - (sellConsumed[sIdx] ?? 0);
+      }
+    }
 
-      // Any remaining sell quantity not covered by same-day buys stays on the
-      // sell transaction for Phase 2 delivery FIFO. Store it back on the sell.
-      sell.deliveryQty = sellRemaining;
+    // Mark remaining (unmatched) sell quantity for Phase 2 delivery
+    for (let i = 0; i < daySells.length; i++) {
+      daySells[i].deliveryQty = daySells[i].quantity - sellConsumed[i];
     }
   }
 
-  // Mark sells that have no same-day buys as fully delivery
+  // Mark sells on days with no same-day buys as fully delivery
   for (const [day, daySells] of Object.entries(sellsByDay)) {
     if (!buysByDay[day]) {
       for (const sell of daySells) {
@@ -207,16 +235,13 @@ const matchGains = (buyLots, sellTxns) => {
     }
   }
 
-  // ── Phase 2: Delivery FIFO ───────────────────────────────────────────────
+  // ── Step 2: Delivery FIFO ────────────────────────────────────────────────
 
-  // Collect delivery sell obligations in chronological order
   const deliverySells = sellTxns
     .map((sell) => ({ ...sell, qty: sell.deliveryQty ?? sell.quantity }))
     .filter((sell) => sell.qty > 0)
     .sort((a, b) => new Date(a.executedAt) - new Date(b.executedAt));
 
-  // Delivery buy pool: all lots not fully consumed by Phase 1, in FIFO order.
-  // buyLots is already sorted executedAt ASC.
   let buyIdx = 0;
 
   for (const sell of deliverySells) {
@@ -361,7 +386,7 @@ const computeAllGains = async (userId, taxYear) => {
       remainingQty: lot.quantity,
     }));
 
-    // Run two-phase matching (same-day intraday netting first, then delivery FIFO)
+    // Run two-step matching (same-day intraday netting first, then delivery FIFO)
     const gains = matchGains(lotsWithRemaining, assetSells);
 
     // Enrich each gain record with asset metadata
@@ -439,7 +464,7 @@ const getOldestUnmatchedBuyLot = async (userId, assetId) => {
  * Flow:
  *  1. Query SELL transactions within FY date range
  *  2. For each sold asset, query all BUY transactions (executedAt <= sell date)
- *  3. Run two-phase matching per asset (same-day intraday netting → delivery FIFO)
+ *  3. Run two-step matching per asset (same-day intraday netting → delivery FIFO)
  *  4. Enrich gain records with asset metadata (ticker, name, assetType)
  *  5. Paginate the final gains array
  *  6. Compute summary: totalSTCG, totalLTCG, totalIntraday, netRealizedGain
@@ -560,83 +585,242 @@ const getTaxSummary = async (userId, { taxYear } = {}) => {
 /**
  * getHarvestingOpportunities(userId, { taxYear, minLoss })
  *
- * Identifies current holdings with unrealized losses that could be sold
- * to offset realized gains (tax-loss harvesting).
+ * Identifies:
+ *  A) Delivery harvesting — current holdings with unrealized losses that could
+ *     be sold to offset realized STCG/LTCG gains.
+ *  B) Intraday harvesting — assets where TODAY's already-executed transactions
+ *     create an open intraday position, and a hypothetical reverse trade at the
+ *     current live price would produce an intraday loss under Section 43(5).
  *
- * Flow:
- *  1. Call portfolioService.computeHoldings(userId) for live holdings
- *  2. Filter holdings where unrealisedPnL < -minLoss
- *  3. For each loser, find the oldest unmatched BUY lot (via FIFO state)
- *  4. Classify: if days since oldest buy >= 365 → LTCG loss, else STCG loss
- *  5. Compute estimatedSaving = |unrealizedLoss| × applicable rate
- *  6. Sort by estimatedSaving descending
+ * ── Delivery harvesting (unchanged) ────────────────────────────────────────
+ *  1. portfolioService.computeHoldings → live holdings
+ *  2. Filter where unrealisedPnL < -minLoss
+ *  3. Oldest unmatched BUY lot → holding period → STCG or LTCG
+ *  4. estimatedSaving = |unrealizedLoss| × rate
  *
- * @param {string} userId - MongoDB ObjectId string
+ * ── Intraday harvesting ─────────────────────────────────────────────────────
+ *  For each asset that has transactions TODAY:
+ *    - Net today's buys and sells: netQty = totalBuyQtyToday - totalSellQtyToday
+ *    - If netQty > 0 (net long today): user bought more than sold today.
+ *        Hypothetical reverse = sell at currentPrice.
+ *        Walk today's BUY FIFO: for each unmatched buy lot today,
+ *        if currentPrice < buyPrice → intraday loss = (buyPrice - currentPrice) × qty
+ *    - If netQty < 0 (net short today, i.e. sold delivery and not yet bought back):
+ *        Hypothetical reverse = buy at currentPrice.
+ *        Walk today's SELL FIFO: for each unmatched sell today,
+ *        if currentPrice > sellPrice → intraday loss = (currentPrice - sellPrice) × qty
+ *    - Only surface if the hypothetical reverse produces a net loss (< 0)
+ *    - estimatedSaving omitted — client applies slab rate
+ *
+ * @param {string} userId
  * @param {object} options
- * @param {number} [options.taxYear] - Indian FY start year (unused directly, kept for API consistency)
- * @param {number} [options.minLoss=0] - Minimum unrealized loss threshold (₹)
- * @returns {Promise<{ opportunities: Array, meta: object }>}
+ * @param {number} [options.taxYear]
+ * @param {number} [options.minLoss=0]
+ * @returns {Promise<{ opportunities, intradayOpportunities, meta }>}
  */
 const getHarvestingOpportunities = async (userId, { taxYear, minLoss = 0 } = {}) => {
-  // Harvesting only applies to the current FY — losses can only offset gains within the same FY.
-  // For past FYs, return empty opportunities so the UI surfaces a clear empty state.
   const effectiveTaxYear = taxYear || getCurrentFY();
   if (effectiveTaxYear !== getCurrentFY()) {
     return {
       opportunities: [],
-      meta: {
-        minLoss,
-        totalOpportunities: 0,
-        isCurrentFY: false,
-      },
+      intradayOpportunities: [],
+      meta: { minLoss, totalOpportunities: 0, intradayCount: 0, isCurrentFY: false },
     };
   }
 
-  // Step 1: Get current holdings with live prices
+  // ── A: Delivery harvesting ───────────────────────────────────────────────
   const holdings = await portfolioService.computeHoldings(userId);
-
-  // Step 2: Filter to holdings with unrealized losses exceeding threshold
   const losers = holdings.filter((h) => h.unrealisedPnL < -minLoss);
 
-  // Step 3–5: For each loser, determine holding period and compute savings
-  const opportunities = await Promise.all(
+  // Build raw delivery opportunities first (before intraday deduction)
+  const rawOpportunities = await Promise.all(
     losers.map(async (holding) => {
-      // Find oldest unmatched BUY lot for holding period classification
       const oldestBuy = await getOldestUnmatchedBuyLot(userId, holding.assetId);
-
       const holdingDays = oldestBuy ? daysBetween(oldestBuy.executedAt, new Date()) : 0;
-
       const lossType = holdingDays >= HOLDING_PERIOD_THRESHOLD ? 'LTCG' : 'STCG';
       const rate = lossType === 'STCG' ? STCG_RATE : LTCG_RATE;
-      const unrealizedLoss = Math.abs(holding.unrealisedPnL);
-      const estimatedSaving = unrealizedLoss * rate;
-
       return {
         assetId: holding.assetId.toString(),
         ticker: holding.asset.ticker,
         name: holding.asset.name,
         assetType: holding.asset.assetType,
         sector: holding.asset.sector || null,
-        unrealizedLoss,
         currentPrice: holding.currentPrice,
         avgCostBasis: holding.avgCostBasis,
+        // raw quantity from holdings (includes today's buys)
         quantity: holding.netQuantity,
         holdingDays,
         lossType,
-        estimatedSaving,
+        rate,
         offsetsGainType: lossType,
       };
     })
   );
 
-  // Step 6: Sort by estimated savings descending
+  // ── B: Intraday harvesting ───────────────────────────────────────────────
+  const { resolveAssetPrice } = require('../market/market.service');
+  const todayKey = toDateKey(new Date());
+  const todayStart = new Date(`${todayKey}T00:00:00.000Z`);
+  const todayEnd = new Date(`${todayKey}T23:59:59.999Z`);
+
+  const todayTxns = await Transaction.find({
+    userId: new mongoose.Types.ObjectId(userId),
+    executedAt: { $gte: todayStart, $lte: todayEnd },
+  })
+    .sort({ executedAt: 1 })
+    .lean();
+
+  const todayByAsset = {};
+  for (const tx of todayTxns) {
+    const key = tx.assetId.toString();
+    if (!todayByAsset[key]) todayByAsset[key] = { buys: [], sells: [] };
+    if (tx.transactionType === TRANSACTION_TYPES.BUY) {
+      todayByAsset[key].buys.push(tx);
+    } else {
+      todayByAsset[key].sells.push(tx);
+    }
+  }
+
+  const todayAssetIds = Object.keys(todayByAsset);
+  const todayAssets = await Asset.find({
+    _id: { $in: todayAssetIds.map((id) => new mongoose.Types.ObjectId(id)) },
+  }).lean();
+  const todayAssetMap = {};
+  for (const a of todayAssets) todayAssetMap[a._id.toString()] = a;
+
+  // Map of assetId → net unmatched buy qty today (SELL_TO_CLOSE intraday qty)
+  // These units are "claimed" by intraday and must be excluded from delivery qty.
+  const intradayClaimedQty = {};
+  const intradayOpportunities = [];
+
+  for (const [assetId, { buys, sells }] of Object.entries(todayByAsset)) {
+    const asset = todayAssetMap[assetId];
+    if (!asset) continue;
+
+    const totalBuyQty = buys.reduce((s, t) => s + t.quantity, 0);
+    const totalSellQty = sells.reduce((s, t) => s + t.quantity, 0);
+    const alreadyMatchedQty = Math.min(totalBuyQty, totalSellQty);
+    const netBuyQty = totalBuyQty - alreadyMatchedQty;
+    const netSellQty = totalSellQty - alreadyMatchedQty;
+
+    const currentPrice = await resolveAssetPrice(asset).catch(() => asset.basePrice);
+
+    if (netBuyQty > 0) {
+      // Net long today — hypothetical SELL at currentPrice to close
+      let remainingToCheck = netBuyQty;
+      let totalIntradayLoss = 0;
+      let matchableQty = 0;
+
+      for (const buy of buys) {
+        if (remainingToCheck <= 0) break;
+        const qty = Math.min(buy.quantity, remainingToCheck);
+        const lossPer = buy.pricePerUnit - currentPrice;
+        if (lossPer > 0) {
+          totalIntradayLoss += lossPer * qty;
+          matchableQty += qty;
+        }
+        remainingToCheck -= qty;
+      }
+
+      if (totalIntradayLoss > 0 && matchableQty > 0) {
+        // Track how many units of this asset are claimed by intraday (SELL_TO_CLOSE)
+        // so delivery harvesting can exclude them
+        intradayClaimedQty[assetId] = (intradayClaimedQty[assetId] ?? 0) + matchableQty;
+
+        intradayOpportunities.push({
+          assetId,
+          ticker: asset.ticker,
+          name: asset.name,
+          assetType: asset.assetType,
+          sector: asset.sector || null,
+          currentPrice,
+          direction: 'SELL_TO_CLOSE',
+          matchableQty,
+          unrealizedIntradayLoss: totalIntradayLoss,
+          lossType: 'INTRADAY',
+        });
+      }
+    }
+
+    if (netSellQty > 0) {
+      // Net short today — hypothetical BUY at currentPrice to close
+      let remainingToCheck = netSellQty;
+      let totalIntradayLoss = 0;
+      let matchableQty = 0;
+
+      for (const sell of sells) {
+        if (remainingToCheck <= 0) break;
+        const qty = Math.min(sell.quantity, remainingToCheck);
+        const lossPer = currentPrice - sell.pricePerUnit;
+        if (lossPer > 0) {
+          totalIntradayLoss += lossPer * qty;
+          matchableQty += qty;
+        }
+        remainingToCheck -= qty;
+      }
+
+      if (totalIntradayLoss > 0 && matchableQty > 0) {
+        intradayOpportunities.push({
+          assetId,
+          ticker: asset.ticker,
+          name: asset.name,
+          assetType: asset.assetType,
+          sector: asset.sector || null,
+          currentPrice,
+          direction: 'BUY_TO_CLOSE',
+          matchableQty,
+          unrealizedIntradayLoss: totalIntradayLoss,
+          lossType: 'INTRADAY',
+        });
+      }
+    }
+  }
+
+  intradayOpportunities.sort((a, b) => b.unrealizedIntradayLoss - a.unrealizedIntradayLoss);
+
+  // ── Deduct intraday-claimed qty from delivery opportunities ───────────────
+  // Units bought today that are already surfaced as SELL_TO_CLOSE intraday
+  // opportunities must not be double-counted in the delivery qty.
+  // If delivery qty after deduction drops to 0, remove the opportunity entirely.
+  const opportunities = rawOpportunities
+    .map((opp) => {
+      const claimed = intradayClaimedQty[opp.assetId] ?? 0;
+      const deliveryQty = opp.quantity - claimed;
+      if (deliveryQty <= 0) return null; // fully claimed by intraday — drop
+
+      const unrealizedLoss = Math.abs((opp.avgCostBasis - opp.currentPrice) * deliveryQty);
+      const estimatedSaving = unrealizedLoss * opp.rate;
+
+      // Drop if net delivery loss is below minLoss threshold
+      if (unrealizedLoss < minLoss) return null;
+
+      return {
+        assetId: opp.assetId,
+        ticker: opp.ticker,
+        name: opp.name,
+        assetType: opp.assetType,
+        sector: opp.sector,
+        unrealizedLoss,
+        currentPrice: opp.currentPrice,
+        avgCostBasis: opp.avgCostBasis,
+        quantity: deliveryQty,
+        holdingDays: opp.holdingDays,
+        lossType: opp.lossType,
+        estimatedSaving,
+        offsetsGainType: opp.offsetsGainType,
+      };
+    })
+    .filter(Boolean);
+
   opportunities.sort((a, b) => b.estimatedSaving - a.estimatedSaving);
 
   return {
     opportunities,
+    intradayOpportunities,
     meta: {
       minLoss,
       totalOpportunities: opportunities.length,
+      intradayCount: intradayOpportunities.length,
       isCurrentFY: true,
     },
   };

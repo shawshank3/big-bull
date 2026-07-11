@@ -1,22 +1,32 @@
 import { useState, useMemo } from 'react';
-import { computeTax, computeIntradayTax } from '../utils/taxCalculations';
+import {
+  computeTax,
+  computeIntradayTax,
+  STCG_RATE,
+  LTCG_RATE,
+  LTCG_EXEMPTION,
+} from '../utils/taxCalculations';
 
 /**
- * What-If Simulator hook.
- * Manages selected opportunity IDs and computes combined tax impact.
+ * useWhatIfSimulator
+ *
+ * Manages checkbox selection for a set of delivery harvesting opportunities
+ * and computes the per-bucket (STCG or LTCG) tax impact of harvesting
+ * the selected positions.
  *
  * Loss set-off rules (Indian tax law):
- *  - STCG losses offset STCG gains only
- *  - LTCG losses offset LTCG gains only
- *  - Intraday losses can only offset other speculative (intraday) gains —
- *    they CANNOT be set off against STCG or LTCG
+ *  - STCG losses → offset STCG gains only
+ *  - LTCG losses → offset LTCG gains only (above ₹1,25,000 exemption)
  *
- * @param {object|null} summary - Tax summary from useGetTaxSummaryQuery
- * @param {Array} opportunities - Harvesting opportunities array
- * @param {number} slabRate - User's income slab rate for intraday tax (e.g. 0.30)
- * @returns {object} Simulator state and computed values
+ * The hook is bucket-aware: pass `bucket='STCG'` to get STCG-specific
+ * before/after figures, or `bucket='LTCG'` for LTCG.
+ *
+ * @param {object|null} summary   - Tax summary from useGetTaxSummaryQuery
+ * @param {Array}       opps      - Opportunities array (already filtered to the bucket)
+ * @param {'STCG'|'LTCG'} bucket - Which tax bucket this simulator is for
+ * @param {number}      slabRate  - User intraday slab rate (carried through for total tax display)
  */
-export function useWhatIfSimulator(summary, opportunities, slabRate = 0.3) {
+export function useWhatIfSimulator(summary, opps = [], bucket = 'STCG', slabRate = 0.3) {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const toggleSelection = (assetId) => {
@@ -29,56 +39,49 @@ export function useWhatIfSimulator(summary, opportunities, slabRate = 0.3) {
   };
 
   const selectAll = (ids) => setSelectedIds(new Set(ids));
-
   const resetSelection = () => setSelectedIds(new Set());
 
   const computed = useMemo(() => {
-    const selectedOpportunities = opportunities.filter((o) => selectedIds.has(o.assetId));
-    const selectedLossesTotal = selectedOpportunities.reduce((sum, o) => sum + o.unrealizedLoss, 0);
-
-    const currentFYGain = summary?.netRealizedGain ?? 0;
-    const postHarvestGain = currentFYGain - selectedLossesTotal;
+    const selected = opps.filter((o) => selectedIds.has(o.assetId));
+    const selectedLossesTotal = selected.reduce((s, o) => s + o.unrealizedLoss, 0);
 
     const totalSTCG = summary?.totalSTCG ?? 0;
     const totalLTCG = summary?.totalLTCG ?? 0;
     const totalIntraday = summary?.totalIntraday ?? 0;
 
-    // Tax before harvesting
-    const taxBefore =
-      computeTax(totalSTCG, totalLTCG) + computeIntradayTax(totalIntraday, slabRate);
+    // Per-bucket tax before
+    const taxBeforeSTCG = totalSTCG > 0 ? totalSTCG * STCG_RATE : 0;
+    const taxBeforeLTCG = totalLTCG > LTCG_EXEMPTION ? (totalLTCG - LTCG_EXEMPTION) * LTCG_RATE : 0;
+    const intradayTax = computeIntradayTax(totalIntraday, slabRate);
 
-    // Separate selected losses by type.
-    // Intraday losses ONLY offset intraday gains (Section 43(5) — speculative
-    // losses cannot be set off against capital gains).
-    const stcgLossSelected = selectedOpportunities
-      .filter((o) => o.lossType === 'STCG')
-      .reduce((sum, o) => sum + o.unrealizedLoss, 0);
+    let bucketGain, taxBefore, taxAfter;
 
-    const ltcgLossSelected = selectedOpportunities
-      .filter((o) => o.lossType === 'LTCG')
-      .reduce((sum, o) => sum + o.unrealizedLoss, 0);
-
-    // Intraday losses are not eligible for harvesting against CG — excluded here.
-    // (Harvesting opportunities are delivery-based positions held overnight;
-    // they are classified as STCG or LTCG, never INTRADAY.)
-
-    const taxAfter =
-      computeTax(
-        Math.max(0, totalSTCG - stcgLossSelected),
-        Math.max(0, totalLTCG - ltcgLossSelected)
-      ) + computeIntradayTax(totalIntraday, slabRate);
+    if (bucket === 'STCG') {
+      bucketGain = totalSTCG;
+      taxBefore = taxBeforeSTCG;
+      const postHarvestSTCG = Math.max(0, totalSTCG - selectedLossesTotal);
+      taxAfter = postHarvestSTCG > 0 ? postHarvestSTCG * STCG_RATE : 0;
+    } else {
+      bucketGain = totalLTCG;
+      taxBefore = taxBeforeLTCG;
+      const postHarvestLTCG = Math.max(0, totalLTCG - selectedLossesTotal);
+      taxAfter =
+        postHarvestLTCG > LTCG_EXEMPTION ? (postHarvestLTCG - LTCG_EXEMPTION) * LTCG_RATE : 0;
+    }
 
     const netSavings = taxBefore - taxAfter;
+    const postHarvestGain = Math.max(0, bucketGain - selectedLossesTotal);
 
     return {
       selectedLossesTotal,
-      currentFYGain,
+      bucketGain,
       postHarvestGain,
       taxBefore,
       taxAfter,
       netSavings,
+      intradayTax, // passed through for the full-tax display if needed
     };
-  }, [selectedIds, summary, opportunities, slabRate]);
+  }, [selectedIds, opps, summary, bucket, slabRate]);
 
   return {
     selectedIds,

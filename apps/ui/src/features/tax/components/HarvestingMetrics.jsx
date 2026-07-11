@@ -1,82 +1,80 @@
 import { Card, CardContent } from '@/shared/components/card';
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { formatCurrency } from '@/shared/utils';
-import {
-  computeHarvestingMetrics,
-  computeTax,
-  STCG_RATE,
-  LTCG_RATE,
-  LTCG_EXEMPTION,
-} from '../utils/taxCalculations';
+import { STCG_RATE, LTCG_RATE, LTCG_EXEMPTION } from '../utils/taxCalculations';
 
-export const HarvestingMetrics = ({ opportunities = [], summary = {} }) => {
-  const { totalHarvestableLoss, potentialTaxSavings, stcgOffsets, ltcgOffsets } =
-    computeHarvestingMetrics(opportunities);
+/**
+ * HarvestingMetrics
+ *
+ * Shows summary metric cards and an insight card for a single tax bucket
+ * (STCG or LTCG). Each bucket is fully independent — STCG losses only
+ * offset STCG gains, LTCG losses only offset LTCG gains.
+ *
+ * @param {{ opportunities: Array, summary: object, bucket: 'STCG'|'LTCG' }} props
+ */
+export const HarvestingMetrics = ({ opportunities = [], summary = {}, bucket = 'STCG' }) => {
+  const isSTCG = bucket === 'STCG';
+
+  // Filter to just this bucket's opportunities
+  const bucketOpps = opportunities.filter((o) => o.lossType === bucket);
+  const totalHarvestableLoss = bucketOpps.reduce((s, o) => s + o.unrealizedLoss, 0);
+  const potentialTaxSavings = bucketOpps.reduce((s, o) => s + o.estimatedSaving, 0);
 
   const totalSTCG = summary.totalSTCG ?? 0;
   const totalLTCG = summary.totalLTCG ?? 0;
 
-  // Current per-bucket tax
-  const currentStcgTax = totalSTCG > 0 ? totalSTCG * STCG_RATE : 0;
-  const currentLtcgTax = totalLTCG > LTCG_EXEMPTION ? (totalLTCG - LTCG_EXEMPTION) * LTCG_RATE : 0;
-  const currentTax = currentStcgTax + currentLtcgTax;
+  // Current bucket tax
+  const currentBucketGain = isSTCG ? totalSTCG : totalLTCG;
+  const currentBucketTax = isSTCG
+    ? totalSTCG > 0
+      ? totalSTCG * STCG_RATE
+      : 0
+    : totalLTCG > LTCG_EXEMPTION
+      ? (totalLTCG - LTCG_EXEMPTION) * LTCG_RATE
+      : 0;
 
-  // Post-harvest tax — STCG losses cap STCG gains, LTCG losses cap LTCG gains (independent buckets)
-  const effectiveStcgAfter = Math.max(0, totalSTCG - stcgOffsets);
-  const effectiveLtcgAfter = Math.max(0, totalLTCG - ltcgOffsets);
-  const stcgTaxAfter = effectiveStcgAfter > 0 ? effectiveStcgAfter * STCG_RATE : 0;
-  const ltcgTaxAfter =
-    effectiveLtcgAfter > LTCG_EXEMPTION ? (effectiveLtcgAfter - LTCG_EXEMPTION) * LTCG_RATE : 0;
-  const taxAfterHarvest = computeTax(effectiveStcgAfter, effectiveLtcgAfter);
-  const actualSavings = currentTax - taxAfterHarvest;
+  // Post-harvest bucket tax
+  const effectiveGainAfter = Math.max(0, currentBucketGain - totalHarvestableLoss);
+  const taxAfterHarvest = isSTCG
+    ? effectiveGainAfter > 0
+      ? effectiveGainAfter * STCG_RATE
+      : 0
+    : effectiveGainAfter > LTCG_EXEMPTION
+      ? (effectiveGainAfter - LTCG_EXEMPTION) * LTCG_RATE
+      : 0;
 
-  // Per-bucket: how much loss is needed to fully eliminate that bucket's tax
-  const stcgLossNeeded = Math.max(0, totalSTCG); // bring STCG gain to zero
-  const ltcgLossNeeded = Math.max(0, totalLTCG - LTCG_EXEMPTION); // bring LTCG to exemption
-  const stcgLossUsed = Math.min(stcgOffsets, stcgLossNeeded);
-  const ltcgLossUsed = Math.min(ltcgOffsets, ltcgLossNeeded);
+  const actualSavings = currentBucketTax - taxAfterHarvest;
 
-  // Per-bucket state classification
-  const stcgHasExcess = stcgLossNeeded > 0 && stcgOffsets > stcgLossNeeded;
-  const stcgInsufficient = stcgLossNeeded > 0 && stcgOffsets > 0 && stcgOffsets < stcgLossNeeded;
+  // Insight logic
+  const lossNeeded = isSTCG ? Math.max(0, totalSTCG) : Math.max(0, totalLTCG - LTCG_EXEMPTION);
 
-  const ltcgHasExcess = ltcgLossNeeded > 0 && ltcgOffsets > ltcgLossNeeded;
-  const ltcgInsufficient = ltcgLossNeeded > 0 && ltcgOffsets > 0 && ltcgOffsets < ltcgLossNeeded;
+  const lossUsed = Math.min(totalHarvestableLoss, lossNeeded);
+  const hasExcess = lossNeeded > 0 && totalHarvestableLoss > lossNeeded;
+  const isInsufficient =
+    lossNeeded > 0 && totalHarvestableLoss > 0 && totalHarvestableLoss < lossNeeded;
+  const taxAfterStr = formatCurrency(taxAfterHarvest);
 
-  // Build per-bucket insight messages (separate, not awkwardly merged)
-  const insightPoints = [];
-  if (stcgHasExcess) {
-    insightPoints.push(
-      `Only ${formatCurrency(stcgLossUsed)} of your ${formatCurrency(stcgOffsets)} STCG losses are needed to fully offset your ${formatCurrency(currentStcgTax)} STCG tax.`
-    );
-  } else if (stcgInsufficient) {
-    insightPoints.push(
-      `STCG losses can reduce STCG tax from ${formatCurrency(currentStcgTax)} to ${formatCurrency(stcgTaxAfter)} — not enough to wipe it out.`
-    );
-  }
-  if (ltcgHasExcess) {
-    insightPoints.push(
-      `Only ${formatCurrency(ltcgLossUsed)} of your ${formatCurrency(ltcgOffsets)} LTCG losses are needed to fully offset your ${formatCurrency(currentLtcgTax)} LTCG tax.`
-    );
-  } else if (ltcgInsufficient) {
-    insightPoints.push(
-      `LTCG losses can reduce LTCG tax from ${formatCurrency(currentLtcgTax)} to ${formatCurrency(ltcgTaxAfter)} — not enough to wipe it out.`
-    );
+  let insightText = null;
+  if (hasExcess) {
+    insightText = `Only ${formatCurrency(lossUsed)} of your ${formatCurrency(totalHarvestableLoss)} ${bucket} losses are needed to fully offset your ${formatCurrency(currentBucketTax)} ${bucket} tax.`;
+  } else if (isInsufficient) {
+    insightText = `${bucket} losses can reduce ${bucket} tax from ${formatCurrency(currentBucketTax)} to ${taxAfterStr} — not enough to wipe it out.`;
   }
 
-  // Column label: "After Optimal Harvest" when at least one bucket has excess losses
-  // (selective harvesting works); otherwise "After Full Harvest" (every available loss is used).
-  const hasAnyExcess = stcgHasExcess || ltcgHasExcess;
-  const harvestLabel = hasAnyExcess ? 'After Optimal Harvest' : 'After Full Harvest';
-  const harvestSubtitle = hasAnyExcess
+  const harvestLabel = hasExcess ? 'After Optimal Harvest' : 'After Full Harvest';
+  const harvestSubtitle = hasExcess
     ? `Save ${formatCurrency(actualSavings)} • Selective harvest sufficient`
     : `Save ${formatCurrency(actualSavings)}`;
 
+  const rateNote = isSTCG
+    ? `${formatCurrency(currentBucketGain)} × ${STCG_RATE * 100}%`
+    : `${formatCurrency(totalLTCG)} × ${LTCG_RATE * 100}% (above ₹1.25L)`;
+
   const metrics = [
-    { label: 'Total Harvestable Loss', value: formatCurrency(totalHarvestableLoss) },
-    { label: 'Potential Tax Savings', value: formatCurrency(potentialTaxSavings) },
-    { label: 'STCG Offsets Available', value: formatCurrency(stcgOffsets) },
-    { label: 'LTCG Offsets Available', value: formatCurrency(ltcgOffsets) },
+    { label: `${bucket} Gain This FY`, value: formatCurrency(currentBucketGain) },
+    { label: `${bucket} Tax`, value: formatCurrency(currentBucketTax) },
+    { label: `Harvestable ${bucket} Losses`, value: formatCurrency(totalHarvestableLoss) },
+    { label: 'Potential Tax Saving', value: formatCurrency(potentialTaxSavings) },
   ];
 
   return (
@@ -92,49 +90,38 @@ export const HarvestingMetrics = ({ opportunities = [], summary = {} }) => {
         ))}
       </div>
 
-      {/* Net Tax Insight Card */}
-      {currentTax > 0 && potentialTaxSavings > 0 && (
+      {/* Insight card — only when there's tax to save */}
+      {currentBucketTax > 0 && potentialTaxSavings > 0 && (
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className="flex flex-col gap-3">
-              {/* Insights — one per applicable bucket */}
-              {insightPoints.length > 0 && (
+              {insightText && (
                 <div className="flex items-start gap-2">
                   <span className="inline-flex shrink-0 items-center rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-medium text-success">
                     💡 Insight
                   </span>
-                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                    {insightPoints.map((point, idx) => (
-                      <span key={idx}>{point}</span>
-                    ))}
-                  </div>
+                  <span className="text-sm text-muted-foreground">{insightText}</span>
                 </div>
               )}
 
-              {/* Tax breakdown row */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground">STCG Tax</span>
+                  <span className="text-xs text-muted-foreground">{bucket} Gain</span>
                   <span className="text-sm font-semibold tabular-nums text-foreground">
-                    {formatCurrency(currentStcgTax)}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatCurrency(totalSTCG)} × {STCG_RATE * 100}%
+                    {formatCurrency(currentBucketGain)}
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground">LTCG Tax</span>
-                  <span className="text-sm font-semibold tabular-nums text-foreground">
-                    {formatCurrency(currentLtcgTax)}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatCurrency(totalLTCG)} × {LTCG_RATE * 100}% (above ₹1.25L)
-                  </span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground">Current Total Tax</span>
+                  <span className="text-xs text-muted-foreground">{bucket} Tax</span>
                   <span className="text-sm font-semibold tabular-nums text-danger">
-                    {formatCurrency(currentTax)}
+                    {formatCurrency(currentBucketTax)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">{rateNote}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Current {bucket} Tax</span>
+                  <span className="text-sm font-semibold tabular-nums text-danger">
+                    {formatCurrency(currentBucketTax)}
                   </span>
                 </div>
                 <div className="flex flex-col">

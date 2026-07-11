@@ -11,6 +11,7 @@ export { useTaxYear, getCurrentFY } from './hooks/useTaxYear';
 export { useThreshold } from './hooks/useThreshold';
 export { useSlabRate, setSlabRate, INTRADAY_SLAB_RATES } from './hooks/useSlabRate';
 export { useWhatIfSimulator } from './hooks/useWhatIfSimulator';
+export { useIntradaySimulator } from './hooks/useIntradaySimulator';
 
 // Components
 export { TaxYearSelector } from './components/TaxYearSelector';
@@ -20,9 +21,10 @@ export { GainsTable } from './components/GainsTable';
 export { HarvestingPreview } from './components/HarvestingPreview';
 export { EducationalTooltip, TAX_TOOLTIPS } from './components/EducationalTooltips';
 export { EnhancedOpportunitiesTable } from './components/EnhancedOpportunitiesTable';
+export { IntradayHarvestingSection } from './components/IntradayHarvestingSection';
 export { ThresholdConfig } from './components/ThresholdConfig';
 export { SlabRateConfig } from './components/SlabRateConfig';
-export { WhatIfPanel } from './components/WhatIfPanel';
+export { WhatIfPanel, IntradayWhatIfPanel } from './components/WhatIfPanel';
 
 // Utils
 export {

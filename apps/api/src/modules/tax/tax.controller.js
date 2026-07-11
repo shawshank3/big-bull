@@ -56,8 +56,10 @@ const getTaxSummary = catchAsync(async (req, res) => {
 /**
  * GET /tax/harvesting
  *
- * Returns current holdings with unrealized losses that qualify as
- * tax-loss harvesting opportunities.
+ * Returns:
+ *  - delivery opportunities: current holdings with unrealized losses
+ *  - intradayOpportunities: today's open intraday positions where a reverse
+ *    trade at current price would produce an intraday loss (Section 43(5))
  */
 const getHarvestingOpportunities = catchAsync(async (req, res) => {
   const result = harvestingQuerySchema.safeParse(req.query);

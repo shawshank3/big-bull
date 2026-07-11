@@ -4,7 +4,7 @@
  *
  *   GET /api/v1/tax/gains       → getGainsLedger      (paginated realized gains)
  *   GET /api/v1/tax/summary     → getTaxSummary       (FY tax summary)
- *   GET /api/v1/tax/harvesting  → getHarvestingOpportunities (loss harvesting)
+ *   GET /api/v1/tax/harvesting  → getHarvestingOpportunities (delivery + intraday harvesting)
  */
 const { Router } = require('express');
 const authMiddleware = require('../../middleware/authMiddleware');

@@ -59,7 +59,7 @@ export function toSummaryDTO(raw) {
 }
 
 /**
- * Transform a single harvesting opportunity from raw API response.
+ * Transform a single delivery harvesting opportunity.
  */
 export function toOpportunityDTO(raw) {
   return {
@@ -80,14 +80,37 @@ export function toOpportunityDTO(raw) {
 }
 
 /**
- * Transform the harvesting response (opportunities array + meta).
+ * Transform a single intraday harvesting opportunity.
+ * These arise from today's already-executed transactions where a hypothetical
+ * reverse trade at the current price would produce an intraday loss.
+ */
+export function toIntradayOpportunityDTO(raw) {
+  return {
+    assetId: str(raw?.assetId),
+    ticker: str(raw?.ticker),
+    name: str(raw?.name),
+    assetType: str(raw?.assetType),
+    sector: str(raw?.sector),
+    currentPrice: num(raw?.currentPrice),
+    direction: str(raw?.direction), // 'SELL_TO_CLOSE' | 'BUY_TO_CLOSE'
+    matchableQty: num(raw?.matchableQty),
+    unrealizedIntradayLoss: num(raw?.unrealizedIntradayLoss),
+    lossType: str(raw?.lossType), // always 'INTRADAY'
+  };
+}
+
+/**
+ * Transform the harvesting response.
+ * Now includes both delivery opportunities and intraday opportunities.
  */
 export function toHarvestingDTO(raw) {
   return {
     opportunities: arr(raw?.opportunities).map(toOpportunityDTO),
+    intradayOpportunities: arr(raw?.intradayOpportunities).map(toIntradayOpportunityDTO),
     meta: {
       minLoss: num(raw?.meta?.minLoss),
       totalOpportunities: num(raw?.meta?.totalOpportunities),
+      intradayCount: num(raw?.meta?.intradayCount),
       isCurrentFY: raw?.meta?.isCurrentFY !== false,
     },
   };
