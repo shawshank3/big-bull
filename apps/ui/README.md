@@ -20,23 +20,24 @@
 | Lucide React             | Icon library                                                                               |
 | react-day-picker         | Headless calendar/date picker engine (powers `DateRangePicker`)                            |
 | date-fns                 | Date formatting helpers used by the date range picker                                      |
+| react-helmet-async       | Per-route `<title>`, `<meta>`, and Open Graph tag injection (`PageMeta` component)         |
 | async-mutex              | Token refresh race-condition guard                                                         |
 
 ## Architecture
 
 ```
 apps/ui/
-├── public/                     # Static assets served at root URL (favicon, brand icon, OG preview image)
+├── public/                     # Static assets: favicon, brand icon, OG preview image, robots.txt, sitemap.xml
 ├── src/
 │   ├── app/                    # App-level wiring
 │   │   ├── store.js            # Redux store (apiSlice reducer + middleware only)
-│   │   ├── router.jsx          # createBrowserRouter route definitions
-│   │   └── routes/NotFound.jsx # 404 page
+│   │   ├── router.jsx          # createBrowserRouter — all heavy routes lazy-loaded via route.lazy()
+│   │   └── routes/             # App-level pages (NotFound, Disclaimer)
 │   ├── features/               # Feature modules (domain-sliced)
 │   │   ├── auth/               # Login, register, session, route guards
 │   │   ├── market/             # Asset listing (infinite scroll), quotes, SSE stream, search, top movers
 │   │   ├── portfolio/          # Holdings, dashboard summary, P&L, Top Gainers/Losers (from market)
-│   │   ├── tax/                # Capital gains, tax-loss harvesting
+│   │   ├── tax/                # Capital gains, tax-loss harvesting, intraday harvesting, slab rate config
 │   │   ├── transaction/        # Buy/sell order execution
 │   │   ├── wallet/             # Balance display, wallet transaction history
 │   │   ├── chat/               # AI copilot (Gemini)
@@ -44,19 +45,19 @@ apps/ui/
 │   │   └── user/               # Profile management, avatar
 │   ├── shared/                 # Cross-cutting concerns
 │   │   ├── api/apiSlice.js     # RTK Query base slice + reauth wrapper
-│   │   ├── components/         # Composite components (table, tabs, sheet, select, card, popover, calendar, date-range-picker)
-│   │   ├── constants/          # Routes, API URLs, asset types, validation rules
+│   │   ├── components/         # Composite components (table, tabs, sheet, select, card, popover, calendar, date-range-picker, PageMeta, SimBanner)
+│   │   ├── constants/          # Routes, API URLs, asset types, SEO constants (SITE_URL, SITE_NAME, OG image), validation rules
 │   │   ├── dto/helpers.js      # DTO primitives (str, num, bool, arr)
 │   │   ├── errors/             # Error boundary, NotFoundCard
 │   │   ├── hooks/              # useDebounce, useThemeMode
-│   │   ├── layout/             # RootLayout, Navbar, GlobalLoader, PageShell, PageHeader
+│   │   ├── layout/             # RootLayout, Navbar, Footer, GlobalLoader, PageShell, PageSuspense, PageHeader
 │   │   ├── ui/                 # Design system primitives (see below)
 │   │   └── utils/              # Formatters, localStorage, market/portfolio helpers, input filters
 │   ├── lib/utils.js            # Tailwind cn() merge utility
 │   ├── theme/                  # Theme constants + utilities
 │   ├── App.jsx                 # Provider composition root
-│   └── main.jsx                # Vite entry point
-└── index.html                  # Entry HTML (meta tags, favicon, font preloads)
+│   └── main.jsx                # Vite entry point (wraps tree in HelmetProvider for react-helmet-async)
+└── index.html                  # Entry HTML (meta tags, favicon, font preloads, base OG/Twitter tags)
 ```
 
 **Backend module mapping:** Each frontend feature module maps to a corresponding backend API module — `auth → /api/v1/auth`, `market → /api/v1/market`, `portfolio → /api/v1/portfolio`, `tax → /api/v1/tax`, `transaction → /api/v1/transactions`, `wallet → /api/v1/wallet`, `chat → /api/v1/chat`, `user → /api/v1/users`.
@@ -101,9 +102,10 @@ features/<module>/
 | `/market/mutuals/:schemeCode` | market    | Public     | `MutualDetail`  |
 | `/search`                     | market    | Public     | `Search`        |
 | `/explore`                    | explore   | Public     | `Explore`       |
+| `/legal/disclaimer`           | app       | Public     | `Disclaimer`    |
 | `*`                           | app       | Any        | `NotFound`      |
 
-**Route guards:**
+All routes except `/login`, `/register`, and `/` are lazy-loaded via React Router's `route.lazy()`. Each lazy function returns `{ Component }` — React Router resolves it during navigation via `startTransition`, with no manual `<Suspense>` boundary needed at the route level. `PageSuspense` is reserved for heavy intra-page components loaded via `React.lazy()` on user interaction.
 
 - `GuestRoute` — wraps login/register; redirects to `/dashboard` if already authenticated. Shows `GlobalLoader` while auth state is resolving to prevent a flash of guest content.
 - `ProtectedRoute` — wraps dashboard/holdings/profile/wallet; redirects to `/login` if unauthenticated. Shows `GlobalLoader` while auth state is resolving.
@@ -229,11 +231,14 @@ useMarketStream (features/market/hooks/useMarketStream.js)
     └── Authenticated patches (when logged in):
           • getPortfolioHoldings()   → Recalculates currentValue, unrealisedPnL, portfolioWeight
           • getPortfolioSummary()    → Updates currentValue, totalPnL, totalPnLPercent
-          • getTaxHarvesting(*)      → Recomputes unrealizedLoss/estimatedSaving per opportunity,
-                                       drops below-threshold rows, re-sorts by savings desc
+          • getTaxHarvesting(*)      → Delivery opps: recomputes unrealizedLoss/estimatedSaving,
+                                       drops below-threshold rows, re-sorts by savings desc.
+                                       Intraday opps: recomputes unrealizedIntradayLoss via
+                                       back-calculated _avgEntryPrice (initialised on first tick).
+          • getTaxSummary(*)         → harvestingCount synced from minLoss=0 harvesting cache
 ```
 
-Uses `apiSlice.util.updateQueryData()` (Immer-based draft patches) to mutate cached data in-place. Portfolio derived values (unrealised P&L, portfolio weight) are recomputed on every tick. Tax harvesting opportunities recompute `currentPrice`, `unrealizedLoss`, and `estimatedSaving` per matching ticker, then drop entries that fell at or below the active `minLoss` threshold and re-sort by savings desc — mirroring the backend filter and ordering. Realised gains (`getTaxGains`, `getTaxSummary`) are deliberately not patched because their values come from historical SELL transactions. Auto-reconnects via native `EventSource` reconnection on error.
+Uses `apiSlice.util.updateQueryData()` (Immer-based draft patches) to mutate cached data in-place. Portfolio derived values (unrealised P&L, portfolio weight) are recomputed on every tick. Realised gains (`getTaxGains`) are deliberately not patched — they derive from historical SELL transactions and never move with live prices. Auto-reconnects via native `EventSource` reconnection on error.
 
 ### Order Form
 
@@ -300,63 +305,75 @@ All primitives live in `src/shared/ui/` and are exported from `shared/ui/index.j
 
 ## Tax Center Feature
 
-> **Educational only** — This feature provides simulated Indian capital gains tracking and tax-loss harvesting insights. It does not constitute tax advice.
+> **Educational only** — Simulated Indian capital gains tracking and tax-loss harvesting insights. Does not constitute tax advice.
 
 ### Pages
 
-| Route             | Component       | Description                                                         |
-| ----------------- | --------------- | ------------------------------------------------------------------- |
-| `/tax`            | `TaxCenter`     | FY capital gains summary, realized gains ledger, harvesting preview |
-| `/tax/harvesting` | `TaxHarvesting` | Full harvesting insights with metrics, charts, What-If simulator    |
+| Route             | Component       | Description                                                                             |
+| ----------------- | --------------- | --------------------------------------------------------------------------------------- |
+| `/tax`            | `TaxCenter`     | FY summary (STCG/LTCG/Intraday/Est. Tax), realized gains ledger, harvesting preview     |
+| `/tax/harvesting` | `TaxHarvesting` | Full harvesting insights: 3 tabs (STCG, LTCG, Intraday), chart, sector heatmap, what-if |
 
 ### Key Components
 
-| Component                    | Location                   | Purpose                                             |
-| ---------------------------- | -------------------------- | --------------------------------------------------- |
-| `TaxSummaryCard`             | `features/tax/components/` | STCG/LTCG/tax totals display                        |
-| `GainsTable`                 | `features/tax/components/` | Paginated realized gains ledger with filters        |
-| `HarvestingMetrics`          | `features/tax/components/` | Metric cards (total loss, savings, offsets)         |
-| `SectorHeatmap`              | `features/tax/components/` | Grid heatmap of losses by sector                    |
-| `GainsVsLossesChart`         | `features/tax/components/` | Recharts bar chart of gains vs losses               |
-| `EnhancedOpportunitiesTable` | `features/tax/components/` | Sortable/filterable table with selection checkboxes |
-| `WhatIfPanel`                | `features/tax/components/` | Sticky bottom panel showing simulated tax savings   |
+| Component                    | Location                   | Purpose                                                               |
+| ---------------------------- | -------------------------- | --------------------------------------------------------------------- |
+| `TaxSummaryCard`             | `features/tax/components/` | STCG/LTCG/Intraday/Est. Tax stat cards; tax computed client-side      |
+| `GainsTable`                 | `features/tax/components/` | Paginated realized gains ledger with asset-type and gain-type filters |
+| `HarvestingMetrics`          | `features/tax/components/` | Per-bucket (STCG or LTCG) metric cards + insight card                 |
+| `SectorHeatmap`              | `features/tax/components/` | Grid heatmap of delivery loss intensity by sector                     |
+| `GainsVsLossesChart`         | `features/tax/components/` | Recharts waterfall bar chart: gains vs harvestable losses vs net      |
+| `EnhancedOpportunitiesTable` | `features/tax/components/` | Sortable/filterable delivery opportunities table with row checkboxes  |
+| `IntradayHarvestingSection`  | `features/tax/components/` | Tab 3: today's open intraday positions + intraday what-if panel       |
+| `SlabRateConfig`             | `features/tax/components/` | Settings popover for income slab rate (5%/10%/20%/30%), localStorage  |
+| `ThresholdConfig`            | `features/tax/components/` | Settings popover for minLoss threshold (₹0–₹10,000), localStorage     |
+| `WhatIfPanel`                | `features/tax/components/` | Before/after tax panel for delivery (STCG or LTCG) selections         |
+| `IntradayWhatIfPanel`        | `features/tax/components/` | Before/after tax panel for intraday selections (uses slab rate)       |
 
 ### Hooks
 
-| Hook                 | Purpose                                              |
-| -------------------- | ---------------------------------------------------- |
-| `useTaxYear`         | Indian FY selection state (default: current FY)      |
-| `useThreshold`       | localStorage-persisted minLoss threshold             |
-| `useWhatIfSimulator` | Multi-select state + savings computation for What-If |
+| Hook                   | Purpose                                                                          |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `useTaxYear`           | Indian FY selection state (default: current FY)                                  |
+| `useThreshold`         | `useSyncExternalStore` module-store; minLoss threshold persisted to localStorage |
+| `useSlabRate`          | `useSyncExternalStore` module-store; income slab rate persisted to localStorage  |
+| `useWhatIfSimulator`   | Checkbox selection + per-bucket (STCG/LTCG) tax before/after computation         |
+| `useIntradaySimulator` | Checkbox selection + intraday tax before/after computation                       |
 
 ### API Layer
 
 RTK Query endpoints in `features/tax/api/taxApi.js`:
 
-- `useGetTaxSummaryQuery({ taxYear })` — FY tax summary with estimated tax
-- `useGetTaxGainsQuery({ taxYear, page, limit })` — paginated realized gains
-- `useGetTaxHarvestingQuery({ taxYear, minLoss })` — harvesting opportunities
+- `useGetTaxSummaryQuery({ taxYear })` — FY summary: totalSTCG, totalLTCG, totalIntraday, stcgTax, ltcgTax, estimatedTax, harvestingCount
+- `useGetTaxGainsQuery({ taxYear, page, limit })` — paginated realized gain records
+- `useGetTaxHarvestingQuery({ taxYear, minLoss })` — delivery opportunities + intradayOpportunities in one response
+
+Both `getTaxSummary` and `getTaxHarvesting` use `keepUnusedDataFor: 0` to always refetch fresh data on mount.
+
+### Intraday Tax (Section 43(5))
+
+Intraday equity income is speculative business income taxed at the user's income slab rate — not a flat capital gains rate. The backend sends `totalIntraday` and `intradayOpportunities`; the client applies the user's chosen slab rate:
+
+- `TaxSummaryCard` shows `Intraday (Slab X%)` and recomputes the full estimated tax client-side using `computeIntradayTax(totalIntraday, slabRate)`
+- `SlabRateConfig` lets the user choose their slab (5%/10%/20%/30%); default 30% (conservative worst-case)
+- `IntradayHarvestingSection` shows today's open positions closeable for a speculative loss; `useIntradaySimulator` computes before/after intraday tax on selection
 
 ### Live Price Updates
 
-The harvesting screen (and the harvesting preview on `/tax`) updates in real time as the SSE market stream broadcasts `price_update` events. `useMarketStream` patches every cached `getTaxHarvesting` entry — recomputing `currentPrice`, `unrealizedLoss`, and `estimatedSaving` per matched ticker, dropping rows that fell at or below the active `minLoss` threshold, and re-sorting by savings desc. All consumers (`HarvestingMetrics`, `EnhancedOpportunitiesTable`, `SectorHeatmap`, `GainsVsLossesChart`, `WhatIfPanel`, `HarvestingPreview`) re-render automatically. Realized gains (`getTaxGains`, `getTaxSummary`) are deliberately not patched because they are historical.
+`useMarketStream` patches every cached `getTaxHarvesting` entry on each SSE tick:
+
+- **Delivery opportunities** — recomputes `currentPrice`, `unrealizedLoss`, `estimatedSaving`; drops rows that fall at or below `minLoss`; re-sorts by `estimatedSaving` desc
+- **Intraday opportunities** — recomputes `unrealizedIntradayLoss` using a `_avgEntryPrice` back-calculated and stored on first tick; re-sorts by loss desc
+- `getTaxSummary.harvestingCount` is kept in sync from the `minLoss=0` harvesting cache entry
+
+All tax UI components (`HarvestingMetrics`, `EnhancedOpportunitiesTable`, `SectorHeatmap`, `GainsVsLossesChart`, `WhatIfPanel`, `IntradayHarvestingSection`, `HarvestingPreview`) re-render automatically on each patch.
 
 ### Utils
 
 Feature-specific utilities in `features/tax/utils/`:
 
-| File                 | Contents                                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------------------- |
-| `taxCalculations.js` | Tax rate constants, `computeTax()`, `computeHarvestingMetrics()`, `computeLossPercent()`            |
-| `taxFormatters.js`   | `getCurrentFY()`, `formatFYLabel()`, `generateFYOptions()`, `groupBySector()`, `getLossIntensity()` |
-| `chartHelpers.js`    | `buildGainsVsLossesData()` for Recharts bar chart                                                   |
-
-### Navigation
-
-Users reach the Tax Center through:
-
-- **Desktop** — Profile dropdown menu (UserMenu) → "Tax Center"
-- **Mobile** — Hamburger drawer → "Tax Center"
-- **Dashboard** — Quick-access cards linking to both `/tax` and `/tax/harvesting`
-- **Portfolio/Holdings** — "Tax Center" button in page header
-- **Tax Center page** — "Harvesting Opportunities" stat card links to `/tax/harvesting`; `HarvestingPreview` table has "View All Insights →" link
+| File                 | Contents                                                                                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `taxCalculations.js` | Rate constants (`STCG_RATE`, `LTCG_RATE`, `LTCG_EXEMPTION`), `computeTax()`, `computeIntradayTax()`, `computeHarvestingMetrics()`, `computeLossPercent()` |
+| `taxFormatters.js`   | `getCurrentFY()`, `formatFYLabel()`, `generateFYOptions()`, `groupBySector()`, `getLossIntensity()`                                                       |
+| `chartHelpers.js`    | `buildGainsVsLossesData()` — builds Recharts data array from summary + opportunities                                                                      |

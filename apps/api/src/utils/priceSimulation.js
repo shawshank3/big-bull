@@ -114,12 +114,31 @@ const todayIST = () => {
   return ist.toISOString().slice(0, 10);
 };
 
+/**
+ * Format a signed percentage change string from an absolute change and base price.
+ * e.g. formatChangePercent(1.23, 100) → "+1.23%"
+ *      formatChangePercent(-0.50, 200) → "-0.25%"
+ *
+ * Used by both the 30s BullMQ worker and the 1s live ticker so the output
+ * format is always identical.
+ *
+ * @param {number} change     Absolute price change (positive or negative).
+ * @param {number} basePrice  The reference price (previous day's close).
+ * @returns {string} Signed percentage string, e.g. "+1.23%" or "-0.45%".
+ */
+const formatChangePercent = (change, basePrice) => {
+  const pct = basePrice > 0 ? (change / basePrice) * 100 : 0;
+  const sign = pct >= 0 ? '+' : '';
+  return `${sign}${pct.toFixed(2)}%`;
+};
+
 module.exports = {
   gaussianNoise,
   nextDayPrice,
   nextIntradayPrice,
   nextMicroPrice,
   todayIST,
+  formatChangePercent,
   INTRADAY_VOL_SCALE,
   MICRO_VOL_SCALE,
 };

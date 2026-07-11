@@ -170,6 +170,10 @@ export const IntradayHarvestingSection = ({ intradayOpportunities = [], summary 
   } = useIntradaySimulator(summary, intradayOpportunities, slabRate);
 
   const totalLoss = intradayOpportunities.reduce((s, o) => s + o.unrealizedIntradayLoss, 0);
+  // Estimated saving if ALL open positions are closed — apply slab rate to the full closeable loss.
+  // Note: this is a "max potential" figure; the simulator's taxBefore/taxAfter reflect actual
+  // FY intraday gain and are used in the what-if panel. This top-card metric shows the gross
+  // tax exposure tied to the closeable positions regardless of the current FY gain balance.
   const totalSaving = computeIntradayTax(totalLoss, slabRate);
 
   const handleNavigate = useCallback(

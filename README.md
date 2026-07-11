@@ -4,18 +4,23 @@ BigBull is a full-stack stock market simulation platform where users trade virtu
 
 ## Feature Status
 
-| Feature           | Module Path                         | Status  |
-| ----------------- | ----------------------------------- | ------- |
-| Auth              | `apps/api/src/modules/auth`         | Done    |
-| Market Simulation | `apps/api/src/workers/mseWorker.js` | Done    |
-| Portfolio         | `apps/api/src/modules/portfolio`    | Done    |
-| Transactions      | `apps/api/src/modules/transaction`  | Done    |
-| Wallet            | `apps/api/src/modules/wallet`       | Done    |
-| AI Chat           | `apps/api/src/modules/chat`         | Done    |
-| Charts / History  | `apps/api/src/modules/market`       | Done    |
-| Search            | `apps/api/src/modules/market`       | Done    |
-| Capital Gains     | `apps/api/src/modules/tax`          | Done    |
-| AI Copilot v2     | —                                   | Planned |
+| Feature                   | Module Path                         | Status  |
+| ------------------------- | ----------------------------------- | ------- |
+| Auth                      | `apps/api/src/modules/auth`         | Done    |
+| Market Simulation         | `apps/api/src/workers/mseWorker.js` | Done    |
+| Portfolio                 | `apps/api/src/modules/portfolio`    | Done    |
+| Transactions              | `apps/api/src/modules/transaction`  | Done    |
+| Wallet                    | `apps/api/src/modules/wallet`       | Done    |
+| AI Chat                   | `apps/api/src/modules/chat`         | Done    |
+| Charts / History          | `apps/api/src/modules/market`       | Done    |
+| Search                    | `apps/api/src/modules/market`       | Done    |
+| Market Infinite Scroll    | `apps/ui/src/features/market`       | Done    |
+| Top Gainers / Losers      | `apps/ui/src/features/portfolio`    | Done    |
+| Capital Gains (STCG/LTCG) | `apps/api/src/modules/tax`          | Done    |
+| Intraday Tax Harvesting   | `apps/api/src/modules/tax`          | Done    |
+| SEO + Code Splitting      | `apps/ui/src/app/router.jsx`        | Done    |
+| Simulated Data Disclaimer | `apps/ui/src/shared/`               | Done    |
+| AI Copilot v2             | —                                   | Planned |
 
 ## Architecture
 
@@ -177,3 +182,11 @@ The build step compiles the Vite UI into static files. At runtime, Express serve
 | ------------------------------------------ | ------------------------------------------------------------------------------- |
 | [apps/api/README.md](./apps/api/README.md) | Backend knowledge map: lifecycle, modules, DB, MSE, API ref, design rules       |
 | [apps/ui/README.md](./apps/ui/README.md)   | Frontend knowledge map: features, routing, RTK Query, SSE, state, design system |
+
+## License
+
+Copyright © Shashank Mishra.
+
+This repository is publicly available for portfolio and evaluation purposes only. The source code is proprietary and may not be copied, modified, distributed, or used in whole or in part without prior written permission from the copyright holder.
+
+Public use of the deployed application does not grant any rights to the underlying source code.

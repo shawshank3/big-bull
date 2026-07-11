@@ -52,6 +52,7 @@ apps/api/
     │   ├── constants/          # Domain enums (11 files)
     │   ├── AppError.js         # Operational error class with statusCode
     │   ├── catchAsync.js       # Async handler wrapper
+    │   ├── money.js            # INR arithmetic helpers (moneyAdd, moneySubtract, moneyMultiply, roundRupee)
     │   ├── pagination.js       # POST pagination helpers (Zod schema + meta builder)
     │   ├── redis.js            # Shared ioredis client (no-op stub if unconfigured)
     │   └── redisBullMQ.js      # BullMQ-specific ioredis (maxRetriesPerRequest: null)
@@ -59,6 +60,7 @@ apps/api/
     │   ├── avatarData.js       # Default avatar data
     │   ├── http.js             # HTTP helpers
     │   ├── jwt.js              # generateAccessToken, generateRefreshToken, verifyRefreshToken
+    │   ├── priceSimulation.js  # MSE math: nextIntradayPrice, nextMicroPrice, formatChangePercent, todayIST
     │   └── response.js         # sendSuccess / sendError — standard envelope
     └── workers/
         ├── index.js            # Worker orchestration

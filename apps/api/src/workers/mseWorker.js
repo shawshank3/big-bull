@@ -38,8 +38,30 @@ const StockPriceHistory = require('../modules/market/stockPriceHistory.model');
 const DailyPrice = require('../modules/market/dailyPrice.model');
 const { makeBullMQConnection, isRedisConfigured } = require('../shared/redisBullMQ');
 const { ASSET_TYPES } = require('../shared/constants');
-const { nextIntradayPrice, todayIST } = require('../utils/priceSimulation');
-// Lazy-require to avoid circular dependency issues at startup
+const { nextIntradayPrice, todayIST, formatChangePercent } = require('../utils/priceSimulation');
+// These three are lazy-required (function wrappers instead of top-level require)
+// to prevent Node.js module-load-order issues at server startup.
+//
+// server.js loads modules in this order:
+//   1. market.routes  → market.controller  (fully initialised)
+//   2. mseWorker      → (this file)
+//
+// A top-level `require('../modules/market/market.controller')` here would work
+// fine for broadcastPriceUpdate because market.controller is already loaded by
+// the time server.js gets to mseWorker.  However:
+//
+//   - mseLiveTicker.js is required by mseWorker.  mseLiveTicker calls
+//     broadcastPriceUpdate *inside* a setInterval, so it defers its own require
+//     to the first tick (long after startup) — that's its own concern.
+//
+//   - dailyPriceService.js is required by server.js independently AND by this
+//     worker.  Node caches the module, so no circular issue — but deferring the
+//     require keeps the intent explicit: these objects are only needed when a job
+//     actually processes, not at worker registration time.
+//
+//   - broadcastVolatilityAlert is required inline inside the tick loop (same
+//     controller) rather than at top level to keep this file's own import list
+//     minimal and mirror the existing lazy-require style.
 const getBroadcast = () => require('../modules/market/market.controller').broadcastPriceUpdate;
 const getSeedCache = () => require('./mseLiveTicker').seedPriceCache;
 const getEnsureMfDailyPrices = () => require('./dailyPriceService').ensureMfDailyPrices;
@@ -78,13 +100,6 @@ const getFloat = async (key, fallback = 0) => {
  */
 const computeNewPrice = (prevPrice, sentiment, sectorTrend, volatility) =>
   nextIntradayPrice(prevPrice, volatility, sentiment + sectorTrend);
-
-/** Format a signed percent string, e.g. "+1.23%" or "-0.45%" */
-const formatChangePercent = (change, prevPrice) => {
-  const pct = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
-  const sign = pct >= 0 ? '+' : '';
-  return `${sign}${pct.toFixed(2)}%`;
-};
 
 /**
  * Load the previous trading day's close price for every stock from DailyPrice.
@@ -389,6 +404,8 @@ const createMseWorker = () => {
         const swingPct = prevPrice > 0 ? Math.abs((newPrice - prevPrice) / prevPrice) : 0;
         if (swingPct > 0.03) {
           try {
+            // Same module as getBroadcast() — inline here to keep the hot path
+            // lean; re-requires are free (Node returns the cached module object).
             const { broadcastVolatilityAlert } = require('../modules/market/market.controller');
             if (broadcastVolatilityAlert) {
               broadcastVolatilityAlert({

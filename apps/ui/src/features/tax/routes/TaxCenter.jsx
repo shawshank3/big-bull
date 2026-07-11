@@ -44,6 +44,7 @@ const TaxCenterContent = () => {
 
   const gains = gainsData?.gains ?? [];
   const opportunities = harvestingData?.opportunities ?? [];
+  const intradayOpportunities = harvestingData?.intradayOpportunities ?? [];
   const hasError = summaryError || gainsError;
 
   return (
@@ -96,7 +97,10 @@ const TaxCenterContent = () => {
         </CardContent>
       </Card>
 
-      <HarvestingPreview opportunities={opportunities} />
+      <HarvestingPreview
+        opportunities={opportunities}
+        intradayOpportunities={intradayOpportunities}
+      />
     </>
   );
 };

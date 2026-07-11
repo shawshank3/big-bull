@@ -123,11 +123,11 @@ const TaxHarvestingContent = () => {
         <Spinner label="Loading harvesting insights…" />
       ) : (
         <div className="flex flex-col gap-6">
-          {/* FY overview chart — above tabs, applies to all buckets */}
+          {/* FY overview chart — applies to all buckets (current and past FY) */}
           <GainsVsLossesChart
             summary={summary}
             opportunities={opportunities}
-            intradayOpportunities={intradayOpportunities}
+            intradayOpportunities={isCurrentFY ? intradayOpportunities : []}
           />
 
           {isCurrentFY ? (
@@ -177,11 +177,6 @@ const TaxHarvestingContent = () => {
           ) : (
             /* Past FY — no tabs, just show delivery opportunities read-only */
             <div className="flex flex-col gap-6">
-              <GainsVsLossesChart
-                summary={summary}
-                opportunities={opportunities}
-                intradayOpportunities={[]}
-              />
               <HarvestingMetrics opportunities={opportunities} summary={summary} bucket="STCG" />
               <HarvestingMetrics opportunities={opportunities} summary={summary} bucket="LTCG" />
               <EnhancedOpportunitiesTable

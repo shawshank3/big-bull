@@ -16,7 +16,7 @@
  */
 
 const { ASSET_TYPES } = require('../shared/constants');
-const { nextMicroPrice } = require('../utils/priceSimulation');
+const { nextMicroPrice, formatChangePercent } = require('../utils/priceSimulation');
 
 // ─── In-memory price cache ────────────────────────────────────────────────────
 // Map<ticker, { price, volatility }>
@@ -66,9 +66,7 @@ const startLiveTicker = () => {
       // 1D change: always relative to previous day's close, not last micro-tick.
       const dayOpenPrice = entry.dayOpenPrice ?? prevPrice;
       const change = parseFloat((newPrice - dayOpenPrice).toFixed(2));
-      const pct = dayOpenPrice > 0 ? (change / dayOpenPrice) * 100 : 0;
-      const sign = pct >= 0 ? '+' : '';
-      const changePercent = `${sign}${pct.toFixed(2)}%`;
+      const changePercent = formatChangePercent(change, dayOpenPrice);
       const up = change >= 0;
 
       // Update in-memory cache — keep dayOpenPrice stable throughout the day

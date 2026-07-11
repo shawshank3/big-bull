@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/shared/components/card';
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { formatCurrency } from '@/shared/utils';
-import { STCG_RATE, LTCG_RATE, LTCG_EXEMPTION } from '../utils/taxCalculations';
+import { STCG_RATE, LTCG_RATE, LTCG_EXEMPTION, computeTax } from '../utils/taxCalculations';
 
 /**
  * HarvestingMetrics
@@ -23,25 +23,15 @@ export const HarvestingMetrics = ({ opportunities = [], summary = {}, bucket = '
   const totalSTCG = summary.totalSTCG ?? 0;
   const totalLTCG = summary.totalLTCG ?? 0;
 
-  // Current bucket tax
+  // Current bucket tax — computed via shared utility
   const currentBucketGain = isSTCG ? totalSTCG : totalLTCG;
-  const currentBucketTax = isSTCG
-    ? totalSTCG > 0
-      ? totalSTCG * STCG_RATE
-      : 0
-    : totalLTCG > LTCG_EXEMPTION
-      ? (totalLTCG - LTCG_EXEMPTION) * LTCG_RATE
-      : 0;
+  const currentBucketTax = isSTCG ? computeTax(totalSTCG, 0) : computeTax(0, totalLTCG);
 
-  // Post-harvest bucket tax
+  // Post-harvest bucket tax — same utility with harvested gain
   const effectiveGainAfter = Math.max(0, currentBucketGain - totalHarvestableLoss);
   const taxAfterHarvest = isSTCG
-    ? effectiveGainAfter > 0
-      ? effectiveGainAfter * STCG_RATE
-      : 0
-    : effectiveGainAfter > LTCG_EXEMPTION
-      ? (effectiveGainAfter - LTCG_EXEMPTION) * LTCG_RATE
-      : 0;
+    ? computeTax(effectiveGainAfter, 0)
+    : computeTax(0, effectiveGainAfter);
 
   const actualSavings = currentBucketTax - taxAfterHarvest;
 

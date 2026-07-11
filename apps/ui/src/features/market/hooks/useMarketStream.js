@@ -13,7 +13,7 @@
  * Authenticated-only patches (skipped when logged out):
  *   - getPortfolioHoldings            → HoldingsContent
  *   - getPortfolioSummary             → Dashboard stat cards
- *   - getTaxHarvesting                → Tax-loss harvesting opportunities
+ *   - getTaxHarvesting                → Delivery + intraday harvesting opportunities
  *   - getTaxSummary (harvestingCount) → Summary card opportunity count
  *
  * Realised gains (`getTaxGains`) and most `getTaxSummary` fields are deliberately
@@ -216,9 +216,11 @@ export const useMarketStream = () => {
 
       // Patch ALL existing getTaxHarvesting cache entries (keyed by { taxYear, minLoss }).
       // For each opportunity matching the streamed ticker, recompute price-derived
-      // fields (currentPrice, unrealizedLoss, estimatedSaving), drop opportunities
-      // whose loss has fallen at or below the threshold, then re-sort by
+      // fields (currentPrice, unrealizedLoss, estimatedSaving) for delivery opportunities,
+      // drop opportunities whose loss has fallen at or below the threshold, then re-sort by
       // estimatedSaving desc to mirror the backend ordering.
+      // intradayOpportunities are also patched: the implicit average entry price is
+      // recovered from the first snapshot and the live unrealizedIntradayLoss is recomputed.
       // After patching, sync the harvestingCount in getTaxSummary with the minLoss=0
       // entry to keep the summary card in sync with the actual opportunities list.
       dispatch((dispatch2, getState) => {
@@ -253,6 +255,40 @@ export const useMarketStream = () => {
                 mutated = true;
               }
 
+              // Patch intraday opportunities for the same ticker.
+              // The backend stores unrealizedIntradayLoss + matchableQty but not
+              // individual buy lot prices. We recover the implicit average entry
+              // price from the original snapshot and recalculate with the new price.
+              for (const opp of draft.intradayOpportunities ?? []) {
+                if (opp.ticker !== ticker) continue;
+                const qty = opp.matchableQty ?? 0;
+                if (qty <= 0) continue;
+
+                if (opp.direction === 'SELL_TO_CLOSE') {
+                  // Net long: loss = (avgEntryPrice - currentPrice) × qty
+                  // avgEntryPrice is stable (it's the original buy price), so we
+                  // back it out once from the first snapshot and then hold it.
+                  if (opp._avgEntryPrice == null) {
+                    // Initialise on first tick: avgEntryPrice = currentPrice + (loss / qty)
+                    opp._avgEntryPrice =
+                      (opp.currentPrice ?? price) + (opp.unrealizedIntradayLoss ?? 0) / qty;
+                  }
+                  const loss = Math.max(0, (opp._avgEntryPrice - price) * qty);
+                  opp.currentPrice = price;
+                  opp.unrealizedIntradayLoss = loss;
+                } else {
+                  // BUY_TO_CLOSE: net short — loss = (currentPrice - avgEntryPrice) × qty
+                  if (opp._avgEntryPrice == null) {
+                    opp._avgEntryPrice =
+                      (opp.currentPrice ?? price) - (opp.unrealizedIntradayLoss ?? 0) / qty;
+                  }
+                  const loss = Math.max(0, (price - opp._avgEntryPrice) * qty);
+                  opp.currentPrice = price;
+                  opp.unrealizedIntradayLoss = loss;
+                }
+                mutated = true;
+              }
+
               if (!mutated) return;
 
               // Mirror backend filter: drop opportunities below the active threshold
@@ -260,8 +296,15 @@ export const useMarketStream = () => {
               draft.opportunities = draft.opportunities.filter((o) => o.unrealizedLoss > minLoss);
               // Mirror backend sort: estimatedSaving desc
               draft.opportunities.sort((a, b) => b.estimatedSaving - a.estimatedSaving);
+              // Sort intraday by loss desc
+              if (draft.intradayOpportunities) {
+                draft.intradayOpportunities.sort(
+                  (a, b) => b.unrealizedIntradayLoss - a.unrealizedIntradayLoss
+                );
+              }
               if (draft.meta) {
                 draft.meta.totalOpportunities = draft.opportunities.length;
+                draft.meta.intradayCount = draft.intradayOpportunities?.length ?? 0;
               }
             })
           );

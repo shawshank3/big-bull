@@ -3,11 +3,36 @@ import { Card, CardContent } from '@/shared/components/card';
 import { SectionTitle, MutedText } from '@/shared/ui/typography';
 import { formatCurrency } from '@/shared/utils';
 import { ROUTES } from '@/shared/constants/routes';
+import { useSlabRate } from '../hooks/useSlabRate';
 
-export const HarvestingPreview = ({ opportunities = [] }) => {
-  if (opportunities.length === 0) return null;
+const LOSS_TYPE_STYLES = {
+  LTCG: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  STCG: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  INTRADAY: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+};
 
-  const topOpportunities = opportunities.slice(0, 5);
+export const HarvestingPreview = ({ opportunities = [], intradayOpportunities = [] }) => {
+  const { slabRate, slabRateLabel } = useSlabRate();
+
+  // Normalise intraday entries to share the same shape as delivery opportunities,
+  // computing estimatedSaving using the user's persisted income slab rate.
+  const normalizedIntraday = intradayOpportunities.map((opp) => ({
+    assetId: opp.assetId,
+    ticker: opp.ticker,
+    name: opp.name,
+    lossType: 'INTRADAY',
+    unrealizedLoss: opp.unrealizedIntradayLoss,
+    estimatedSaving: opp.unrealizedIntradayLoss * slabRate,
+  }));
+
+  const combined = [...opportunities, ...normalizedIntraday];
+
+  if (combined.length === 0) return null;
+
+  // Sort by absolute loss descending, then take top 5
+  const topOpportunities = [...combined]
+    .sort((a, b) => b.unrealizedLoss - a.unrealizedLoss)
+    .slice(0, 5);
 
   return (
     <Card>
@@ -29,12 +54,20 @@ export const HarvestingPreview = ({ opportunities = [] }) => {
                 <th className="pb-2 font-medium text-muted">Asset</th>
                 <th className="pb-2 font-medium text-muted text-right">Unrealized Loss</th>
                 <th className="pb-2 font-medium text-muted text-right">Loss Type</th>
-                <th className="pb-2 font-medium text-muted text-right">Est. Saving</th>
+                <th className="pb-2 font-medium text-muted text-right">
+                  Est. Saving
+                  <span className="ml-1 font-normal text-muted/60">
+                    (Intraday @ {slabRateLabel})
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {topOpportunities.map((opp) => (
-                <tr key={opp.assetId} className="border-b border-border last:border-0">
+                <tr
+                  key={`${opp.lossType}-${opp.assetId}`}
+                  className="border-b border-border last:border-0"
+                >
                   <td className="py-2">
                     <p className="font-semibold">{opp.ticker}</p>
                     <MutedText className="text-xs">{opp.name}</MutedText>
@@ -45,9 +78,7 @@ export const HarvestingPreview = ({ opportunities = [] }) => {
                   <td className="py-2 text-right">
                     <span
                       className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
-                        opp.lossType === 'LTCG'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                          : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+                        LOSS_TYPE_STYLES[opp.lossType] ?? LOSS_TYPE_STYLES.STCG
                       }`}
                     >
                       {opp.lossType}
