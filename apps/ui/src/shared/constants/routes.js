@@ -13,6 +13,7 @@ export const ROUTES = Object.freeze({
   MUTUAL_DETAIL: '/market/mutuals/:schemeCode',
   TAX: '/tax',
   TAX_HARVESTING: '/tax/harvesting',
+  DISCLAIMER: '/legal/disclaimer',
 });
 
 export default ROUTES;

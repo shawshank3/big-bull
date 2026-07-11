@@ -75,7 +75,7 @@ const columns = [
   },
   {
     accessorKey: 'currentPrice',
-    header: 'Price',
+    header: 'Sim. Price',
     cell: ({ getValue }) => formatCurrency(getValue()),
     meta: { className: 'text-right' },
     enableSorting: true,

@@ -294,7 +294,7 @@ export const EnhancedOpportunitiesTable = ({
             <span className="font-medium">{formatCurrency(opp.avgCostBasis)}</span>
           </div>
           <div>
-            <span className="text-muted-foreground">Current Price:</span>{' '}
+            <span className="text-muted-foreground">Sim. Price:</span>{' '}
             <span className="font-medium">{formatCurrency(opp.currentPrice)}</span>
           </div>
           <div>

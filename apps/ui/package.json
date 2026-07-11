@@ -14,7 +14,8 @@
     "@radix-ui/react-popover": "^1.1.17",
     "async-mutex": "^0.5.0",
     "date-fns": "^4.4.0",
-    "react-day-picker": "^10.0.1"
+    "react-day-picker": "^10.0.1",
+    "react-helmet-async": "^3.0.0"
   },
   "devDependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

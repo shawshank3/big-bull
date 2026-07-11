@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Allow: /explore
+Allow: /market
+Allow: /market/stocks/
+Allow: /market/mutuals/
+Allow: /legal/disclaimer
+
+# Auth and private pages — no crawling needed
+Disallow: /login
+Disallow: /register
+Disallow: /dashboard
+Disallow: /holdings
+Disallow: /profile
+Disallow: /wallet
+Disallow: /tax
+Disallow: /search
+
+Sitemap: https://big-bull.onrender.com/sitemap.xml

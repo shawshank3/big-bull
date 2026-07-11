@@ -1,5 +1,6 @@
 // Central exports for all UI constants
 export * from './routes';
+export * from './seo';
 export * from './apiUrls';
 export * from './assetTypes';
 export * from './transactionTypes';

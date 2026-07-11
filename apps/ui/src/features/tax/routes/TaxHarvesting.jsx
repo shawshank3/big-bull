@@ -70,7 +70,7 @@ const TaxHarvestingContent = () => {
       {isLoading ? (
         <Spinner label="Loading harvesting insights…" />
       ) : (
-        <div className={`flex flex-col gap-6 ${hasSelection ? 'pb-56 md:pb-20' : ''}`}>
+        <div className="flex flex-col gap-6">
           <HarvestingMetrics opportunities={opportunities} summary={summary} />
           <GainsVsLossesChart summary={summary} opportunities={opportunities} />
           {isCurrentFY && (
@@ -84,19 +84,18 @@ const TaxHarvestingContent = () => {
               />
             </>
           )}
+          {hasSelection && isCurrentFY && (
+            <WhatIfPanel
+              selectedLossesTotal={selectedLossesTotal}
+              currentFYGain={currentFYGain}
+              postHarvestGain={postHarvestGain}
+              taxBefore={taxBefore}
+              taxAfter={taxAfter}
+              netSavings={netSavings}
+              onReset={resetSelection}
+            />
+          )}
         </div>
-      )}
-
-      {hasSelection && isCurrentFY && (
-        <WhatIfPanel
-          selectedLossesTotal={selectedLossesTotal}
-          currentFYGain={currentFYGain}
-          postHarvestGain={postHarvestGain}
-          taxBefore={taxBefore}
-          taxAfter={taxAfter}
-          netSavings={netSavings}
-          onReset={resetSelection}
-        />
       )}
     </>
   );
