@@ -17,6 +17,7 @@ import { TaxSummaryCard } from '../components/TaxSummaryCard';
 import { GainsFilters } from '../components/GainsFilters';
 import { GainsTable } from '../components/GainsTable';
 import { HarvestingPreview } from '../components/HarvestingPreview';
+import { SlabRateConfig } from '../components/SlabRateConfig';
 
 const TaxCenterContent = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -50,7 +51,12 @@ const TaxCenterContent = () => {
       <PageHeader
         title="Tax Center"
         description="Track capital gains and explore tax-loss harvesting opportunities."
-        actions={<TaxYearSelector taxYear={taxYear} setTaxYear={setTaxYear} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <SlabRateConfig />
+            <TaxYearSelector taxYear={taxYear} setTaxYear={setTaxYear} />
+          </div>
+        }
       />
 
       <Alert variant="warning">

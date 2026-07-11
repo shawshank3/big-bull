@@ -11,11 +11,30 @@ export const LTCG_EXEMPTION = 125000;
  * Compute tax from STCG and LTCG amounts using Indian rates.
  * STCG: 20% flat on positive gains.
  * LTCG: 12.5% on amount exceeding ₹1,25,000 exemption.
+ *
+ * NOTE: Intraday (speculative business income) tax is computed separately via
+ * computeIntradayTax() because it depends on the user's income slab rate.
  */
 export function computeTax(totalSTCG, totalLTCG) {
   const stcgTax = totalSTCG > 0 ? totalSTCG * STCG_RATE : 0;
   const ltcgTax = totalLTCG > LTCG_EXEMPTION ? (totalLTCG - LTCG_EXEMPTION) * LTCG_RATE : 0;
   return stcgTax + ltcgTax;
+}
+
+/**
+ * Compute estimated tax on intraday (speculative business income).
+ *
+ * Intraday equity profits are classified as speculative business income under
+ * Section 43(5) and taxed at the assessee's applicable income tax slab rate
+ * (not a flat capital gains rate). Losses can only offset other speculative
+ * gains and may be carried forward for 4 years.
+ *
+ * @param {number} totalIntraday - Net intraday gains (can be negative; losses produce zero tax)
+ * @param {number} slabRate - User's income slab rate (e.g. 0.05 | 0.10 | 0.20 | 0.30)
+ * @returns {number} Estimated intraday tax in ₹
+ */
+export function computeIntradayTax(totalIntraday, slabRate) {
+  return totalIntraday > 0 ? totalIntraday * slabRate : 0;
 }
 
 /**

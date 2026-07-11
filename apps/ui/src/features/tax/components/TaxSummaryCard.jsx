@@ -3,6 +3,8 @@ import { Card, CardContent } from '@/shared/components/card';
 import { MutedText, StatValue } from '@/shared/ui/typography';
 import { formatCurrency } from '@/shared/utils';
 import { ROUTES } from '@/shared/constants/routes';
+import { computeTax, computeIntradayTax } from '../utils/taxCalculations';
+import { useSlabRate } from '../hooks/useSlabRate';
 
 const getTone = (value) => {
   if (value > 0) return 'success';
@@ -11,16 +13,32 @@ const getTone = (value) => {
 };
 
 export const TaxSummaryCard = ({ summary = {} }) => {
+  const { slabRate, slabRateLabel } = useSlabRate();
+
+  const totalSTCG = summary.totalSTCG ?? 0;
+  const totalLTCG = summary.totalLTCG ?? 0;
+  const totalIntraday = summary.totalIntraday ?? 0;
+
+  // Compute the full estimated tax client-side so intraday uses the user's slab
+  const cgTax = computeTax(totalSTCG, totalLTCG);
+  const intradayTax = computeIntradayTax(totalIntraday, slabRate);
+  const totalEstimatedTax = cgTax + intradayTax;
+
   const stats = [
     {
       label: 'Total STCG',
-      value: formatCurrency(summary.totalSTCG ?? 0),
-      tone: getTone(summary.totalSTCG ?? 0),
+      value: formatCurrency(totalSTCG),
+      tone: getTone(totalSTCG),
     },
     {
       label: 'Total LTCG',
-      value: formatCurrency(summary.totalLTCG ?? 0),
-      tone: getTone(summary.totalLTCG ?? 0),
+      value: formatCurrency(totalLTCG),
+      tone: getTone(totalLTCG),
+    },
+    {
+      label: `Intraday (Slab ${slabRateLabel})`,
+      value: formatCurrency(totalIntraday),
+      tone: getTone(totalIntraday),
     },
     {
       label: 'Net Gain/Loss',
@@ -29,7 +47,7 @@ export const TaxSummaryCard = ({ summary = {} }) => {
     },
     {
       label: 'Estimated Tax',
-      value: formatCurrency(summary.estimatedTax ?? 0),
+      value: formatCurrency(totalEstimatedTax),
       tone: 'default',
     },
     {

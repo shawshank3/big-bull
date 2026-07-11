@@ -9,6 +9,7 @@ export {
 } from './api/taxApi';
 export { useTaxYear, getCurrentFY } from './hooks/useTaxYear';
 export { useThreshold } from './hooks/useThreshold';
+export { useSlabRate, setSlabRate, INTRADAY_SLAB_RATES } from './hooks/useSlabRate';
 export { useWhatIfSimulator } from './hooks/useWhatIfSimulator';
 
 // Components
@@ -20,6 +21,7 @@ export { HarvestingPreview } from './components/HarvestingPreview';
 export { EducationalTooltip, TAX_TOOLTIPS } from './components/EducationalTooltips';
 export { EnhancedOpportunitiesTable } from './components/EnhancedOpportunitiesTable';
 export { ThresholdConfig } from './components/ThresholdConfig';
+export { SlabRateConfig } from './components/SlabRateConfig';
 export { WhatIfPanel } from './components/WhatIfPanel';
 
 // Utils
@@ -28,6 +30,7 @@ export {
   LTCG_RATE,
   LTCG_EXEMPTION,
   computeTax,
+  computeIntradayTax,
   computeHarvestingMetrics,
   computeLossPercent,
 } from './utils/taxCalculations';

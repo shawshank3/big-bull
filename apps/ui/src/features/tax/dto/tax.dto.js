@@ -29,6 +29,7 @@ export function toGainsDTO(raw) {
     summary: {
       totalSTCG: num(raw?.summary?.totalSTCG),
       totalLTCG: num(raw?.summary?.totalLTCG),
+      totalIntraday: num(raw?.summary?.totalIntraday),
       netRealizedGain: num(raw?.summary?.netRealizedGain),
     },
     pagination: {
@@ -47,6 +48,7 @@ export function toSummaryDTO(raw) {
   return {
     totalSTCG: num(raw?.totalSTCG),
     totalLTCG: num(raw?.totalLTCG),
+    totalIntraday: num(raw?.totalIntraday),
     netRealizedGain: num(raw?.netRealizedGain),
     stcgTax: num(raw?.stcgTax),
     ltcgTax: num(raw?.ltcgTax),

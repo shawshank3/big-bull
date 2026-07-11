@@ -36,14 +36,17 @@ const buildColumns = (onNavigate) => [
     header: 'Type',
     cell: ({ getValue }) => {
       const type = getValue();
+      let colorClass;
+      if (type === 'LTCG') {
+        colorClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      } else if (type === 'INTRADAY') {
+        colorClass = 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      } else {
+        // STCG
+        colorClass = 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+      }
       return (
-        <span
-          className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
-            type === 'LTCG'
-              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-              : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
-          }`}
-        >
+        <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${colorClass}`}>
           {type}
         </span>
       );

@@ -48,7 +48,7 @@ export const Explore = () => {
         <script type="application/ld+json">{JSON.stringify(EXPLORE_JSON_LD)}</script>
       </Helmet>
 
-      <div className="flex flex-col gap-16 pb-20">
+      <div className="flex flex-col gap-16">
         <TickerStrip />
 
         <ExploreHero>

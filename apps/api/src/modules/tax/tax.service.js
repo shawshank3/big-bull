@@ -4,11 +4,22 @@
  *
  * This module is READ-ONLY — it performs no writes to any MongoDB collection.
  * All calculations are derived on-demand from raw Transaction documents using
- * FIFO (First-In-First-Out) cost basis matching.
+ * a two-phase matching algorithm:
+ *   Phase 1 — same-day intraday netting (buy and sell on the same calendar day
+ *              are matched first and classified as INTRADAY before touching any
+ *              historical delivery holdings).
+ *   Phase 2 — delivery FIFO on the remaining unmatched sell quantities.
  *
  * Tax Rules Applied:
- *  - STCG (Short-Term Capital Gains): holding period < 365 days → 20% rate
+ *  - INTRADAY (Speculative Business Income): same-calendar-day buy + sell →
+ *      taxed at the user's income slab rate (5%–30%) under Section 43(5).
+ *      The backend computes totalIntraday; the client applies the slab rate
+ *      because the user's slab is a client-side preference, not server state.
+ *  - STCG (Short-Term Capital Gains): holding period 1–364 days → 20% rate
  *  - LTCG (Long-Term Capital Gains): holding period >= 365 days → 12.5% above ₹1,25,000 exemption
+ *
+ * Intraday losses can only be set off against other speculative (intraday)
+ * gains — they CANNOT offset STCG or LTCG.
  *
  * Currency: all monetary values are in ₹ (Indian Rupees).
  */
@@ -25,6 +36,13 @@ const STCG_RATE = 0.2;
 const LTCG_RATE = 0.125;
 const LTCG_EXEMPTION = 125000;
 const HOLDING_PERIOD_THRESHOLD = 365; // days
+
+// Gain type identifiers
+const GAIN_TYPES = Object.freeze({
+  INTRADAY: 'INTRADAY', // same-calendar-day buy + sell (speculative business income)
+  STCG: 'STCG', // held 1–364 days (short-term capital gain)
+  LTCG: 'LTCG', // held 365+ days (long-term capital gain)
+});
 
 // ── Utility Helpers ──────────────────────────────────────────────────────────
 
@@ -76,47 +94,145 @@ const getCurrentFY = () => {
   return month < 3 ? year - 1 : year;
 };
 
-// ── FIFO Engine ──────────────────────────────────────────────────────────────
+// ── Matching Engine ──────────────────────────────────────────────────────────
 
 /**
- * matchFIFO(buyLots, sellTxns)
+ * toDateKey(date)
  *
- * FIFO cost basis matching for a single asset. Consumes BUY lots in
- * chronological order against SELL transactions to produce per-lot
- * realized gain records.
+ * Returns the UTC calendar date string (YYYY-MM-DD) for a given date.
+ * Used as a grouping key for same-day netting.
  *
- * Both buyLots and sellTxns MUST be sorted by executedAt ascending.
+ * @param {Date|string} date
+ * @returns {string} e.g. "2026-07-11"
+ */
+const toDateKey = (date) => new Date(date).toISOString().slice(0, 10);
+
+/**
+ * matchGains(buyLots, sellTxns)
+ *
+ * Two-phase matching engine for a single asset.
+ *
+ * ── Phase 1: Same-day netting (INTRADAY) ────────────────────────────────────
+ * For each trading day that has BOTH buys and sells:
+ *   - Match BUY and SELL quantities on a min(totalBuy, totalSell) basis.
+ *   - Matched quantity is INTRADAY (speculative business income, Section 43(5)).
+ *   - These matched quantities are REMOVED from further processing — they never
+ *     consume historical delivery holdings.
+ *   - Same-day buy quantities consumed by intraday matching are removed from
+ *     the delivery buy pool.
+ *
+ * ── Phase 2: Delivery FIFO (STCG / LTCG) ───────────────────────────────────
+ * Remaining unmatched SELL quantities are matched against the surviving
+ * BUY lots in strict chronological (FIFO) order.
+ * Holding period is measured from the FIFO lot's executedAt date.
+ * Classification: holdingDays >= 365 → LTCG, else → STCG.
  *
  * @param {Array<{ executedAt: Date, quantity: number, pricePerUnit: number, remainingQty: number }>} buyLots
- *   BUY transactions sorted by executedAt ASC with a mutable `remainingQty` field.
+ *   All BUY transactions for this asset, sorted executedAt ASC, each with a
+ *   mutable `remainingQty` field initialised to `quantity`.
  * @param {Array<{ executedAt: Date, quantity: number, pricePerUnit: number }>} sellTxns
- *   SELL transactions sorted by executedAt ASC.
- * @returns {Array<{ buyDate: Date, sellDate: Date, quantity: number, buyPrice: number, sellPrice: number, gain: number, gainType: string, holdingDays: number }>}
+ *   All SELL transactions for this asset, sorted executedAt ASC.
+ * @returns {Array<{ buyDate: Date, sellDate: Date, quantity: number, buyPrice: number,
+ *   sellPrice: number, gain: number, gainType: string, holdingDays: number }>}
  */
-const matchFIFO = (buyLots, sellTxns) => {
+const matchGains = (buyLots, sellTxns) => {
   const gains = [];
+
+  // ── Phase 1: Same-day netting ────────────────────────────────────────────
+
+  // Group buys and sells by calendar day key
+  const buysByDay = {};
+  for (const lot of buyLots) {
+    const key = toDateKey(lot.executedAt);
+    if (!buysByDay[key]) buysByDay[key] = [];
+    buysByDay[key].push(lot);
+  }
+
+  const sellsByDay = {};
+  for (const sell of sellTxns) {
+    const key = toDateKey(sell.executedAt);
+    if (!sellsByDay[key]) sellsByDay[key] = [];
+    sellsByDay[key].push(sell);
+  }
+
+  // For each day that has both buys and sells, perform same-day matching
+  for (const [day, daySells] of Object.entries(sellsByDay)) {
+    const dayBuys = buysByDay[day];
+    if (!dayBuys) continue; // no same-day buys → nothing to net
+
+    // Work through same-day sells and consume same-day buys
+    let buyIdx = 0;
+    for (const sell of daySells) {
+      let sellRemaining = sell.quantity;
+
+      while (sellRemaining > 0 && buyIdx < dayBuys.length) {
+        const lot = dayBuys[buyIdx];
+        if (lot.remainingQty <= 0) {
+          buyIdx++;
+          continue;
+        }
+
+        const matched = Math.min(lot.remainingQty, sellRemaining);
+        const gain = (sell.pricePerUnit - lot.pricePerUnit) * matched;
+
+        gains.push({
+          buyDate: lot.executedAt,
+          sellDate: sell.executedAt,
+          quantity: matched,
+          buyPrice: lot.pricePerUnit,
+          sellPrice: sell.pricePerUnit,
+          gain,
+          gainType: GAIN_TYPES.INTRADAY,
+          holdingDays: 0,
+        });
+
+        lot.remainingQty -= matched;
+        sellRemaining -= matched;
+
+        if (lot.remainingQty <= 0) buyIdx++;
+      }
+
+      // Any remaining sell quantity not covered by same-day buys stays on the
+      // sell transaction for Phase 2 delivery FIFO. Store it back on the sell.
+      sell.deliveryQty = sellRemaining;
+    }
+  }
+
+  // Mark sells that have no same-day buys as fully delivery
+  for (const [day, daySells] of Object.entries(sellsByDay)) {
+    if (!buysByDay[day]) {
+      for (const sell of daySells) {
+        sell.deliveryQty = sell.quantity;
+      }
+    }
+  }
+
+  // ── Phase 2: Delivery FIFO ───────────────────────────────────────────────
+
+  // Collect delivery sell obligations in chronological order
+  const deliverySells = sellTxns
+    .map((sell) => ({ ...sell, qty: sell.deliveryQty ?? sell.quantity }))
+    .filter((sell) => sell.qty > 0)
+    .sort((a, b) => new Date(a.executedAt) - new Date(b.executedAt));
+
+  // Delivery buy pool: all lots not fully consumed by Phase 1, in FIFO order.
+  // buyLots is already sorted executedAt ASC.
   let buyIdx = 0;
 
-  for (const sell of sellTxns) {
-    let sellRemaining = sell.quantity;
+  for (const sell of deliverySells) {
+    let sellRemaining = sell.qty;
 
     while (sellRemaining > 0 && buyIdx < buyLots.length) {
       const lot = buyLots[buyIdx];
 
-      // Skip lots that are fully consumed
       if (lot.remainingQty <= 0) {
         buyIdx++;
         continue;
       }
 
-      // Determine how much of this lot to consume
       const matched = Math.min(lot.remainingQty, sellRemaining);
-
-      // Compute holding period and classification
       const holdingDays = daysBetween(lot.executedAt, sell.executedAt);
-      const gainType = holdingDays >= HOLDING_PERIOD_THRESHOLD ? 'LTCG' : 'STCG';
-
-      // Compute realized gain for this matched portion
+      const gainType = holdingDays >= HOLDING_PERIOD_THRESHOLD ? GAIN_TYPES.LTCG : GAIN_TYPES.STCG;
       const gain = (sell.pricePerUnit - lot.pricePerUnit) * matched;
 
       gains.push({
@@ -130,14 +246,10 @@ const matchFIFO = (buyLots, sellTxns) => {
         holdingDays,
       });
 
-      // Update remaining quantities
       lot.remainingQty -= matched;
       sellRemaining -= matched;
 
-      // Move to next lot if fully consumed
-      if (lot.remainingQty <= 0) {
-        buyIdx++;
-      }
+      if (lot.remainingQty <= 0) buyIdx++;
     }
   }
 
@@ -149,7 +261,12 @@ const matchFIFO = (buyLots, sellTxns) => {
 /**
  * computeEstimatedTax(totalSTCG, totalLTCG)
  *
- * Applies Indian capital gains tax rates to realized gains.
+ * Applies Indian capital gains tax rates to realized STCG and LTCG.
+ *
+ * NOTE: Intraday (speculative business income) tax is intentionally NOT
+ * computed here — it depends on the user's personal income slab rate, which
+ * is a client-side preference. The backend sends `totalIntraday` and the
+ * frontend multiplies by the user's chosen slab rate.
  *
  * Rules:
  *  - STCG: 20% flat on positive short-term gains
@@ -175,6 +292,8 @@ const computeEstimatedTax = (totalSTCG, totalLTCG) => {
  *
  * Internal helper that computes the full (unpaginated) FIFO gains for a user
  * within a specified tax year. Used by both getGainsLedger and getTaxSummary.
+ *
+ * Gain records may have gainType of 'INTRADAY', 'STCG', or 'LTCG'.
  *
  * @param {string} userId - MongoDB ObjectId string
  * @param {number} taxYear - Indian FY start year
@@ -242,8 +361,8 @@ const computeAllGains = async (userId, taxYear) => {
       remainingQty: lot.quantity,
     }));
 
-    // Run FIFO matching
-    const gains = matchFIFO(lotsWithRemaining, assetSells);
+    // Run two-phase matching (same-day intraday netting first, then delivery FIFO)
+    const gains = matchGains(lotsWithRemaining, assetSells);
 
     // Enrich each gain record with asset metadata
     const asset = assetMap[assetId];
@@ -301,8 +420,8 @@ const getOldestUnmatchedBuyLot = async (userId, assetId) => {
     remainingQty: lot.quantity,
   }));
 
-  // Replay FIFO to consume lots against all historical sells
-  matchFIFO(lotsWithRemaining, sellTxns);
+  // Replay the two-phase matching to consume lots against all historical sells
+  matchGains(lotsWithRemaining, sellTxns);
 
   // Find the first lot with remaining quantity
   const oldestUnmatched = lotsWithRemaining.find((lot) => lot.remainingQty > 0);
@@ -320,10 +439,10 @@ const getOldestUnmatchedBuyLot = async (userId, assetId) => {
  * Flow:
  *  1. Query SELL transactions within FY date range
  *  2. For each sold asset, query all BUY transactions (executedAt <= sell date)
- *  3. Run matchFIFO per asset
+ *  3. Run two-phase matching per asset (same-day intraday netting → delivery FIFO)
  *  4. Enrich gain records with asset metadata (ticker, name, assetType)
  *  5. Paginate the final gains array
- *  6. Compute summary: totalSTCG, totalLTCG, netRealizedGain
+ *  6. Compute summary: totalSTCG, totalLTCG, totalIntraday, netRealizedGain
  *
  * @param {string} userId - MongoDB ObjectId string
  * @param {object} options
@@ -339,16 +458,19 @@ const getGainsLedger = async (userId, { taxYear, page = 1, limit = 20 } = {}) =>
   // Compute summary from all gains (before pagination)
   let totalSTCG = 0;
   let totalLTCG = 0;
+  let totalIntraday = 0;
 
   for (const record of allGains) {
-    if (record.gainType === 'STCG') {
+    if (record.gainType === GAIN_TYPES.STCG) {
       totalSTCG += record.gain;
-    } else {
+    } else if (record.gainType === GAIN_TYPES.LTCG) {
       totalLTCG += record.gain;
+    } else if (record.gainType === GAIN_TYPES.INTRADAY) {
+      totalIntraday += record.gain;
     }
   }
 
-  const netRealizedGain = totalSTCG + totalLTCG;
+  const netRealizedGain = totalSTCG + totalLTCG + totalIntraday;
 
   // Paginate
   const total = allGains.length;
@@ -361,6 +483,7 @@ const getGainsLedger = async (userId, { taxYear, page = 1, limit = 20 } = {}) =>
     summary: {
       totalSTCG,
       totalLTCG,
+      totalIntraday,
       netRealizedGain,
     },
     pagination: {
@@ -390,16 +513,19 @@ const getTaxSummary = async (userId, { taxYear } = {}) => {
   // Aggregate totals
   let totalSTCG = 0;
   let totalLTCG = 0;
+  let totalIntraday = 0;
 
   for (const record of allGains) {
-    if (record.gainType === 'STCG') {
+    if (record.gainType === GAIN_TYPES.STCG) {
       totalSTCG += record.gain;
-    } else {
+    } else if (record.gainType === GAIN_TYPES.LTCG) {
       totalLTCG += record.gain;
+    } else if (record.gainType === GAIN_TYPES.INTRADAY) {
+      totalIntraday += record.gain;
     }
   }
 
-  const netRealizedGain = totalSTCG + totalLTCG;
+  const netRealizedGain = totalSTCG + totalLTCG + totalIntraday;
 
   // Compute estimated tax
   const { stcgTax, ltcgTax, estimatedTax } = computeEstimatedTax(totalSTCG, totalLTCG);
@@ -420,9 +546,11 @@ const getTaxSummary = async (userId, { taxYear } = {}) => {
   return {
     totalSTCG,
     totalLTCG,
+    totalIntraday,
     netRealizedGain,
     stcgTax,
     ltcgTax,
+    // intradayTax is computed client-side using the user's chosen slab rate
     estimatedTax,
     harvestingCount,
     taxYear: effectiveTaxYear,
@@ -515,9 +643,10 @@ const getHarvestingOpportunities = async (userId, { taxYear, minLoss = 0 } = {})
 };
 
 module.exports = {
+  GAIN_TYPES,
   getFYDateRange,
   getCurrentFY,
-  matchFIFO,
+  matchGains,
   computeEstimatedTax,
   getGainsLedger,
   getTaxSummary,

@@ -4,16 +4,27 @@
  * Tests cover:
  *  - getFYDateRange: FY date range computation
  *  - getCurrentFY: current financial year detection
- *  - matchFIFO: FIFO cost basis matching algorithm
+ *  - matchGains: two-phase matching engine (same-day intraday netting + delivery FIFO)
  *  - computeEstimatedTax: tax computation with rates and exemption
  *
  * Runner: Jest
  * Library: fast-check (property-based testing)
  */
-const fc = require('fast-check');
-const { getFYDateRange, getCurrentFY, matchFIFO, computeEstimatedTax } = require('./tax.service');
+'use strict';
 
-// ── getFYDateRange ───────────────────────────────────────────────────────────
+const fc = require('fast-check');
+const {
+  GAIN_TYPES,
+  getFYDateRange,
+  getCurrentFY,
+  matchGains,
+  computeEstimatedTax,
+} = require('./tax.service');
+
+// All tests use matchGains directly — no backward-compat alias imported.
+const match = matchGains;
+
+// ── getFYDateRange ────────────────────────────────────────────────────────────
 
 describe('getFYDateRange', () => {
   it('returns April 1 as start for given year', () => {
@@ -59,7 +70,7 @@ describe('getFYDateRange', () => {
   });
 });
 
-// ── getCurrentFY ─────────────────────────────────────────────────────────────
+// ── getCurrentFY ──────────────────────────────────────────────────────────────
 
 describe('getCurrentFY', () => {
   it('returns a 4-digit year', () => {
@@ -73,128 +84,271 @@ describe('getCurrentFY', () => {
   });
 });
 
-// ── matchFIFO ────────────────────────────────────────────────────────────────
+// ── matchGains ────────────────────────────────────────────────────────────────
+// Two-phase engine:
+//   Phase 1 — same-day intraday netting (INTRADAY, speculative income §43(5))
+//   Phase 2 — delivery FIFO on remaining quantities (STCG / LTCG)
 
-describe('matchFIFO', () => {
+describe('matchGains', () => {
+  // ── Basic edge cases ───────────────────────────────────────────────────────
+
   it('returns empty array when no sell transactions', () => {
     const buyLots = [
       { executedAt: new Date('2024-01-01'), quantity: 10, pricePerUnit: 100, remainingQty: 10 },
     ];
-    const result = matchFIFO(buyLots, []);
-    expect(result).toEqual([]);
+    expect(match(buyLots, [])).toEqual([]);
   });
 
   it('returns empty array when no buy lots', () => {
     const sellTxns = [{ executedAt: new Date('2024-06-01'), quantity: 5, pricePerUnit: 120 }];
-    const result = matchFIFO([], sellTxns);
-    expect(result).toEqual([]);
+    expect(match([], sellTxns)).toEqual([]);
   });
 
-  it('matches single sell against single buy lot (full consumption)', () => {
+  // ── Phase 2: Delivery FIFO (no same-day buys) ─────────────────────────────
+
+  it('delivery: matches single sell against single buy lot (full consumption)', () => {
     const buyLots = [
       { executedAt: new Date('2024-01-01'), quantity: 10, pricePerUnit: 100, remainingQty: 10 },
     ];
-    const sellTxns = [{ executedAt: new Date('2024-06-01'), quantity: 10, pricePerUnit: 150 }];
-
-    const gains = matchFIFO(buyLots, sellTxns);
-
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-06-01'), quantity: 10, pricePerUnit: 150 },
+    ]);
     expect(gains).toHaveLength(1);
     expect(gains[0].quantity).toBe(10);
-    expect(gains[0].buyPrice).toBe(100);
-    expect(gains[0].sellPrice).toBe(150);
-    expect(gains[0].gain).toBe(500); // (150-100) * 10
-    expect(gains[0].gainType).toBe('STCG'); // < 365 days
+    expect(gains[0].gain).toBe(500); // (150-100)*10
+    expect(gains[0].gainType).toBe(GAIN_TYPES.STCG);
   });
 
-  it('splits sell across multiple buy lots', () => {
+  it('delivery: splits sell across multiple buy lots in FIFO order', () => {
     const buyLots = [
       { executedAt: new Date('2024-01-01'), quantity: 5, pricePerUnit: 100, remainingQty: 5 },
       { executedAt: new Date('2024-02-01'), quantity: 10, pricePerUnit: 110, remainingQty: 10 },
     ];
-    const sellTxns = [{ executedAt: new Date('2024-07-01'), quantity: 8, pricePerUnit: 130 }];
-
-    const gains = matchFIFO(buyLots, sellTxns);
-
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-07-01'), quantity: 8, pricePerUnit: 130 },
+    ]);
     expect(gains).toHaveLength(2);
-    // First lot: consume all 5 units
     expect(gains[0].quantity).toBe(5);
-    expect(gains[0].buyPrice).toBe(100);
-    expect(gains[0].gain).toBe(150); // (130-100) * 5
-    // Second lot: consume 3 units
+    expect(gains[0].gain).toBe(150); // (130-100)*5
     expect(gains[1].quantity).toBe(3);
-    expect(gains[1].buyPrice).toBe(110);
-    expect(gains[1].gain).toBe(60); // (130-110) * 3
+    expect(gains[1].gain).toBe(60); // (130-110)*3
   });
 
-  it('partially consumes buy lot and leaves remainder', () => {
+  it('delivery: partially consumes buy lot and leaves remainder', () => {
     const buyLots = [
       { executedAt: new Date('2024-01-01'), quantity: 10, pricePerUnit: 100, remainingQty: 10 },
     ];
-    const sellTxns = [{ executedAt: new Date('2024-06-01'), quantity: 3, pricePerUnit: 120 }];
-
-    const gains = matchFIFO(buyLots, sellTxns);
-
-    expect(gains).toHaveLength(1);
-    expect(gains[0].quantity).toBe(3);
-    expect(buyLots[0].remainingQty).toBe(7); // 10 - 3 remaining
+    match(buyLots, [{ executedAt: new Date('2024-06-01'), quantity: 3, pricePerUnit: 120 }]);
+    expect(buyLots[0].remainingQty).toBe(7);
   });
 
-  it('classifies as LTCG when holding period >= 365 days', () => {
+  it('delivery: classifies as LTCG when holding period >= 365 days', () => {
     const buyLots = [
       { executedAt: new Date('2023-01-01'), quantity: 10, pricePerUnit: 100, remainingQty: 10 },
     ];
-    const sellTxns = [{ executedAt: new Date('2024-01-01'), quantity: 10, pricePerUnit: 150 }];
-
-    const gains = matchFIFO(buyLots, sellTxns);
-
-    expect(gains[0].gainType).toBe('LTCG');
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-01-01'), quantity: 10, pricePerUnit: 150 },
+    ]);
+    expect(gains[0].gainType).toBe(GAIN_TYPES.LTCG);
     expect(gains[0].holdingDays).toBeGreaterThanOrEqual(365);
   });
 
-  it('classifies as STCG when holding period < 365 days', () => {
+  it('delivery: classifies as STCG when holding period is 1–364 days', () => {
     const buyLots = [
       { executedAt: new Date('2024-01-01'), quantity: 10, pricePerUnit: 100, remainingQty: 10 },
     ];
-    const sellTxns = [{ executedAt: new Date('2024-06-01'), quantity: 10, pricePerUnit: 150 }];
-
-    const gains = matchFIFO(buyLots, sellTxns);
-
-    expect(gains[0].gainType).toBe('STCG');
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-06-01'), quantity: 10, pricePerUnit: 150 },
+    ]);
+    expect(gains[0].gainType).toBe(GAIN_TYPES.STCG);
+    expect(gains[0].holdingDays).toBeGreaterThan(0);
     expect(gains[0].holdingDays).toBeLessThan(365);
   });
 
-  it('handles multiple sells consuming lots in FIFO order', () => {
+  it('delivery: computes negative gain (loss) correctly', () => {
+    const buyLots = [
+      { executedAt: new Date('2024-01-01'), quantity: 10, pricePerUnit: 200, remainingQty: 10 },
+    ];
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-06-01'), quantity: 10, pricePerUnit: 150 },
+    ]);
+    expect(gains[0].gain).toBe(-500); // (150-200)*10
+  });
+
+  it('delivery: multiple sells consume lots in FIFO order', () => {
     const buyLots = [
       { executedAt: new Date('2024-01-01'), quantity: 5, pricePerUnit: 100, remainingQty: 5 },
       { executedAt: new Date('2024-02-01'), quantity: 5, pricePerUnit: 110, remainingQty: 5 },
       { executedAt: new Date('2024-03-01'), quantity: 5, pricePerUnit: 120, remainingQty: 5 },
     ];
-    const sellTxns = [
+    const gains = match(buyLots, [
       { executedAt: new Date('2024-07-01'), quantity: 7, pricePerUnit: 130 },
       { executedAt: new Date('2024-08-01'), quantity: 4, pricePerUnit: 140 },
-    ];
-
-    const gains = matchFIFO(buyLots, sellTxns);
-
-    // First sell (7 units): 5 from lot1 + 2 from lot2
-    // Second sell (4 units): 3 from lot2 + 1 from lot3
-    const totalMatched = gains.reduce((sum, g) => sum + g.quantity, 0);
-    expect(totalMatched).toBe(11); // 7 + 4
+    ]);
+    expect(gains.reduce((s, g) => s + g.quantity, 0)).toBe(11);
   });
 
-  it('computes negative gain (loss) correctly', () => {
+  // ── Phase 1: Same-day intraday netting ────────────────────────────────────
+
+  it('INTRADAY: same-day buy+sell with no prior holdings is fully intraday', () => {
     const buyLots = [
-      { executedAt: new Date('2024-01-01'), quantity: 10, pricePerUnit: 200, remainingQty: 10 },
+      {
+        executedAt: new Date('2024-06-15T04:00:00.000Z'),
+        quantity: 10,
+        pricePerUnit: 100,
+        remainingQty: 10,
+      },
     ];
-    const sellTxns = [{ executedAt: new Date('2024-06-01'), quantity: 10, pricePerUnit: 150 }];
-
-    const gains = matchFIFO(buyLots, sellTxns);
-
-    expect(gains[0].gain).toBe(-500); // (150-200) * 10
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-06-15T09:45:00.000Z'), quantity: 10, pricePerUnit: 120 },
+    ]);
+    expect(gains).toHaveLength(1);
+    expect(gains[0].gainType).toBe(GAIN_TYPES.INTRADAY);
+    expect(gains[0].holdingDays).toBe(0);
+    expect(gains[0].gain).toBe(200); // (120-100)*10
   });
 
-  // Property: total matched quantity equals total sell quantity (when buy supply is sufficient)
-  it('PROPERTY: total matched qty == total sell qty when supply sufficient', () => {
+  it('INTRADAY: same-day loss is computed correctly', () => {
+    const buyLots = [
+      {
+        executedAt: new Date('2024-06-15T04:00:00.000Z'),
+        quantity: 10,
+        pricePerUnit: 500,
+        remainingQty: 10,
+      },
+    ];
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-06-15T09:00:00.000Z'), quantity: 10, pricePerUnit: 480 },
+    ]);
+    expect(gains[0].gainType).toBe(GAIN_TYPES.INTRADAY);
+    expect(gains[0].gain).toBe(-200); // (480-500)*10
+  });
+
+  it('INTRADAY: spec example — same-day buy does NOT consume prior delivery holdings', () => {
+    // 02 Jul BUY 4 | 11 Jul BUY 1 | 11 Jul SELL 2 | 11 Jul SELL 1
+    // Expected: INTRADAY 1 unit (11-Jul BUY ↔ 11-Jul SELL 1)
+    //           STCG 2 units     (02-Jul BUY ↔ 11-Jul SELL 2)
+    //           Remaining: 2 units from 02-Jul lot
+    const buyLots = [
+      {
+        executedAt: new Date('2026-07-02T07:26:00.000Z'),
+        quantity: 4,
+        pricePerUnit: 7139.45,
+        remainingQty: 4,
+      },
+      {
+        executedAt: new Date('2026-07-11T09:37:00.000Z'),
+        quantity: 1,
+        pricePerUnit: 7960.79,
+        remainingQty: 1,
+      },
+    ];
+    const sellTxns = [
+      { executedAt: new Date('2026-07-11T09:36:00.000Z'), quantity: 2, pricePerUnit: 7992.06 },
+      { executedAt: new Date('2026-07-11T09:38:00.000Z'), quantity: 1, pricePerUnit: 8013.54 },
+    ];
+
+    const gains = match(buyLots, sellTxns);
+    const intraday = gains.filter((g) => g.gainType === GAIN_TYPES.INTRADAY);
+    const delivery = gains.filter((g) => g.gainType !== GAIN_TYPES.INTRADAY);
+
+    expect(intraday).toHaveLength(1);
+    expect(intraday[0].quantity).toBe(1);
+    expect(intraday[0].buyPrice).toBe(7960.79);
+
+    expect(delivery.reduce((s, g) => s + g.quantity, 0)).toBe(2);
+    delivery.forEach((g) => {
+      expect(g.gainType).toBe(GAIN_TYPES.STCG);
+      expect(g.buyPrice).toBe(7139.45);
+    });
+
+    expect(buyLots[0].remainingQty).toBe(2);
+    expect(buyLots[1].remainingQty).toBe(0);
+  });
+
+  it('INTRADAY: partial cover — remaining sell qty flows to delivery FIFO', () => {
+    // 02-Jul BUY 4, 11-Jul BUY 1, 11-Jul SELL 3
+    // Phase 1: 1 intraday (all same-day buy consumed)
+    // Phase 2: 2 STCG from 02-Jul lot
+    const buyLots = [
+      {
+        executedAt: new Date('2024-07-02T05:00:00.000Z'),
+        quantity: 4,
+        pricePerUnit: 100,
+        remainingQty: 4,
+      },
+      {
+        executedAt: new Date('2024-07-11T05:00:00.000Z'),
+        quantity: 1,
+        pricePerUnit: 110,
+        remainingQty: 1,
+      },
+    ];
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-07-11T08:00:00.000Z'), quantity: 3, pricePerUnit: 120 },
+    ]);
+
+    const intraday = gains.filter((g) => g.gainType === GAIN_TYPES.INTRADAY);
+    const delivery = gains.filter((g) => g.gainType !== GAIN_TYPES.INTRADAY);
+
+    expect(intraday[0].quantity).toBe(1);
+    expect(intraday[0].buyPrice).toBe(110);
+    expect(delivery[0].quantity).toBe(2);
+    expect(delivery[0].gainType).toBe(GAIN_TYPES.STCG);
+    expect(delivery[0].buyPrice).toBe(100);
+  });
+
+  it('INTRADAY: sell exceeds same-day buy — same-day buy qty is intraday, rest is delivery', () => {
+    // 01-Jan BUY 10, 15-Jun BUY 3, 15-Jun SELL 8
+    // Phase 1: 3 intraday (same-day buy exhausted)
+    // Phase 2: 5 STCG from 01-Jan lot
+    const buyLots = [
+      {
+        executedAt: new Date('2024-01-01T05:00:00.000Z'),
+        quantity: 10,
+        pricePerUnit: 80,
+        remainingQty: 10,
+      },
+      {
+        executedAt: new Date('2024-06-15T04:00:00.000Z'),
+        quantity: 3,
+        pricePerUnit: 100,
+        remainingQty: 3,
+      },
+    ];
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-06-15T09:00:00.000Z'), quantity: 8, pricePerUnit: 110 },
+    ]);
+
+    const intraday = gains.filter((g) => g.gainType === GAIN_TYPES.INTRADAY);
+    const delivery = gains.filter((g) => g.gainType !== GAIN_TYPES.INTRADAY);
+
+    expect(intraday[0].quantity).toBe(3);
+    expect(intraday[0].buyPrice).toBe(100);
+    expect(delivery[0].quantity).toBe(5);
+    expect(delivery[0].gainType).toBe(GAIN_TYPES.STCG);
+    expect(delivery[0].buyPrice).toBe(80);
+  });
+
+  it('next-day sell is NOT intraday even when delivery holdingDays rounds to 0', () => {
+    // Buy late evening, sell just after midnight next day
+    const buyLots = [
+      {
+        executedAt: new Date('2024-06-15T18:25:00.000Z'),
+        quantity: 10,
+        pricePerUnit: 100,
+        remainingQty: 10,
+      },
+    ];
+    const gains = match(buyLots, [
+      { executedAt: new Date('2024-06-16T00:05:00.000Z'), quantity: 10, pricePerUnit: 110 },
+    ]);
+    expect(gains[0].gainType).toBe(GAIN_TYPES.STCG);
+  });
+
+  // ── Properties ────────────────────────────────────────────────────────────
+
+  it('PROPERTY: total matched qty == total sell qty when buy supply is sufficient', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 100 }),
@@ -202,7 +356,6 @@ describe('matchFIFO', () => {
         fc.nat({ max: 500 }),
         fc.nat({ max: 500 }),
         (buyQty, sellQty, buyPrice, sellPrice) => {
-          // Ensure buy supply >= sell demand
           const actualBuyQty = Math.max(buyQty, sellQty);
           const buyLots = [
             {
@@ -219,17 +372,14 @@ describe('matchFIFO', () => {
               pricePerUnit: sellPrice + 1,
             },
           ];
-
-          const gains = matchFIFO(buyLots, sellTxns);
-          const totalMatched = gains.reduce((sum, g) => sum + g.quantity, 0);
-          expect(totalMatched).toBe(sellQty);
+          const gains = match(buyLots, sellTxns);
+          expect(gains.reduce((s, g) => s + g.quantity, 0)).toBe(sellQty);
         }
       )
     );
   });
 
-  // Property: gain = (sellPrice - buyPrice) * quantity for each record
-  it('PROPERTY: gain formula is (sellPrice - buyPrice) * quantity', () => {
+  it('PROPERTY: gain formula is (sellPrice - buyPrice) * quantity per record', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 1000 }),
@@ -244,19 +394,48 @@ describe('matchFIFO', () => {
               remainingQty: qty,
             },
           ];
-          const sellTxns = [
+          const gains = match(buyLots, [
             { executedAt: new Date('2024-06-01'), quantity: qty, pricePerUnit: sellPrice },
-          ];
-
-          const gains = matchFIFO(buyLots, sellTxns);
+          ]);
           expect(gains[0].gain).toBe((sellPrice - buyPrice) * qty);
+        }
+      )
+    );
+  });
+
+  it('PROPERTY: same-day only buy+sell always yields exclusively INTRADAY records', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 1000 }),
+        fc.integer({ min: 1, max: 10000 }),
+        fc.integer({ min: 1, max: 10000 }),
+        fc.integer({ min: 0, max: 22 }),
+        (qty, buyPrice, sellPrice, buyHour) => {
+          const date = '2024-06-15';
+          const sellHour = buyHour + 1; // sell always after buy, still same day
+          const buyLots = [
+            {
+              executedAt: new Date(`${date}T${String(buyHour).padStart(2, '0')}:00:00.000Z`),
+              quantity: qty,
+              pricePerUnit: buyPrice,
+              remainingQty: qty,
+            },
+          ];
+          const gains = match(buyLots, [
+            {
+              executedAt: new Date(`${date}T${String(sellHour).padStart(2, '0')}:00:00.000Z`),
+              quantity: qty,
+              pricePerUnit: sellPrice,
+            },
+          ]);
+          expect(gains.every((g) => g.gainType === GAIN_TYPES.INTRADAY)).toBe(true);
         }
       )
     );
   });
 });
 
-// ── computeEstimatedTax ──────────────────────────────────────────────────────
+// ── computeEstimatedTax ───────────────────────────────────────────────────────
 
 describe('computeEstimatedTax', () => {
   it('returns zero tax for negative STCG and negative LTCG', () => {
@@ -273,46 +452,42 @@ describe('computeEstimatedTax', () => {
     expect(result.estimatedTax).toBe(2000);
   });
 
-  it('applies ₹1,25,000 exemption on LTCG', () => {
+  it('applies ₹1,25,000 exemption on LTCG — no tax below threshold', () => {
     const result = computeEstimatedTax(0, 100000);
-    expect(result.ltcgTax).toBe(0); // Below exemption
+    expect(result.ltcgTax).toBe(0);
     expect(result.estimatedTax).toBe(0);
   });
 
-  it('applies ₹1,25,000 exemption — tax only on excess', () => {
+  it('applies ₹1,25,000 exemption — tax only on the excess', () => {
     const result = computeEstimatedTax(0, 225000);
-    // (225000 - 125000) * 0.125 = 100000 * 0.125 = 12500
+    // (225000 - 125000) * 0.125 = 12500
     expect(result.ltcgTax).toBe(12500);
     expect(result.estimatedTax).toBe(12500);
   });
 
-  it('computes combined tax for both positive STCG and LTCG', () => {
+  it('computes combined STCG + LTCG tax correctly', () => {
     const result = computeEstimatedTax(50000, 200000);
-    // STCG: 50000 * 0.2 = 10000
-    // LTCG: (200000 - 125000) * 0.125 = 75000 * 0.125 = 9375
+    // STCG: 50000 * 0.20 = 10000
+    // LTCG: (200000 - 125000) * 0.125 = 9375
     expect(result.stcgTax).toBe(10000);
     expect(result.ltcgTax).toBe(9375);
     expect(result.estimatedTax).toBe(19375);
   });
 
   it('zero STCG produces zero stcgTax', () => {
-    const result = computeEstimatedTax(0, 200000);
-    expect(result.stcgTax).toBe(0);
+    expect(computeEstimatedTax(0, 200000).stcgTax).toBe(0);
   });
 
   it('LTCG exactly at exemption limit produces zero ltcgTax', () => {
-    const result = computeEstimatedTax(0, 125000);
-    expect(result.ltcgTax).toBe(0);
+    expect(computeEstimatedTax(0, 125000).ltcgTax).toBe(0);
   });
 
-  // Property: estimatedTax is always >= 0
   it('PROPERTY: estimated tax is never negative', () => {
     fc.assert(
       fc.property(
         fc.double({ min: -1e6, max: 1e6 }),
         fc.double({ min: -1e6, max: 1e6 }),
         (stcg, ltcg) => {
-          // Filter out NaN/Infinity
           fc.pre(isFinite(stcg) && isFinite(ltcg));
           const { estimatedTax } = computeEstimatedTax(stcg, ltcg);
           expect(estimatedTax).toBeGreaterThanOrEqual(0);
@@ -321,7 +496,6 @@ describe('computeEstimatedTax', () => {
     );
   });
 
-  // Property: stcgTax + ltcgTax === estimatedTax
   it('PROPERTY: estimatedTax === stcgTax + ltcgTax', () => {
     fc.assert(
       fc.property(
@@ -336,7 +510,6 @@ describe('computeEstimatedTax', () => {
     );
   });
 
-  // Property: monotonicity — more STCG/LTCG → same or more tax
   it('PROPERTY: tax is monotonically non-decreasing with increasing gains', () => {
     fc.assert(
       fc.property(
@@ -347,7 +520,7 @@ describe('computeEstimatedTax', () => {
           fc.pre(isFinite(stcg) && isFinite(ltcg) && isFinite(delta));
           const { estimatedTax: tax1 } = computeEstimatedTax(stcg, ltcg);
           const { estimatedTax: tax2 } = computeEstimatedTax(stcg + delta, ltcg + delta);
-          expect(tax2).toBeGreaterThanOrEqual(tax1 - 0.001); // floating point tolerance
+          expect(tax2).toBeGreaterThanOrEqual(tax1 - 0.001);
         }
       )
     );

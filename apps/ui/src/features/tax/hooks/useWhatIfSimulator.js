@@ -1,15 +1,22 @@
 import { useState, useMemo } from 'react';
-import { computeTax } from '../utils/taxCalculations';
+import { computeTax, computeIntradayTax } from '../utils/taxCalculations';
 
 /**
  * What-If Simulator hook.
  * Manages selected opportunity IDs and computes combined tax impact.
  *
+ * Loss set-off rules (Indian tax law):
+ *  - STCG losses offset STCG gains only
+ *  - LTCG losses offset LTCG gains only
+ *  - Intraday losses can only offset other speculative (intraday) gains —
+ *    they CANNOT be set off against STCG or LTCG
+ *
  * @param {object|null} summary - Tax summary from useGetTaxSummaryQuery
  * @param {Array} opportunities - Harvesting opportunities array
+ * @param {number} slabRate - User's income slab rate for intraday tax (e.g. 0.30)
  * @returns {object} Simulator state and computed values
  */
-export function useWhatIfSimulator(summary, opportunities) {
+export function useWhatIfSimulator(summary, opportunities, slabRate = 0.3) {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const toggleSelection = (assetId) => {
@@ -32,23 +39,34 @@ export function useWhatIfSimulator(summary, opportunities) {
     const currentFYGain = summary?.netRealizedGain ?? 0;
     const postHarvestGain = currentFYGain - selectedLossesTotal;
 
-    // Tax before: compute from current realized gains
     const totalSTCG = summary?.totalSTCG ?? 0;
     const totalLTCG = summary?.totalLTCG ?? 0;
-    const taxBefore = computeTax(totalSTCG, totalLTCG);
+    const totalIntraday = summary?.totalIntraday ?? 0;
 
-    // Tax after: subtract selected STCG losses from STCG gains, LTCG losses from LTCG gains
+    // Tax before harvesting
+    const taxBefore =
+      computeTax(totalSTCG, totalLTCG) + computeIntradayTax(totalIntraday, slabRate);
+
+    // Separate selected losses by type.
+    // Intraday losses ONLY offset intraday gains (Section 43(5) — speculative
+    // losses cannot be set off against capital gains).
     const stcgLossSelected = selectedOpportunities
       .filter((o) => o.lossType === 'STCG')
       .reduce((sum, o) => sum + o.unrealizedLoss, 0);
+
     const ltcgLossSelected = selectedOpportunities
       .filter((o) => o.lossType === 'LTCG')
       .reduce((sum, o) => sum + o.unrealizedLoss, 0);
 
-    const taxAfter = computeTax(
-      Math.max(0, totalSTCG - stcgLossSelected),
-      Math.max(0, totalLTCG - ltcgLossSelected)
-    );
+    // Intraday losses are not eligible for harvesting against CG — excluded here.
+    // (Harvesting opportunities are delivery-based positions held overnight;
+    // they are classified as STCG or LTCG, never INTRADAY.)
+
+    const taxAfter =
+      computeTax(
+        Math.max(0, totalSTCG - stcgLossSelected),
+        Math.max(0, totalLTCG - ltcgLossSelected)
+      ) + computeIntradayTax(totalIntraday, slabRate);
 
     const netSavings = taxBefore - taxAfter;
 
@@ -60,7 +78,7 @@ export function useWhatIfSimulator(summary, opportunities) {
       taxAfter,
       netSavings,
     };
-  }, [selectedIds, summary, opportunities]);
+  }, [selectedIds, summary, opportunities, slabRate]);
 
   return {
     selectedIds,

@@ -5,12 +5,14 @@ import { Spinner } from '@/shared/ui/spinner';
 import { useGetTaxSummaryQuery, useGetTaxHarvestingQuery } from '../api/taxApi';
 import { useTaxYear } from '../hooks/useTaxYear';
 import { useThreshold } from '../hooks/useThreshold';
+import { useSlabRate } from '../hooks/useSlabRate';
 import { useWhatIfSimulator } from '../hooks/useWhatIfSimulator';
 import { TaxYearSelector } from '../components/TaxYearSelector';
 import { HarvestingMetrics } from '../components/HarvestingMetrics';
 import { GainsVsLossesChart } from '../components/GainsVsLossesChart';
 import { SectorHeatmap } from '../components/SectorHeatmap';
 import { ThresholdConfig } from '../components/ThresholdConfig';
+import { SlabRateConfig } from '../components/SlabRateConfig';
 import { EnhancedOpportunitiesTable } from '../components/EnhancedOpportunitiesTable';
 import { WhatIfPanel } from '../components/WhatIfPanel';
 import { getCurrentFY, formatFYLabel } from '../utils/taxFormatters';
@@ -18,6 +20,7 @@ import { getCurrentFY, formatFYLabel } from '../utils/taxFormatters';
 const TaxHarvestingContent = () => {
   const { taxYear, setTaxYear } = useTaxYear();
   const { threshold } = useThreshold();
+  const { slabRate } = useSlabRate();
   const isCurrentFY = taxYear === getCurrentFY();
 
   const { data: summary } = useGetTaxSummaryQuery({ taxYear });
@@ -40,7 +43,7 @@ const TaxHarvestingContent = () => {
     taxBefore,
     taxAfter,
     netSavings,
-  } = useWhatIfSimulator(summary, opportunities);
+  } = useWhatIfSimulator(summary, opportunities, slabRate);
 
   return (
     <>
@@ -49,6 +52,7 @@ const TaxHarvestingContent = () => {
         actions={
           <div className="flex items-center gap-2">
             {isCurrentFY && <ThresholdConfig />}
+            <SlabRateConfig />
             <TaxYearSelector taxYear={taxYear} setTaxYear={setTaxYear} />
           </div>
         }

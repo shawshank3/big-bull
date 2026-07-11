@@ -28,6 +28,7 @@ export const GainsFilters = ({ assetType, setAssetType, gainType, setGainType })
           <SelectItem value="ALL">All Gains</SelectItem>
           <SelectItem value="STCG">STCG</SelectItem>
           <SelectItem value="LTCG">LTCG</SelectItem>
+          <SelectItem value="INTRADAY">Intraday</SelectItem>
         </SelectContent>
       </Select>
     </div>
