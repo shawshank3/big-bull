@@ -106,6 +106,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ─── TEMPORARY: one-shot Redis flush ─────────────────────────────────────────
+// Used to clear accumulated BullMQ job records that caused Redis OOM.
+// REMOVE THIS ROUTE after hitting it once on production.
+app.post('/api/admin/flush-redis', async (req, res) => {
+  try {
+    const redis = require('./shared/redis');
+    await redis.flushall();
+    res.json({ ok: true, message: 'Redis flushed successfully' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 // API Routes
 // v1 API — rate limited
 app.use('/api/v1', generalLimiter);
