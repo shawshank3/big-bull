@@ -14,6 +14,7 @@ import { Button } from '@/shared/ui/button';
 import { MutedText } from '@/shared/ui/typography';
 import { DataTable } from '@/shared/ui/data-table';
 import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market';
+import { ASSET_TYPES, ASSET_TYPE_BADGE_LABELS } from '@/shared/constants/assetTypes';
 import { computeLossPercent } from '../utils/taxCalculations';
 
 /**
@@ -108,7 +109,7 @@ const buildColumns = ({
     header: 'Type',
     cell: ({ getValue }) => (
       <span className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold border border-primary/30">
-        {getValue() === 'MUTUAL_FUND' ? 'MF' : 'Stock'}
+        {ASSET_TYPE_BADGE_LABELS[getValue()]}
       </span>
     ),
     enableSorting: true,

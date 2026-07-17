@@ -7,9 +7,14 @@ import { Spinner } from '@/shared/ui/spinner';
 import { Alert } from '@/shared/ui/alert';
 import { ServerDataTable } from '@/shared/ui/server-data-table';
 import { humanize } from '@/shared/utils/format';
-import { ASSET_TYPES } from '@/shared/constants/assetTypes';
+import { ASSET_TYPES, ASSET_TYPE_BADGE_LABELS } from '@/shared/constants/assetTypes';
 import { useInfiniteAssets } from '../hooks/useInfiniteAssets';
-import { buildStockDetailPath, buildMutualDetailPath, MARKET_LIST_TABS } from '../constants/market';
+import {
+  buildStockDetailPath,
+  buildMutualDetailPath,
+  MARKET_LIST_TABS,
+  MARKET_ASSET_BADGE_LABELS,
+} from '../constants/market';
 import { AssetTypeTabBar } from './AssetTypeTabBar';
 import { AssetPriceCell } from './AssetPriceCell';
 
@@ -31,7 +36,7 @@ const columns = [
     header: 'Type',
     cell: ({ row }) => (
       <Badge variant={row.original.assetType === ASSET_TYPES.STOCK ? 'warning' : 'info'}>
-        {row.original.assetType === ASSET_TYPES.STOCK ? 'NSE' : 'MF'}
+        {ASSET_TYPE_BADGE_LABELS[row.original.assetType]}
       </Badge>
     ),
     enableSorting: false,

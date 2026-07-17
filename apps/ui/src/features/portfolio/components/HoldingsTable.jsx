@@ -5,6 +5,7 @@ import { MutedText, StatValue } from '@/shared/ui/typography';
 import { DataTable } from '@/shared/ui/data-table';
 import { formatCurrency, getHoldingReturn } from '@/shared/utils';
 import { buildStockDetailPath, buildMutualDetailPath } from '@/features/market';
+import { HOLDING_TYPES, HOLDING_TYPE_BADGE_LABELS } from '../constants/holdings';
 
 const columns = [
   {
@@ -17,8 +18,8 @@ const columns = [
     accessorKey: 'type',
     header: 'Type',
     cell: ({ getValue }) => (
-      <Badge variant={getValue() === 'mutual' ? 'info' : 'warning'}>
-        {getValue() === 'mutual' ? 'MF' : 'STK'}
+      <Badge variant={getValue() === HOLDING_TYPES.MUTUAL ? 'info' : 'warning'}>
+        {HOLDING_TYPE_BADGE_LABELS[getValue()]}
       </Badge>
     ),
     enableSorting: false,
@@ -27,7 +28,7 @@ const columns = [
     accessorKey: 'qty',
     header: 'Qty / Units',
     cell: ({ row }) => {
-      const isMF = row.original.type === 'mutual';
+      const isMF = row.original.type === HOLDING_TYPES.MUTUAL;
       return (
         <span>
           {row.original.qty}
@@ -87,7 +88,7 @@ export const HoldingsTable = ({ holdings }) => {
   const tableColumns = useMemo(() => columns, []);
 
   const getDetailPath = (holding) => {
-    if (holding.type === 'mutual') {
+    if (holding.type === HOLDING_TYPES.MUTUAL) {
       return buildMutualDetailPath(holding.ticker);
     }
     return buildStockDetailPath(holding.ticker);

@@ -14,7 +14,7 @@ export const HOLDING_TYPE_LABELS = Object.freeze({
 });
 
 export const HOLDING_TYPE_BADGE_LABELS = Object.freeze({
-  [HOLDING_TYPES.STOCK]: 'STK',
+  [HOLDING_TYPES.STOCK]: 'STOCK',
   [HOLDING_TYPES.MUTUAL]: 'MF',
 });
 

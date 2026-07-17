@@ -12,6 +12,12 @@ export const ASSET_TYPE_LABELS = {
   [ASSET_TYPES.MUTUAL_FUND]: 'Mutual Fund',
 };
 
+// Badge labels for asset types — single source of truth for all badge displays
+export const ASSET_TYPE_BADGE_LABELS = {
+  [ASSET_TYPES.STOCK]: 'STOCK',
+  [ASSET_TYPES.MUTUAL_FUND]: 'MF',
+};
+
 // Price field labels for different asset types
 export const PRICE_LABELS = {
   [ASSET_TYPES.STOCK]: 'Price',
