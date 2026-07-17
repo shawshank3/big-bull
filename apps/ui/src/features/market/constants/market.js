@@ -9,7 +9,7 @@ export const MARKET_ASSET_LABELS = Object.freeze({
 });
 
 export const MARKET_ASSET_BADGE_LABELS = Object.freeze({
-  stock: 'STK',
+  stock: 'STOCK',
   mutual: 'MF',
 });
 
@@ -30,7 +30,7 @@ export const MARKET_LIST_TABS = Object.freeze([
 ]);
 
 /** Default page size for the market assets list. */
-export const MARKET_LIST_PAGE_SIZE = 10;
+export const MARKET_LIST_PAGE_SIZE = 20;
 
 /** Top N gainers/losers shown in the TopMovers section. */
 export const MARKET_MOVERS_LIMIT = 4;

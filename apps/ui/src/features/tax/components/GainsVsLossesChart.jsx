@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/card';
 import { formatCurrency } from '@/shared/utils';
+import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { buildGainsVsLossesData } from '../utils/chartHelpers';
 
 const CustomTooltip = ({ active, payload }) => {
@@ -44,6 +45,7 @@ export const GainsVsLossesChart = ({
   opportunities = [],
   intradayOpportunities = [],
 }) => {
+  const isMobile = useMediaQuery('(max-width: 639px)');
   const chartData = buildGainsVsLossesData(summary, opportunities, intradayOpportunities);
 
   return (
@@ -58,11 +60,13 @@ export const GainsVsLossesChart = ({
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 11, fill: 'var(--muted)', fontFamily: 'inherit' }}
+                tick={
+                  isMobile ? false : { fontSize: 11, fill: 'var(--muted)', fontFamily: 'inherit' }
+                }
                 axisLine={false}
                 tickLine={false}
                 interval={0}
-                height={36}
+                height={isMobile ? 0 : 36}
                 // Wrap long labels by truncating — keeps mobile clean
                 tickFormatter={(v) => (v.length > 12 ? v.slice(0, 11) + '…' : v)}
               />
