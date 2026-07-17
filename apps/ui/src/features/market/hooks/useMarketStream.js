@@ -29,6 +29,7 @@ import { apiSlice } from '@/shared/api/apiSlice';
 import { API_URLS } from '@/shared/constants/apiUrls';
 import { selectIsAuthenticated } from '@/features/auth';
 import { STCG_RATE, LTCG_RATE } from '@/features/tax';
+import { ASSET_TYPES } from '@/shared/constants/assetTypes';
 
 export const useMarketStream = () => {
   const dispatch = useDispatch();
@@ -93,7 +94,11 @@ export const useMarketStream = () => {
         })
       );
 
-      for (const queryArg of [undefined, { type: 'STOCK' }, { type: 'MUTUAL_FUND' }]) {
+      for (const queryArg of [
+        undefined,
+        { type: ASSET_TYPES.STOCK },
+        { type: ASSET_TYPES.MUTUAL_FUND },
+      ]) {
         dispatch(
           apiSlice.util.updateQueryData('getAssets', queryArg, (draft) => {
             const asset = draft.find((a) => a.ticker === ticker);

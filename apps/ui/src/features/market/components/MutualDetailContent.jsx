@@ -7,6 +7,7 @@ import { Spinner } from '@/shared/ui/spinner';
 import { formatCurrency } from '@/shared/utils';
 import { useGetMutualQuoteQuery, useGetAssetByTickerQuery } from '../api/marketApi';
 import { MARKET_ASSET_LABELS } from '../constants/market';
+import { ASSET_TYPES } from '@/shared/constants/assetTypes';
 import { OrderForm } from './OrderForm';
 import { PriceChart } from './PriceChart';
 import { AssetTransactionsTable } from '@/features/transaction';
@@ -88,7 +89,7 @@ export const MutualDetailContent = () => {
           {schemeCode && (
             <PriceChart
               ticker={schemeCode}
-              assetType="MUTUAL_FUND"
+              assetType={ASSET_TYPES.MUTUAL_FUND}
               currentPrice={quote?.price ?? asset?.basePrice}
               header={chartHeader}
             />
@@ -126,7 +127,10 @@ export const MutualDetailContent = () => {
 
       {/* ── Transactions table (full width, auth-gated) ── */}
       {isAuthenticated && asset && (
-        <AssetTransactionsTable assetId={asset.id ?? asset._id} assetType="MUTUAL_FUND" />
+        <AssetTransactionsTable
+          assetId={asset.id ?? asset._id}
+          assetType={ASSET_TYPES.MUTUAL_FUND}
+        />
       )}
     </div>
   );

@@ -22,6 +22,7 @@ import {
   toTickerDTO,
   toChartDTO,
 } from '../dto/market.dto';
+import { MARKET_MOVERS_LIMIT } from '../constants/market';
 
 export const marketApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -118,7 +119,7 @@ export const marketApi = apiSlice.injectEndpoints({
      * Returns top N gainers and losers sorted by 1D changePercent.
      */
     getMarketMovers: builder.query({
-      query: ({ limit = 4 } = {}) => `/api/v1/market/movers?limit=${limit}`,
+      query: ({ limit = MARKET_MOVERS_LIMIT } = {}) => `/api/v1/market/movers?limit=${limit}`,
       transformResponse: (res) => ({
         gainers: toAssetListDTO(res?.data?.gainers ?? []),
         losers: toAssetListDTO(res?.data?.losers ?? []),

@@ -25,7 +25,7 @@ const redis = require('../../shared/redis');
 const Asset = require('../asset/asset.model');
 const MarketState = require('./marketState.model');
 const DailyPrice = require('./dailyPrice.model');
-const { ASSET_TYPES, PRICE_LABELS } = require('../../shared/constants');
+const { ASSET_TYPES, PRICE_LABELS, PAGINATION } = require('../../shared/constants');
 const { todayIST } = require('../../utils/priceSimulation');
 
 /**
@@ -175,7 +175,7 @@ const searchAssets = async (query) => {
   const assets = await Asset.find({
     $or: [{ ticker: regex }, { name: regex }],
   })
-    .limit(20)
+    .limit(PAGINATION.DEFAULT_LIMIT)
     .lean();
 
   const enriched = await Promise.all(
@@ -185,8 +185,8 @@ const searchAssets = async (query) => {
     })
   );
 
-  const stocks = enriched.filter((a) => a.type === 'stock');
-  const mutuals = enriched.filter((a) => a.type === 'mutual');
+  const stocks = enriched.filter((a) => a.type === SEARCH_TYPE.STOCK);
+  const mutuals = enriched.filter((a) => a.type === SEARCH_TYPE.MUTUAL);
   const result = { query, stocks, mutuals, results: enriched };
 
   try {
@@ -328,10 +328,16 @@ const getTicker = async () => {
   return quotes;
 };
 
+// Search result type labels — lowercase strings matching the frontend DTO shape.
+const SEARCH_TYPE = Object.freeze({
+  STOCK: 'stock',
+  MUTUAL: 'mutual',
+});
+
 // ─── Internal helper ──────────────────────────────────────────────────────────
 
 const formatAssetResult = (asset, livePrice) => ({
-  type: asset.assetType === ASSET_TYPES.STOCK ? 'stock' : 'mutual',
+  type: asset.assetType === ASSET_TYPES.STOCK ? SEARCH_TYPE.STOCK : SEARCH_TYPE.MUTUAL,
   id: asset.ticker,
   assetId: asset._id,
   ticker: asset.ticker,
@@ -351,7 +357,5 @@ module.exports = {
   getTicker,
   resolvePrice,
   resolveAssetPrice,
-  resolveStockPrice,
-  resolveMfPrice,
   computeMfDayDelta,
 };

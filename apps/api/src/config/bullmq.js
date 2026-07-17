@@ -30,7 +30,5 @@ const makeQueue = (name) => {
 };
 
 const msePriceTickQueue = makeQueue('mse-price-tick');
-const netWorthSnapshotQueue = makeQueue('net-worth-snapshot');
-const goalStatusSyncQueue = makeQueue('goal-status-sync');
 
-module.exports = { msePriceTickQueue, netWorthSnapshotQueue, goalStatusSyncQueue };
+module.exports = { msePriceTickQueue };

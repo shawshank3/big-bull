@@ -1,4 +1,6 @@
 import { str, num, bool, arr } from '@/shared/dto/helpers';
+import { ASSET_TYPES } from '@/shared/constants/assetTypes';
+import { MARKET_ASSET_TYPES } from '../constants/market';
 
 export function toChartDTO(raw) {
   const baseline =
@@ -50,11 +52,14 @@ export function toSearchResultDTO(raw) {
   const src = raw ?? {};
   return {
     query: str(src.query),
-    stocks: arr(src.stocks).map(toSearchItemDTO.bind(null, 'stock')),
-    mutuals: arr(src.mutuals).map(toSearchItemDTO.bind(null, 'mutual')),
+    stocks: arr(src.stocks).map(toSearchItemDTO.bind(null, MARKET_ASSET_TYPES.STOCK)),
+    mutuals: arr(src.mutuals).map(toSearchItemDTO.bind(null, MARKET_ASSET_TYPES.MUTUAL)),
     results: arr(src.results).map((item) => {
       const assetType = str(item?.assetType);
-      const type = assetType === 'MUTUAL_FUND' ? 'mutual' : 'stock';
+      const type =
+        assetType === ASSET_TYPES.MUTUAL_FUND
+          ? MARKET_ASSET_TYPES.MUTUAL
+          : MARKET_ASSET_TYPES.STOCK;
       return toSearchItemDTO(type, item);
     }),
   };
@@ -69,9 +74,9 @@ function toSearchItemDTO(type, raw) {
     type,
     name: str(raw?.name),
     // stocks use ticker as the NSE symbol
-    symbol: type === 'stock' ? ticker : '',
+    symbol: type === MARKET_ASSET_TYPES.STOCK ? ticker : '',
     // mutuals use ticker as the scheme code
-    schemeCode: type === 'mutual' ? ticker : '',
+    schemeCode: type === MARKET_ASSET_TYPES.MUTUAL ? ticker : '',
     region: raw?.exchange == null ? null : str(raw.exchange),
     assetType: str(raw?.assetType),
   };

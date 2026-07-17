@@ -22,6 +22,7 @@ const STRING_LIMITS = {
   DESCRIPTION: { MIN: 10, MAX: 1000 },
   COMMENT: { MIN: 1, MAX: 500 },
   TITLE: { MIN: 3, MAX: 200 },
+  SEARCH_QUERY: { MIN: 2, MAX: 100 },
 };
 
 // Numeric Limits
